@@ -2,10 +2,10 @@
 name: code-reviewer
 description: |
   Adversarial code review against specs, design, and engineering principles.
-  Use for the standard TDD loop review after implementation. For critical features
-  that need deeper review, use judgment-day (judge-a + judge-b) instead.
+  Use for the standard TDD loop review after implementation. When the user explicitly
+  asks for a deeper adversarial review, the orchestrator uses judgment-day (judge-a + judge-b) instead.
   Read-only — reports findings, never modifies code.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Grep
@@ -52,10 +52,21 @@ You may run allow-listed test, lint, format-check, typecheck, compile, build, an
 1. **Correctness** — does the implementation fulfill every spec scenario?
 2. **Coverage** — do tests exercise the edge cases from the spec?
 3. **Patterns** — does the code follow existing codebase conventions?
-4. **Principles** — SOLID, KISS, DRY, YAGNI, Clean Code violations?
-5. **Security** — unvalidated inputs, exposed secrets, injection risks?
+4. **Quality standards** — the owner standards in the global harness (`configs/CLAUDE.md` section 3): SOLID, KISS, YAGNI, DRY, clean/extensible/maintainable/semantically correct, simple yet powerful, no comments that narrate code, tests that genuinely serve their function.
+5. **Security and efficiency (when relevant)** — unvalidated inputs, exposed secrets, injection risks, hot-path costs; only where the code handles untrusted input, secrets, money, permissions, or a hot path.
 6. **Performance** — N+1 queries, unnecessary loops, blocking calls?
 7. **Maintainability** — readable? duplicated logic? appropriate abstraction level?
+
+## PR mode
+
+Used when the delegation includes a base branch. The PR branch is already checked out.
+
+- Scope is ONLY the lines the PR changed: `git diff <base>...HEAD`, `git log <base>..HEAD`, `git show` (all read-only).
+- If a PR description is provided, use it as intent and context to look for edge cases the change must handle. If none is provided, review code quality only.
+- Pre-existing problems outside the diff are out of scope, EXCEPT when the change makes them a real bug or the change depends on them; then report them and say why.
+- Every finding cites a changed `file:line`.
+- Apply the review lenses and severity ranking below. Never modify anything.
+- If the diff cannot be obtained (branch or base missing), return `status: blocked` with the exact command that failed.
 
 ## Report format
 

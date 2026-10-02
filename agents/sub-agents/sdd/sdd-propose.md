@@ -3,7 +3,7 @@ name: sdd-propose
 description: |
    Create a change proposal with intent, scope, and approach. Use first to create
    the change directory before sdd-explore persists exploration artifacts.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Write

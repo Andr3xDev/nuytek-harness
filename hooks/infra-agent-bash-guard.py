@@ -1,30 +1,21 @@
 #!/usr/bin/env python3
-"""PreToolUse guard for read-only infrastructure subagents and debugger edits.
+"""PreToolUse guard for read-only/restricted subagents' Bash calls.
 
-The Bash guard mirrors the allow-lists already defined in
-~/.config/opencode/opencode.json for restricted agents. Runs only against
-tool_name == "Bash".
+Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched -- this hook must never affect agents outside
-this list.
-
-The Edit guard is a separate, narrower rule: a PreToolUse hook only sees
-tool_name and agent_type, never the AUTH (diagnose-only vs apply-fix) that
-the orchestrator put in the debugger's delegation prompt -- that text is
-invisible to the hook. Since the hook cannot tell which AUTH a given
-Edit call was made under, it cannot conditionally block only the
-diagnose-only case. Instead every Edit from the debugger agent requires
-human confirmation ("ask"), regardless of AUTH -- this is a floor, not a
-replacement for prompt discipline: apply-fix delegations still work (the
-user just confirms), and diagnose-only delegations can no longer edit
-production code silently.
+RULES.
 """
 import fnmatch
 import json
 import sys
 
-GIT_DENY = ["git commit*", "git push*"]
-GIT_ASK = ["git reset --hard*"]
+GIT_DENY = [
+    "git commit*", "git push*", "git add*", "git rm*", "git mv*", "git restore --staged*",
+]
+GIT_ASK = [
+    "git reset --hard*", "git clean -f*", "git checkout -- *", "git restore *", "git stash*",
+]
 GIT_ALLOW = [
     "git status*",
     "git log*",
@@ -126,21 +117,6 @@ RULES = {
             "aws ec2 describe-*",
         ] + GIT_ALLOW,
     },
-    "log-reader": {
-        "deny": GIT_DENY,
-        "ask": GIT_ASK,
-        "allow": [
-            "rg *",
-            "wc *",
-            "du *",
-            "ls *",
-            "zcat *",
-            "gzip -cd *",
-            "journalctl *",
-            "docker logs *",
-            "kubectl logs *",
-        ] + GIT_ALLOW,
-    },
     "codegraph-maintainer": {
         "deny": GIT_DENY,
         "ask": GIT_ASK + [
@@ -181,6 +157,24 @@ RULES = {
         "ask": GIT_ASK,
         "allow": VALIDATION_ALLOW + GIT_ALLOW,
     },
+    "debugger": {
+        "deny": GIT_DENY,
+        "ask": GIT_ASK,
+        "allow": VALIDATION_ALLOW + GIT_ALLOW + [
+            "rg *",
+            "wc *",
+            "du *",
+            "ls *",
+            "cat *",
+            "head *",
+            "tail *",
+            "zcat *",
+            "gzip -cd *",
+            "journalctl *",
+            "docker logs *",
+            "kubectl logs *",
+        ],
+    },
     "echor-onboarder": {
         "deny": GIT_DENY,
         "ask": GIT_ASK,
@@ -203,27 +197,12 @@ RULES["judge-b"] = RULES["code-reviewer"]
 RULES["echor-updater"] = RULES["echor-onboarder"]
 
 
-EDIT_ASK_AGENTS = {"debugger"}
-
-
 def matches_any(command: str, patterns) -> bool:
     return any(fnmatch.fnmatchcase(command, p) for p in patterns)
 
 
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
-
-
-def decide_edit(agent_type: str):
-    if agent_type not in EDIT_ASK_AGENTS:
-        return None
-    return "ask", (
-        f"infra-agent-bash-guard: '{agent_type}' agent requires human "
-        f"confirmation before any Edit. A PreToolUse hook cannot see the "
-        f"AUTH (diagnose-only vs apply-fix) a delegation carried, so this "
-        f"is enforced for every Edit regardless of AUTH -- confirm only "
-        f"if this edit was actually authorized."
-    )
 
 
 def decide(agent_type: str, command: str):
@@ -243,7 +222,7 @@ def decide(agent_type: str, command: str):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
-            f"(git commit/push)."
+            f"(git commit, push, staging commands)."
         )
     if matches_any(command, rules["ask"]):
         return "ask", (
@@ -257,8 +236,8 @@ def decide(agent_type: str, command: str):
         )
     return "deny", (
         f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
-        f"restricted to a read-only command allow-list mirroring "
-        f"opencode.json; this command is not on it."
+        f"restricted to a read-only command allow-list; "
+        f"this command is not on it."
     )
 
 
@@ -271,13 +250,10 @@ def main() -> int:
     tool_name = payload.get("tool_name")
     agent_type = payload.get("agent_type")
 
-    if tool_name == "Edit":
-        result = decide_edit(agent_type)
-    elif tool_name == "Bash":
-        command = (payload.get("tool_input") or {}).get("command", "")
-        result = decide(agent_type, command)
-    else:
+    if tool_name != "Bash":
         return 0
+    command = (payload.get("tool_input") or {}).get("command", "")
+    result = decide(agent_type, command)
 
     if result is None:
         return 0
@@ -360,6 +336,25 @@ def _selftest() -> int:
         ("echor-onboarder", "git commit -m x", "deny"),
         ("echor-updater", "ls /home/andrex/dev/echor/projects", "allow"),
         ("echor-validator", "git push origin main", "deny"),
+        ("debugger", "pytest", "allow"),
+        ("debugger", "journalctl -u app --since today", "allow"),
+        ("debugger", "docker logs api", "allow"),
+        ("debugger", "npm run build", "allow"),
+        ("debugger", "git diff", "allow"),
+        ("debugger", "tail app.log", "allow"),
+        ("debugger", "rm -rf dist", "deny"),
+        ("debugger", "sed -i s/a/b/ f", "deny"),
+        ("debugger", "tail app.log > out.txt", "deny"),
+        ("debugger", "ruff check --fix .", "deny"),
+        ("debugger", "git commit -m x", "deny"),
+        ("debugger", "git reset --hard", "ask"),
+        ("code-reviewer", "git add .", "deny"),
+        ("code-reviewer", "git rm f", "deny"),
+        ("code-reviewer", "git restore --staged f", "deny"),
+        ("code-reviewer", "git stash", "ask"),
+        ("code-reviewer", "git clean -fd", "ask"),
+        ("code-reviewer", "git checkout -- f", "ask"),
+        ("code-reviewer", "git restore f", "ask"),
     ]
     for agent_type, command, expected in cases:
         decision, _ = decide(agent_type, command)
@@ -368,21 +363,6 @@ def _selftest() -> int:
             f"expected={expected!r} got={decision!r}"
         )
         print(f"PASS: agent={agent_type!r} command={command!r} -> {decision!r}")
-
-    edit_cases = [
-        ("debugger", "ask"),
-        ("aws", None),
-        ("builder", None),
-        (None, None),
-    ]
-    for agent_type, expected in edit_cases:
-        result = decide_edit(agent_type)
-        decision = result[0] if result else None
-        assert decision == expected, (
-            f"FAIL: edit agent={agent_type!r} expected={expected!r} "
-            f"got={decision!r}"
-        )
-        print(f"PASS: edit agent={agent_type!r} -> {decision!r}")
 
     print("All self-test cases passed.")
     return 0

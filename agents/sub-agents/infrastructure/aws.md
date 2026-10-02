@@ -3,7 +3,7 @@ name: aws
 description: |
   Read-only AWS investigation for CloudWatch Logs, DynamoDB, Lambda, ECS, and EC2.
   Summarize state and evidence. Never modify cloud resources.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Bash
   - mcp__engram__mem_context

@@ -2,9 +2,10 @@
 name: judge-a
 description: |
   Adversarial code reviewer — blind judge A for judgment-day parallel review protocol.
-  Triggered by the orchestrator when a critical feature needs deep review.
+  Triggered by the orchestrator only when the user explicitly asks for judgment-day.
   Reviews for correctness, edge cases, security, performance, and project standards.
-model: claude-sonnet-5
+  Project standards = the owner quality standards in the global harness (SOLID, KISS, YAGNI, DRY, clean/extensible/maintainable, semantically correct, simple yet powerful, no narrating comments, genuine tests).
+model: claude-sonnet-5-5
 tools:
   - Read
   - Glob

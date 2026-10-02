@@ -82,7 +82,7 @@ tech-orchestrator          strategist
         ├── implementer     → strict TDD green from existing failing tests
         ├── code-reviewer   → spec/design/test conformance review (can run tests/linters/read-only git to verify claims)
         ├── judge-a/judge-b → blind dual adversarial review (judgment-day)
-        ├── debugger        → root cause + clear bounded fix (default; diagnose-only override)
+        ├── debugger        → root cause + proposed fix (investigate-only; also reads large logs)
         ├── codegraph-maintainer → CodeGraph index health
         ├── engram-maintainer → explicit memory review/curation
         └── sdd-verify → sdd-archive → PR description ready
@@ -117,14 +117,14 @@ Before any non-trivial delegation or change, orchestrators give a natural, conte
 | `tech-orchestrator` | Claude entry point for multi-step task. Decomposes, delegates, never codes. |
 | `strategist` | Business-language discussion partner — epics/goals, no code. May delegate, but only to `sdd-explore`/`sdd-propose`/`sdd-spec`/`sdd-design`; never to implementation-phase agents. |
 | `sub-agents/sdd/*` | One agent per SDD phase: explore, propose, spec, design, tasks, verify, archive. |
-| `sub-agents/tdd/builder` | Default writer when TDD value gate does not pass. |
+| `sub-agents/general/builder` | Default writer when TDD value gate does not pass. |
+| `sub-agents/general/explorer` | Read-only exploration of many or large files for the orchestrator. |
 | `sub-agents/tdd/test-writer` | Writes valuable failing tests from specs (red phase). |
 | `sub-agents/tdd/implementer` | Minimal implementation to turn tests green. |
 | `sub-agents/review/code-reviewer` | Spec/design/test conformance review. Has a scoped `Bash` tool (hook-restricted to running tests/linters and read-only git) to verify test/lint claims — still cannot modify any file. |
 | `sub-agents/review/judge-a`, `judge-b` | Blind parallel adversarial review for critical features. |
-| `sub-agents/debug/debugger` | Root cause analysis; fixes clear, bounded causes regardless of file count/category, then reports root cause, changes, validation, and residual risk. `AUTH: diagnose-only` never edits. |
+| `sub-agents/debug/debugger` | Investigate-only root cause analysis, including large log reading; reports root cause, evidence, proposed fix, validation plan, and residual risk. Never edits; the fix goes to builder after user approval. |
 | `sub-agents/infrastructure/aws` | Read-only AWS investigation. |
-| `sub-agents/infrastructure/log-reader` | Read-only large log synthesis. |
 | `sub-agents/infrastructure/codegraph-maintainer` | Checks CodeGraph index status; init/sync/index only when explicit. |
 | `sub-agents/infrastructure/engram-maintainer` | Reviews Engram memory; delete, purge, and export require native confirmation. |
 

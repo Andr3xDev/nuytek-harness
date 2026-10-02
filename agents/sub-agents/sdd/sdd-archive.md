@@ -4,7 +4,7 @@ description: |
   Archive a completed and verified change. Use when verification has passed and
   the change needs to be closed. Moves change folder to archive, persists final
   state, and prepares the PR description with full context.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Write
@@ -35,7 +35,7 @@ Use registered central store `specter` from any working directory. Never `cd` or
 
 - Never archive without a passing verification report
 - Never delete source artifacts — move to archive, don't destroy
-- Never run `git commit` or `git push`; non-destructive Git commands are allowed
+- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
 
 # Instructions
 

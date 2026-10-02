@@ -10,8 +10,6 @@ metadata:
 ## Activation Contract
 
 Use when the user explicitly asks for judgment day, dual review, or adversarial review.
-Also triggered by the orchestrator for critical features that need deeper review than
-the standard code-reviewer provides.
 
 ## Hard Rules
 

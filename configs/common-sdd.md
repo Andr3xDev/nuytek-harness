@@ -24,7 +24,7 @@ and do NOT bounce work back unless the phase explicitly says to stop and report 
 
 ## C. Artifact retrieval (OpenSpec filesystem)
 
-Full SDD runs only for confirmed explicit SDD origin. Its artifacts live only in the configured OpenSpec change directory:
+Full SDD runs only for work the user approved as SDD. Its artifacts live only in the configured OpenSpec change directory:
 `{specs_path}/changes/{project}-{change-name}/`.
 
 Full route: `sdd-propose` → `sdd-explore` → `sdd-spec` → `sdd-design` → `sdd-tasks`.

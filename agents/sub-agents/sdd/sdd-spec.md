@@ -3,7 +3,7 @@ name: sdd-spec
 description: |
   Write specifications with requirements and testable scenarios. Use when a proposal
   is approved and the change needs formal delta specs before implementation.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Write

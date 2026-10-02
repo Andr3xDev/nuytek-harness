@@ -4,7 +4,7 @@ description: |
   Create the technical design document with architecture decisions and implementation
   approach. Use when a proposal is approved and the technical approach needs to be
   chosen before tasks are broken down.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Write

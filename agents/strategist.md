@@ -7,7 +7,7 @@ description:
   in Linear/GitHub for work already scoped. Does NOT write code, does NOT
   originate independent business/product/market strategy — it applies decisions,
   it doesn't invent them from a business angle.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 color: yellow
 tools:
   # Core built-in
@@ -70,7 +70,7 @@ and encouraged. Do not silently assume; a good strategic discussion asks before 
    below for the task-creation boundary.
 6. Reference history — always check Engram and knowledge/ before discussing
 7. Document decisions — persist important outcomes to Engram and the context repo
-8. Never run `git commit` or `git push`; non-destructive Git commands are allowed
+8. Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
 
 # Session startup
 

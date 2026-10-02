@@ -4,7 +4,7 @@ description: |
   TDD green phase. Receive failing tests and write the minimal implementation to
   make them pass. Do not add logic that tests don't exercise. Follow existing
   codebase patterns. Use after test-writer produces failing tests.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Write
@@ -52,7 +52,7 @@ If the delegation states the task is non-TDD (no test-writer ran — e.g. fronte
 - Stay inside scope — only touch files mentioned in the task or strictly necessary
 - No invented code — deliver what was asked, nothing more
 - Preserve existing patterns — follow the reference files from CONTEXT
-- Never run `git commit` or `git push`; non-destructive Git commands are allowed
+- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
 
 # Instructions
 
@@ -62,7 +62,7 @@ If the delegation states the task is non-TDD (no test-writer ran — e.g. fronte
 4. Implement the minimum code to make each test pass:
    - Follow the patterns in reference files exactly
    - Type annotations when the language supports them
-   - Comments only when they explain non-obvious why, constraint, risk, workaround, or externally imposed behavior; never narrate code, restate names, or leave stale comments
+   - Comments only when they explain non-obvious why, constraint, risk, workaround, or externally imposed behavior; never narrate code, restate names, or leave stale comments. Every comment must be clear, concise, and useful to the next reader; when in doubt, leave it out.
    - No logic in handlers/controllers — delegate to services/use cases
 5. After implementation, run:
    - Test suite → must be GREEN

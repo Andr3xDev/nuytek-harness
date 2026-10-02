@@ -5,7 +5,7 @@ description: |
    think through a feature, investigate the codebase, understand current architecture,
    compare approaches, or clarify requirements after sdd-propose creates the change.
   Also use for mapping repos, understanding service relationships, and onboarding new codebases.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Read
   - Grep

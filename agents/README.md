@@ -6,11 +6,13 @@
 
 ## What is this directory
 
-This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `implementer`, `test-writer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `log-reader`, `codegraph-maintainer`, `engram-maintainer`), and the vault agents under `sub-agents/echor/` (`echor-onboarder`, `echor-updater`, `echor-consultador`, `echor-validator`).
+This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`), and the vault agents under `sub-agents/echor/` (`echor-onboarder`, `echor-updater`, `echor-consultador`, `echor-validator`).
 
-It is a mirror of `/home/andrex/.config/opencode/prompts/` (OpenCode). Both mirrors must stay behaviorally equivalent — any change made to an agent in one mirror must be replicated in the other.
+OpenCode is on standby and is not maintained now; Claude Code is the active source of truth for this directory.
 
-TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
+TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. `test-writer` runs a mandatory Phase 0 test inventory before RED. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
+
+SDD is proposed by the orchestrator and runs only after user approval; small fixes with no background skip it. Judgment-day runs only when the user explicitly asks.
 
 <br>
 
@@ -49,7 +51,7 @@ This boundary is a prompt-level lock, not a technical one — Claude Code's `Tas
 
 ## How skills get injected
 
-The authoritative role policy lives in `opencode/skills/skill-registry/SKILL.md` and is shared by both runtimes. Its mandatory assignments are:
+The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its mandatory assignments are:
 
 | Agent | Mandatory skill |
 |---|---|
@@ -58,24 +60,30 @@ The authoritative role policy lives in `opencode/skills/skill-registry/SKILL.md`
 | test-writer | ponytail |
 | orchestrator, strategist | caveman, karpathy-guidelines |
 | sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
-| debugger, code-reviewer, judge-a, judge-b | karpathy-guidelines |
-| aws, log-reader, codegraph-maintainer, engram-maintainer | none — infrastructure |
+| debugger, explorer, code-reviewer, judge-a, judge-b | karpathy-guidelines |
+| aws, codegraph-maintainer, engram-maintainer | none — infrastructure |
 | echor-onboarder, echor-updater, echor-consultador, echor-validator | echor-vault |
 
 `caveman` is only injected into user-facing primaries (`orchestrator`, `strategist`).
-`ponytail` is mandatory only for code writers and conditional for an `autonomous-small-fix` debugger task.
-It is never injected into SDD, review, or infrastructure executors. `karpathy-guidelines`
-is mandatory for orchestration, strategy, SDD, review, and debugging.
+`ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`).
+It is never injected into SDD, review, debugger, explorer, or infrastructure executors. `karpathy-guidelines`
+is mandatory for orchestration, strategy, SDD, review, exploration, and debugging.
 
-Never delegate to external Cavecrew agents (`cavecrew-builder`, `cavecrew-investigator`,
-`cavecrew-reviewer`); route only to named harness agents. Cavecrew is external tooling,
-distinct from the Caveman communication skill/plugin.
+Never delegate to external plugin agents (`cavecrew-builder`, `cavecrew-investigator`,
+`cavecrew-reviewer`, or any agent from the Caveman or Ponytail plugins); route only to named
+harness agents. Caveman and Ponytail are used only as skills, never as agents.
 
 Conditional skills (`find-docs`, `refactoring-techniques`, `senior-architect`,
 `software-design-patterns`, `event-schema`, `context-compact`, and `skill-registry`)
 are injected only for roles and tasks listed in the registry. Judgment-day belongs only
-to the orchestrator, never the judges. Runtime plugin activation is separate from this
+to the orchestrator, only on explicit user request, never the judges. Runtime plugin activation is separate from this
 delegation policy.
+
+<br>
+
+## Explorer
+
+`explorer` (`sub-agents/general/explorer.md`) is a read-only agent (sonnet-5-5; tools Read/Glob/Grep, codegraph, engram-read; no Bash). The orchestrator delegates reading to it when a task needs 4+ files or one very large file. It returns only what is needed, with `path:line` evidence. It is distinct from `sdd-explore`, which belongs to the SDD flow and writes `explore.md`.
 
 <br>
 
@@ -90,43 +98,41 @@ delegation policy.
 | echor-consultador | Read-only query service over the vault | nothing, ever |
 | echor-validator | Read-only consistency audit, vault versus real code | nothing, report only |
 
-`echor-onboarder` and `echor-validator` share the same read-only Git and inspection allow-list (`git status*`, `git log*`, `git diff*`, `git show*`, `git rev-parse*`, `ls *`, `rg *`, `cat *`); `git commit*`/`git push*` are denied and `git reset --hard*` requires confirmation. `echor-updater` uses the same Bash allow-list but only `edit` (no `write`), since it only ever modifies an existing note. `echor-consultador` has no Bash access at all — `read`/`glob`/`grep` only, nothing else.
+`echor-onboarder` and `echor-validator` share the same read-only Git and inspection allow-list (`git status*`, `git log*`, `git diff*`, `git show*`, `git rev-parse*`, `ls *`, `rg *`, `cat *`); `git commit*`/`git push*` are denied and `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` requires confirmation. `echor-updater` uses the same Bash allow-list but only `edit` (no `write`), since it only ever modifies an existing note. `echor-consultador` has no Bash access at all — `read`/`glob`/`grep` only, nothing else.
 
-`/echor` (`commands/echor.md`, mirrored at `opencode/command/echor.md`) routes to the four agents by subcommand: `onboard <repo-path>`, `update <slug|all>`, `close <slug> <decision summary>`, `ask <question>`, `validate [slug|all]`.
+`/echor` (`commands/echor.md`) routes to the four agents by subcommand: `onboard <repo-path>`, `update <slug|all>`, `close <slug> <decision summary>`, `ask <question>`, `validate [slug|all]`.
 
 <br>
 
 ## Enforcement of permissions (AUTH gates)
 
-In OpenCode, permissions are granular per command via `opencode.json` (`allow`/`ask`/`deny` per agent). Claude Code has no equivalent native mechanism — there is no per-agent command allow-list built into the agent frontmatter beyond `tools`/`disallowedTools`. The gap is closed with `PreToolUse` hooks registered in `settings.json`.
+Claude Code has no per-agent command allow-list built into agent frontmatter beyond `tools`/`disallowedTools`. The gap is closed with `PreToolUse` hooks registered in `settings.json`.
 
-`/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`, mirroring the role-scoped OpenCode policy. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
+`/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
 
 | Agent | Allow | Ask | Deny |
 |---|---|---|---|
-| aws | `aws logs describe-*`, `aws dynamodb *`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, `git *` | `git reset --hard*` | `git commit*`, `git push*` |
-| log-reader | `rg *`, `wc *`, `du *`, `ls *`, `zcat *`, `gzip -cd *`, `journalctl *`, `docker logs *`, `kubectl logs *`, `git *` | `git reset --hard*` | `git commit*`, `git push*` |
-| codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, `git *` | `git reset --hard*`, `codegraph unlock/init/sync/index*`, `codegraph-health*` | `git commit*`, `git push*` |
+| aws | `aws logs describe-*`, `aws dynamodb *`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, `git *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, `git *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*`, `codegraph unlock/init/sync/index*`, `codegraph-health*` | `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| debugger | Same test/lint/build commands as code-reviewer; read-only Git; `rg`, `wc`, `du`, `ls`, `cat`, `head`, `tail`, `zcat`, `gzip -cd`, `journalctl`, `docker logs`, `kubectl logs` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
 | engram-maintainer | `engram context/search/stats/projects list/doctor/timeline` | `engram delete *`, `engram export *` | all unrelated shell commands |
-| code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git | `git reset --hard*` | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands, `git commit*`, `git push*` |
-| judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | `git reset --hard*` | `git commit*`, `git push*` |
-| sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git; native `Write`/`Edit` for prompt-scoped `explore.md` | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
-| sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
-| sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
-| sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
-| echor-onboarder, echor-validator | Read-only Git (`status`/`log`/`diff`/`show`/`rev-parse`), `ls *`, `rg *`, `cat *` | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
-| echor-updater | Same read-only Git and inspection commands as `echor-onboarder` | `git reset --hard*` | all other shell commands, `git commit*`, `git push*` |
+| code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git; native `Write`/`Edit` for prompt-scoped `explore.md` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| echor-onboarder, echor-validator | Read-only Git (`status`/`log`/`diff`/`show`/`rev-parse`), `ls *`, `rg *`, `cat *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
+| echor-updater | Same read-only Git and inspection commands as `echor-onboarder` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands, `git commit*`, `git push*`, `git add*`, `git rm*`, `git mv*`, `git restore --staged*` |
 | echor-consultador | none | none | all shell commands |
 
 Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict passes through untouched — the hook never affects the main thread or agents outside this list.
 
 This is the pattern to reuse if another agent needs a Bash restriction in the future — for example, `test-writer` arguably should not touch production code paths. Today that boundary is prompt discipline only (documented in `test-writer`'s own instructions); no hook enforces it. This is a known gap, not yet addressed.
 
-### `debugger` edit policy
+### `debugger` investigate-only policy
 
-`debugger` may apply any minimal fix when root cause, intended behavior, blast radius, and verification are clear and bounded; file count and change category alone do not require escalation. This includes a clear, verifiable localized environment or infrastructure configuration-variable correction. It escalates only uncertain behavior/root cause, broad or hard-to-predict impact, design/product/security trade-offs, migrations or other irreversible actions, or work that cannot be safely verified. `AUTH: diagnose-only` is an explicit investigation-only override: document root cause and proposed fix, but do not edit. Every diagnosis or fix reports root cause, exact files/changes, validation, and residual risk to the orchestrator.
-
-Claude Code has no `Edit` `PreToolUse` matcher for `debugger`, so self-contained fixes do not ask permission solely because of agent type. OpenCode mirrors this with `debugger` `edit` and `write` permissions set to `"allow"`. Existing destructive-command confirmation and `git commit`/`git push` denial still apply.
+`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` after user approval. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and `git commit`/`git push`/staging denial still apply.
 
 <br>
 
@@ -138,6 +144,4 @@ Claude Code has no `Edit` `PreToolUse` matcher for `debugger`, so self-contained
 
 ## Parity between Claude Code and OpenCode
 
-Both mirrors (`/home/andrex/.claude/agents/` and `/home/andrex/.config/opencode/prompts/`) must stay behaviorally equivalent. Any change to an agent in one mirror must be replicated in the other.
-
-This parity requirement is the origin of the recent cleanup pass reflected in this README: real contradictions had been found between the two mirrors (for example, diverging `sdd-spec` paths), since corrected by migrating both mirrors to the real `openspec` CLI archive flow described above.
+OpenCode is on standby. Claude Code is the active source of truth; parity between the two is not maintained until OpenCode is resumed.

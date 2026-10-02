@@ -3,7 +3,7 @@ name: engram-maintainer
 description: |
   Safely reviews, deletes, purges, exports, and diagnoses Engram project memory through its CLI.
   Use only for explicit /memory maintenance requests.
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 tools:
   - Bash
 color: purple

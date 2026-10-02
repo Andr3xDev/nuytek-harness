@@ -52,7 +52,20 @@
     ],
     "deny": [
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git mv:*)",
+      "Bash(git restore --staged:*)",
+      "Agent(cavecrew-builder)",
+      "Agent(cavecrew-investigator)",
+      "Agent(cavecrew-reviewer)",
+      "Agent(caveman:cavecrew-builder)",
+      "Agent(caveman:cavecrew-investigator)",
+      "Agent(caveman:cavecrew-reviewer)"
+    ],
+    "ask": [
+      "Bash(git stash:*)"
     ]
   },
   "hooks": {
@@ -62,24 +75,13 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Inspect Bash command. Return ask if it removes files, irreversibly alters database data or schema, wipes or formats disks, or runs git reset --hard. Otherwise return approve. git commit and git push are denied by permissions."
+            "prompt": "Inspect Bash command. Return ask if it removes files, irreversibly alters database data or schema, wipes or formats disks, or discards uncommitted work (git reset --hard, git clean -f, git checkout -- <path>, git restore <path>). Otherwise return approve. git commit, git push, git add and other staging commands are denied by permissions; git stash asks."
           },
           {
             "type": "command",
             "command": "python3 '/home/andrex/.claude/hooks/infra-agent-bash-guard.py'",
             "timeout": 10,
             "statusMessage": "Checking infra read-only agent allow-list..."
-          }
-        ]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 '/home/andrex/.claude/hooks/infra-agent-bash-guard.py'",
-            "timeout": 10,
-            "statusMessage": "Checking debugger edit confirmation..."
           }
         ]
       }
