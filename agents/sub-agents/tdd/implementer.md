@@ -53,6 +53,7 @@ If the delegation states the task is non-TDD (no test-writer ran — e.g. fronte
 - No invented code — deliver what was asked, nothing more
 - Preserve existing patterns — follow the reference files from CONTEXT
 - Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
+- Delete files only after explicit user confirmation; if not confirmed, return `status: blocked` with the exact paths and reason, no workarounds (no trash, rename, or emptying)
 
 # Instructions
 
