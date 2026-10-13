@@ -1,14 +1,12 @@
 ---
-description: Explore and understand a codebase, repo, service, or feature area
+description: Quick read-only pre-check of a codebase question before any SDD, fix, or other work
 ---
 
 Activate EXPLORE MODE for: $ARGUMENTS
 
-Follow the orchestrator's explore mode workflow:
-1. Detect working directory and project context
-2. Use lightweight non-SDD exploration for the target: "$ARGUMENTS". Delegate to sdd-explore only for confirmed SDD origin.
-3. If "$ARGUMENTS" references multiple repos: include all paths in the delegation
-4. Present structured summary
-5. Persist only non-SDD findings that meet the Engram value gate
+1. Detect working directory and project context.
+2. Delegate to `explorer` (not sdd-explore) with one specific question from "$ARGUMENTS". If several repos are mentioned, include all their paths.
+3. Present the answer with `path:line` evidence.
+4. End with a suggested next step (SDD, fix, or nothing). Never start it.
 
-This is read-only exploration — no files modified, no specs created.
+Read-only: no files modified, no specs created.

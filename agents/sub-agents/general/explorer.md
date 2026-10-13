@@ -4,7 +4,8 @@ description: |
   Read-only codebase exploration for the orchestrator. Reads many or large files,
   answers one specific question, and returns only the needed answer with path:line evidence.
   Not for SDD (use sdd-explore), not for writing or changing anything.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
+effort: xhigh
 tools:
   - Read
   - Glob

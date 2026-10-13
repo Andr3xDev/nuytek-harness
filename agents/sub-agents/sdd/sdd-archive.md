@@ -3,8 +3,8 @@ name: sdd-archive
 description: |
   Archive a completed and verified change. Use when verification has passed and
   the change needs to be closed. Moves change folder to archive, persists final
-  state, and prepares the PR description with full context.
-model: claude-sonnet-5-5
+  state.
+model: claude-haiku-5-5
 tools:
   - Read
   - Write
@@ -48,14 +48,8 @@ Use registered central store `specter` from any working directory. Never `cd` or
    openspec validate "<project>-<change-name>" --json --store specter --strict
    ```
    If artifacts are incomplete or the strict validate fails: STOP and report blocker to orchestrator.
-5. Generate PR description with:
-   - What was changed and why (from proposal)
-   - Technical decisions made (from design)
-   - Acceptance scenarios fulfilled (from spec, or proposal/design when `skip_specs: true`)
-   - Tests added (from verify report)
-   - Files changed (from apply-progress)
-6. Write the final archive report to `{change-folder}/archive-report.md` before archiving.
-7. Archive the change ONLY via the supported `openspec` CLI, after the strict validate above passes:
+5. Write the final report to `{change-folder}/archive-report.md` before archiving.
+6. Archive the change ONLY via the supported `openspec` CLI, after the strict validate above passes:
    ```bash
    openspec archive "<project>-<change-name>" --store specter --yes
    ```
@@ -66,8 +60,8 @@ Use registered central store `specter` from any working directory. Never `cd` or
 
 ```
 status: done | blocked
-executive_summary: change archived, PR description ready
-artifacts: archive paths, PR description
+executive_summary: change archived
+artifacts: archive paths
 next_recommended: none (cycle complete)
 risks: none expected at this stage
 ```

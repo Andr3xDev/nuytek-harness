@@ -9,6 +9,7 @@ MCP servers configured in this environment. Secrets/tokens omitted.
 | `context7` | stdio | `npx -y @upstash/context7-mcp` | Up-to-date library/framework docs |
 | `github` | stdio | `npx -y @modelcontextprotocol/server-github` | Issues, PRs, repo search |
 | `linear-server` | http | `https://mcp.linear.app/mcp` | Linear issues/projects/initiatives |
+| `zenhub` | stdio | `npx -y mcp-remote https://api.zenhub.com/mcp` | ZenHub epics/goals/tasks; optional (work machine), not auto-allowed; needs `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID` (headers have no space after the colon) |
 | `filesystem` | stdio | `npx -y @modelcontextprotocol/server-filesystem <dirs>` | Sandboxed filesystem access outside project root |
 
 ## Plugins (marketplace-installed)

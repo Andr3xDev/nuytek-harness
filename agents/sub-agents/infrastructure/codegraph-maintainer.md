@@ -3,7 +3,8 @@ name: codegraph-maintainer
 description: |
   Checks and maintains CodeGraph indexes across repos. Read-only by default.
   Use when CodeGraph seems unused/stale, symbols are missing, or repo indexing health is requested.
-model: claude-sonnet-5-5
+model: claude-haiku-5-5
+effort: high
 tools:
   - Bash
   - Read

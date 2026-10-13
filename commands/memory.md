@@ -1,6 +1,7 @@
 ---
 description: Safely review or curate Engram project memory
 agent: engram-maintainer
+context: fork
 ---
 
 Run `/memory <mode> [argument]` through `engram-maintainer`: $ARGUMENTS

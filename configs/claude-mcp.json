@@ -44,5 +44,20 @@
       "@upstash/context7-mcp"
     ],
     "env": {}
+  },
+  "zenhub": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "mcp-remote",
+      "https://api.zenhub.com/mcp",
+      "--header",
+      "Authorization:${API_TOKEN}",
+      "--header",
+      "X-zh-workspace:${ZENHUB_WORKSPACE_ID}"
+    ],
+    "env": {
+      "API_TOKEN": "${ZENHUB_API_TOKEN}"
+    }
   }
 }

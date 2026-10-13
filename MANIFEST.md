@@ -13,11 +13,12 @@ Portable source for my agent setup across machines.
 - Claude MCP registry: `configs/claude-mcp.json` -> merged into `~/.claude.json#mcpServers`
 - Claude helper docs: `configs/common-sdd.md`, `configs/engram-protocol.md`, `configs/context7.md` -> `~/.claude/`
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
+- Out-of-context launcher: `scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
 - OpenCode config: `opencode/` -> `~/.config/opencode/`
 
 ## Not Included
 
-- Secrets: `GITHUB_TOKEN`, Linear auth, Claude cloud connector auth
+- Secrets: `GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear auth, Claude cloud connector auth
 - Runtime data: Claude history, project transcripts, paste cache, jobs, stats
 - Dependency caches: `node_modules`, plugin caches, OpenCode sessions/logs
 - Machine-specific cloud connectors: disconnect/connect at `https://claude.ai/customize/connectors`
@@ -34,6 +35,7 @@ Portable source for my agent setup across machines.
 ## Helper Scripts
 
 - `codegraph-health`: shared CodeGraph health/maintenance helper for Claude Code and OpenCode agents.
+- `claude-out-context`: launches Claude Code with memory and tracker persistence disabled.
 
 ## Expected MCPs
 
@@ -43,6 +45,7 @@ Portable source for my agent setup across machines.
 - `filesystem`: `npx -y @modelcontextprotocol/server-filesystem /home/andrex/dev /home/andrex/laburo/`
 - `github`: `npx -y @modelcontextprotocol/server-github` with `GITHUB_TOKEN`
 - `linear-server`: `https://mcp.linear.app/mcp`
+- `zenhub` (optional): `npx -y mcp-remote https://api.zenhub.com/mcp` with `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`
 
 ## Expected OpenCode Plugins
 

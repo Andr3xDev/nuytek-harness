@@ -6,7 +6,7 @@
 
 ## What is this directory
 
-This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`), and the vault agents under `sub-agents/echor/` (`echor-onboarder`, `echor-updater`, `echor-consultador`, `echor-validator`).
+This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`), and the vault agents under `sub-agents/echor/` (`echor-onboarder`, `echor-updater`, `echor-consultador`, `echor-validator`).
 
 OpenCode is on standby and is not maintained now; Claude Code is the active source of truth for this directory.
 
@@ -43,7 +43,7 @@ SDD commands use registered store `specter` from any working directory: `openspe
 - `sdd-spec`
 - `sdd-design`
 
-The strategist may never invoke `Task` toward `implementer`, `test-writer`, `builder`, `sdd-tasks`, `sdd-verify`, or `sdd-archive` — those are execution-phase agents owned by the orchestrator. If a discussion reaches that phase, the strategist hands off to the orchestrator instead of delegating itself.
+The strategist may never invoke `Task` toward `implementer`, `test-writer`, `builder`, `quick-builder`, `sdd-tasks`, `sdd-verify`, or `sdd-archive` — those are execution-phase agents owned by the orchestrator. If a discussion reaches that phase, the strategist hands off to the orchestrator instead of delegating itself.
 
 This boundary is a prompt-level lock, not a technical one — Claude Code's `Task` tool has no built-in mechanism to restrict which target agent a given caller can invoke. Enforcement depends entirely on the agent's own instructions being followed.
 
@@ -56,6 +56,7 @@ The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its man
 | Agent | Mandatory skill |
 |---|---|
 | builder | ponytail |
+| quick-builder | none |
 | implementer | ponytail |
 | test-writer | ponytail |
 | orchestrator, strategist | caveman, karpathy-guidelines |
@@ -65,7 +66,7 @@ The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its man
 | echor-onboarder, echor-updater, echor-consultador, echor-validator | echor-vault |
 
 `caveman` is only injected into user-facing primaries (`orchestrator`, `strategist`).
-`ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`).
+`ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`). `quick-builder` is a code writer that receives no skills.
 It is never injected into SDD, review, debugger, explorer, or infrastructure executors. `karpathy-guidelines`
 is mandatory for orchestration, strategy, SDD, review, exploration, and debugging.
 
@@ -74,7 +75,8 @@ Never delegate to external plugin agents (`cavecrew-builder`, `cavecrew-investig
 harness agents. Caveman and Ponytail are used only as skills, never as agents.
 
 Conditional skills (`find-docs`, `refactoring-techniques`, `senior-architect`,
-`software-design-patterns`, `event-schema`, `context-compact`, and `skill-registry`)
+`software-design-patterns`, `event-schema`, `context-compact`, `skill-registry`, and the
+tracker skills `github-issue`, `github-pr`, `linear-issue`, `zenhub-issue`, `release-notes`)
 are injected only for roles and tasks listed in the registry. Judgment-day belongs only
 to the orchestrator, only on explicit user request, never the judges. Runtime plugin activation is separate from this
 delegation policy.
@@ -83,7 +85,7 @@ delegation policy.
 
 ## Explorer
 
-`explorer` (`sub-agents/general/explorer.md`) is a read-only agent (sonnet-5-5; tools Read/Glob/Grep, codegraph, engram-read; no Bash). The orchestrator delegates reading to it when a task needs 4+ files or one very large file. It returns only what is needed, with `path:line` evidence. It is distinct from `sdd-explore`, which belongs to the SDD flow and writes `explore.md`.
+`explorer` (`sub-agents/general/explorer.md`) is a read-only agent (haiku-5-5, effort xhigh; tools Read/Glob/Grep, codegraph, engram-read; no Bash). The orchestrator delegates reading to it when a task needs 4+ files or one very large file. It returns only what is needed, with `path:line` evidence. It is distinct from `sdd-explore`, which belongs to the SDD flow and writes `explore.md`.
 
 <br>
 

@@ -37,6 +37,7 @@ Update current repo into local config (smoke test, install, then remove installe
 Then set secrets/auth outside repo:
 
 - `GITHUB_TOKEN` in shell env
+- `ZENHUB_API_TOKEN` and `ZENHUB_WORKSPACE_ID` in shell env (optional, for ZenHub)
 - Linear MCP auth
 - Claude cloud connectors at `https://claude.ai/customize/connectors`
 - `~/.local/bin` in `PATH` for `codegraph-health`
@@ -78,6 +79,7 @@ tech-orchestrator          strategist
         ├── sdd-design      → design.md (ADR-lite)                 ◄─ strategist may also delegate here
         ├── sdd-tasks       → tasks.md (ordered, PR-size forecast)
         ├── builder         → default code/config/docs writer
+        ├── quick-builder   → low-complexity edits (Haiku 5.5); blocked needs-builder if beyond scope
         ├── test-writer     → valuable failing tests (TDD red)
         ├── implementer     → strict TDD green from existing failing tests
         ├── code-reviewer   → spec/design/test conformance review (can run tests/linters/read-only git to verify claims)
@@ -85,15 +87,15 @@ tech-orchestrator          strategist
         ├── debugger        → root cause + proposed fix (investigate-only; also reads large logs)
         ├── codegraph-maintainer → CodeGraph index health
         ├── engram-maintainer → explicit memory review/curation
-        └── sdd-verify → sdd-archive → PR description ready
+        └── sdd-verify → sdd-archive → change archived
 ```
 
 The orchestrator never writes code directly. Strategist's delegation is scoped to
 `sdd-explore`/`sdd-propose`/`sdd-spec`/`sdd-design` only — never to implementation-phase
-agents (`sdd-tasks`, `builder`, `test-writer`, `implementer`, `code-reviewer`,
+agents (`sdd-tasks`, `builder`, `quick-builder`, `test-writer`, `implementer`, `code-reviewer`,
 `sdd-verify`, `sdd-archive`). SDD activates only when the user explicitly asks for
 plan/spec/design/SDD/OpenSpec — existing artifacts alone never activate it —
-otherwise implementation goes straight to `builder` or the TDD loop (`test-writer` →
+otherwise implementation goes straight to `quick-builder` (low-complexity) or `builder`, or the TDD loop (`test-writer` →
 `implementer` → `code-reviewer`) with no spec required. TDD runs only when behavior value,
 existing coverage, duplication/overlap, and protection of current behavior justify it; low-value,
 duplicate/overlapping, stale, or disproportionate tests are rejected; otherwise
@@ -118,6 +120,7 @@ Before any non-trivial delegation or change, orchestrators give a natural, conte
 | `strategist` | Business-language discussion partner — epics/goals, no code. May delegate, but only to `sdd-explore`/`sdd-propose`/`sdd-spec`/`sdd-design`; never to implementation-phase agents. |
 | `sub-agents/sdd/*` | One agent per SDD phase: explore, propose, spec, design, tasks, verify, archive. |
 | `sub-agents/general/builder` | Default writer when TDD value gate does not pass. |
+| `sub-agents/general/quick-builder` | Low-complexity work (small edits, formatting, lint fixes, named dependency add/bump, config tweaks) on Haiku 5.5; returns blocked `needs-builder` when beyond scope. `explorer`, `codegraph-maintainer` and `sdd-archive` also run on Haiku 5.5. |
 | `sub-agents/general/explorer` | Read-only exploration of many or large files for the orchestrator. |
 | `sub-agents/tdd/test-writer` | Writes valuable failing tests from specs (red phase). |
 | `sub-agents/tdd/implementer` | Minimal implementation to turn tests green. |
@@ -134,8 +137,14 @@ phase's work itself, never delegates further, and returns a structured
 
 ## Commands (`commands/`)
 
-Slash-command entry points that route into the modes above: `/plan`,
-`/implement`, `/explore`, `/debug`, `/review`, `/judgment-day`, `/codegraph`, `/memory`.
+Slash-command entry points:
+
+- `/explore`: read-only pre-check.
+- `/review`: full standards review.
+- `/pr-review`: drafts PR comments, never posts.
+- `/clear-comments`, `/clear-tests`: report first, apply after OK.
+- `/codegraph`, `/memory`: run their maintainer agents.
+- `/echor`: frozen.
 
 ## CodeGraph Maintenance
 
@@ -155,6 +164,13 @@ Explicit maintenance:
 codegraph-health --sync /path/to/repo
 ```
 
+## Out-Context Sessions
+
+`claude-out-context [claude args]` starts Claude Code with the Engram plugin
+disabled, Engram MCP tools denied, and a system prompt forbidding SDD and
+tracker updates. Use it for work that must leave no memory trace (grading,
+university tasks). The mode is fixed at launch; it cannot be toggled mid-session.
+
 ## Memory Maintenance
 
 `/memory review [project]` and `/memory doctor [project]` are read-only. `/memory delete <observation-id>` inspects then soft-deletes one observation after native confirmation. `/memory purge <project>` hard-deletes a project after native confirmation. `/memory export [project]` writes an export only after native confirmation.
@@ -168,7 +184,8 @@ Reference material loaded on demand (not always-on context):
 - `context-compact/` — preserve session state before `/compact` or `/clear`
 - `judgment-day/` — blind dual-review protocol
 - `find-docs/`, `karpathy-guidelines/` — library docs lookup, LLM-coding-mistake avoidance
-- `md-style-guide/` — markdown artifact formatting rules
+- `md-style-guide/` — Markdown conventions and tracker body rules
+- `github-issue/`, `github-pr/`, `linear-issue/`, `zenhub-issue/`, `release-notes/` — orchestrator-only tracker drafting (publish only after explicit user OK)
 - `skill-registry/` — indexes skills by trigger phrase and path
 
 ## Configs (`configs/`)
@@ -195,6 +212,7 @@ private `~/.claude/CLAUDE.md`):
 | `context7` | Up-to-date library/framework docs |
 | `github` | Issues, PRs, repo search |
 | `linear-server` | Linear issues/projects/initiatives |
+| `zenhub` | ZenHub epics/goals/tasks (optional; needs `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`) |
 | `filesystem` | Sandboxed filesystem access outside project root |
 Full config (types, commands, plugin sources) in `configs/mcp-servers.md`.
 

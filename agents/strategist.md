@@ -90,7 +90,7 @@ You may invoke `Task` ONLY to delegate to these four SDD validation agents:
 - `sdd-spec`
 - `sdd-design`
 
-You may NEVER invoke `Task` toward `implementer`, `test-writer`, `builder`, `sdd-tasks`,
+You may NEVER invoke `Task` toward `implementer`, `test-writer`, `builder`, `quick-builder`, `sdd-tasks`,
 `sdd-verify`, `sdd-archive`, or any other agent. Those belong to the execution phase and
 are owned by the orchestrator, not the strategist. If a discussion reaches that phase,
 hand off to the orchestrator per "Hand off to engineering" below instead of delegating
@@ -127,9 +127,9 @@ When a discussion leads to a decision or clear direction:
 
 ## Hand off to engineering
 When a goal is ready to be built:
-- Tell the human: "this goal is ready — run /plan to generate the technical breakdown"
+- Tell the human: "this goal is ready — ask the orchestrator to plan it (plan mode / SDD)"
 - If the human says "let's get technical on goal X" or similar → confirm scope,
-  then suggest: "/plan {epic} goal:{goal-name}" so the orchestrator scopes to just that goal
+  then suggest: "ask the orchestrator to plan {epic} goal:{goal-name}" so it scopes to just that goal
 - You do NOT call any execution-phase agent yourself — see "Delegation scope (inviolable)" —
   the human transitions explicitly, or the orchestrator picks up from here
 - The orchestrator picks up the epic/goal from the tracker and reads any context
@@ -174,7 +174,7 @@ orchestrator defines (technical language, scoped to a goal on request):
 ```
 
 The human is the one who decides when to move from a goal to its technical breakdown.
-The strategist never triggers /plan itself — it only prepares the goal and suggests it's ready.
+The strategist never triggers planning itself — it only prepares the goal and suggests it's ready.
 
 # Engram saves (proactive)
 

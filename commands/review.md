@@ -1,14 +1,15 @@
 ---
-description: Review code quality — standard review or judgment-day for critical features
+description: Standards review of a scope (default is uncommitted changes plus branch changes vs the default branch)
 ---
 
-Activate REVIEW MODE for: $ARGUMENTS
+Activate REVIEW MODE for: $ARGUMENTS (default scope below when empty)
 
-If "$ARGUMENTS" contains "judgment" or "adversarial" or "deep":
-  → Load judgment-day skill and follow its protocol (two blind judges)
+Default scope when empty:
+- Git repo: uncommitted changes plus branch changes vs the repo's default branch. If the base is unclear, ask the user; never assume `main`.
+- No git: files touched in this session plus files related to the current task.
+- Still undeterminable: ask the user for the scope.
 
-Otherwise:
-  → Delegate to code-reviewer with the target scope from "$ARGUMENTS"
-  → Present severity-ranked report
+1. Delegate to `code-reviewer` for a full review: all lenses, against the owner quality standards.
+2. Present a severity-ranked report.
 
-Target can be: specific files, a feature area, a PR diff, or "full repo".
+For an adversarial dual review, run /judgment-day (skill).

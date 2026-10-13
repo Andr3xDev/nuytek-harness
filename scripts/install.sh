@@ -15,6 +15,7 @@ BACKUP_TARGETS=(
   "$HOME/.claude/engram-protocol.md"
   "$HOME/.claude/rules/context7.md"
   "$HOME/.local/bin/codegraph-health"
+  "$HOME/.local/bin/claude-out-context"
   "$HOME/.claude.json"
   "$HOME/.config/opencode"
 )
@@ -148,8 +149,8 @@ NODE
   claude_assets=(
     "$HOME/.claude/plugins/cache/caveman/caveman/"*/agents/cavecrew-*.md
     "$HOME/.claude/plugins/cache/caveman/caveman/"*/plugins/caveman/agents/cavecrew-*.md
-    "$HOME/.claude/plugins/marketplaces/caveman/agents/cavecrew-*.md
-    "$HOME/.claude/plugins/marketplaces/caveman/plugins/caveman/agents/cavecrew-*.md
+    "$HOME/.claude/plugins/marketplaces/caveman/"agents/cavecrew-*.md
+    "$HOME/.claude/plugins/marketplaces/caveman/"plugins/caveman/agents/cavecrew-*.md
   )
   for asset in "${claude_assets[@]}"; do
     rm -f -- "$asset"
@@ -176,6 +177,8 @@ install_file "$ROOT/configs/context7.md" "$HOME/.claude/rules/context7.md"
 mkdir -p "$HOME/.local/bin"
 install_file "$ROOT/scripts/codegraph-health.sh" "$HOME/.local/bin/codegraph-health"
 chmod +x "$HOME/.local/bin/codegraph-health"
+install_file "$ROOT/scripts/claude-out-context.sh" "$HOME/.local/bin/claude-out-context"
+chmod +x "$HOME/.local/bin/claude-out-context"
 
 node - "$ROOT/configs/claude-mcp.json" "$HOME/.claude.json" "$STAMP" <<'NODE'
 const fs = require('fs');

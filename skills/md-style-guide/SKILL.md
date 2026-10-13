@@ -1,88 +1,79 @@
 ---
 name: md-style-guide
-description: Apply personal markdown formatting standards when producing any document, report, planning file, or written artifact in markdown. Trigger whenever the user requests a document, guide, report, planning file, README, or any structured markdown output. Also trigger when the user asks to format, clean up, or rewrite an existing markdown file. This skill governs visual structure, typography rules, table formatting, and separator conventions.
+description: "Trigger: producing Markdown, document, report, README, planning file, SDD artifact, issue, PR, or release body. Apply personal Markdown conventions to any artifact, plus the extra rules for tracker bodies."
+license: MIT
+metadata:
+  author: custom
+  version: "2.1"
 ---
+
 # MD Style Guide
 
-Defines the personal markdown formatting standard for all written artifacts.
-Applies to any document, report, planning file, or structured output in markdown.
+Personal Markdown conventions for any written artifact. Tracker bodies (issues, PRs, releases) add the rules in `Tracker bodies`.
+These are preferences, not a fixed layout: when the user wants a specific format, they ask the agent directly.
 
-## Title and Header Structure
+## Conventions
 
-- The document title uses `#` — only one per document, always at the top
-- The title is centered using HTML: `<h1 align="center">Title</h1>`
-- Immediately below the title: either a subtitle or shield.io badges — never both
-  - Badges: only when explicitly requested
-- Subtitle: plain text, no formatting, centered: `<p align="center">Subtitle here</p>`
-- All other sections use `##`, `###`, `####` — never skip levels
-- Section headers are plain text — no bold, no italics, no inline code unless the header is a term
+- **Bold** only when the term has real relevance in context; never for whole sentences or as a habit.
+- *Italics* sparingly, for emphasis on a single word.
+- Inline `code` for technical terms, commands, file paths, and values; not for emphasis.
+- Use `-` for bullets, never `*`.
+- Nest bullets only when the content has a real hierarchy.
+- Prefer prose over bullets when it reads better.
+- Ordered lists only when sequence or priority matters.
+- No emojis.
+- Readability over density; consistency over local cleverness.
+- When in doubt: less formatting, more clarity.
+- Standard GitHub-flavored Markdown.
+- Never invent facts: links, IDs, estimates, owners, versions, or test results come from the user or a tool.
+- Delete a section with nothing real to say. Never write "N/A" or filler.
+- Checklists use `- [ ]`; each item is observable and verifiable.
+- Neutral, professional tone.
 
-<br>
+## Mermaid
 
-## Separators and Spacing
+Use a diagram only when it explains faster than prose. One diagram per section; size is whatever the idea needs.
 
-- Never use `---` as a horizontal rule anywhere in the document
-- Use `<br>` to create visual breathing room between sections
-- Use two consecutive `<br>` tags on separate lines to separate major sections that need stronger visual separation
-- Blank lines between paragraphs — do not crowd content
+| **Need** | **Diagram** |
+|:---|:---:|
+| Flow, steps, decisions | `flowchart LR` |
+| Interaction between services or actors | `sequenceDiagram` |
+| States of an entity | `stateDiagram-v2` |
+| Phases or milestones in time | `gantt` |
+| Goal broken into epics/tasks | `flowchart TD` |
 
-<br>
+- Node labels are short nouns or verbs; quote labels that contain `()` or `:`.
+- No styling, no themes, no click handlers.
+- If a diagram only repeats a short list, drop the diagram.
 
-## Typography
+## Tracker bodies
 
-- **Bold** only when the term or phrase has real relevance in context — not for decoration
-- *Italics* for emphasis on a specific word when tone requires it — use sparingly
-- Never bold entire sentences or paragraph openers as a habit
-- Never use bold and italics together unless absolutely necessary
-- Inline `code` for technical terms, commands, file paths, and values — not for emphasis
+Only for issues, PRs, and releases written through the tracker skills. The template is a base guide, not a fixed form: keep its order as the default, and add, rename, or split sections when the user asks or the context needs it.
 
-<br>
+- The title goes in the tool's title field, never as `#` in the body. Bodies start at `##`.
+- No HTML.
+- Remove every `<!-- ... -->` hint and `[placeholder]` before output.
+- `---` only where the template already has it; delete it with an emptied section.
+- Reference issues and PRs by ID only (`#123`, `owner/repo#123`, `ENG-123`), never by branch name, and only when needed.
+- Templates are in English; headings and content use the session language, default English.
 
-## Bullets and Lists
+### Execution Steps
 
-- Use `-` for all bullet points — never `*`
-- Nested bullets only when hierarchy genuinely exists in the content
-- Do not bullet-ize content that reads better as prose
-- Ordered lists (`1.`) only when sequence or priority matters
+1. Pick the variant from the skill's decision gates and load that file from `templates/`.
+2. Gather inputs from the conversation, diff, spec, or tracker MCP; ask only for what cannot be derived.
+3. Fill the template, then apply these rules and the skill's own rules.
+4. Return title and body separately. Publish only after showing the draft and getting explicit user OK.
 
-<br>
+### Output Contract
 
-## Tables
-
-- Column headers in **bold**
-- Header row content: left-aligned labels, centered if the column is a label or category
-- Data rows: left-aligned by default, centered when the column contains short categorical values
-- Keep tables narrow — split into multiple tables if too many columns reduce readability
-- No decoration inside cells — no bold on regular data, no inline code unless it is actual code
-
-Example:
-
-| **Category** | **Rule** | **When** |
-|:---|:---|:---:|
-| Separators | Use `<br>` | Always |
-| Bold | Key terms only | Sparingly |
-
-<br>
-
-## Emojis
-
-- No emojis in body text or headers
-- Allowed only as warning or status indicators in specific contexts and only when the document format calls for it explicitly
-- Shield.io badges are not emojis
-
-<br>
-
-## General Principles
-
-- Prioritize readability over density — do not pack too much into one section
-- If content feels cluttered, break it into subsections or separate paragraphs
-- Consistency across the document matters more than local cleverness
-- When in doubt: less formatting, more clarity
-
-<br>
+```
+title: <one line>
+body: <filled markdown>
+metadata: <tool fields that are not markdown (labels, estimate, assignee) or none>
+open_questions: <missing required info, or none>
+```
 
 ## Control Points
 
-- If the document type is ambiguous, confirm before structuring
-- If badges are needed but no badge content was specified, ask before generating them
-- Do not apply this style retroactively to existing files without explicit instruction
+- If the document type is ambiguous, confirm before structuring.
+- Do not apply this style retroactively to existing files without explicit instruction.

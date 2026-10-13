@@ -1,6 +1,7 @@
 ---
 description: Check or maintain CodeGraph indexes for repos
 agent: codegraph-maintainer
+context: fork
 ---
 
 Check CodeGraph health for: $ARGUMENTS
