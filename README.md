@@ -1,38 +1,42 @@
 # abysal-harness
 
-Personal Claude Code + OpenCode harness. Portable source to install the same agent
-config on any of my machines.
+Personal Claude Code harness. Portable source to install the same agent
+config on any of my machines. OpenCode config is frozen in `legacy/opencode/` and is not installed.
 
 ## Install
 
 ```bash
-./scripts/install.sh
+./scripts/nuytek-harness install
 ```
 
-After deploying this harness's configuration, the installer shallow-clones current
-`main` from the upstream Caveman repository into a temporary directory and runs its
-official installer for Claude Code and OpenCode. It requires `git` and `node`,
-modifies user-level configuration, removes Cavecrew agents/skill, retains Caveman
-plugin and communication skills, and removes the temporary clone on exit.
+Requires bash >= 4. Optional: `ln -s "$PWD/scripts/nuytek-harness" ~/.local/bin/nuytek-harness` (symlinks are resolved).
 
-After copying harness configuration, interactive installs ask whether to register
-`/home/andrex/dev/specter` as OpenSpec store `specter`. Registration runs only on
-an explicit `yes`; non-interactive installs skip it. If selected, it requires
-`openspec` and that store root. It fails if either is unavailable, or if `specter`
-points to another root.
+Actions (target defaults to `claude`; no arguments on a TTY opens a menu with action descriptions, `quit` at every level, a pull/restore snapshot picker, and a y/N summary before running):
 
-Installer preserves replaced targets in timestamped `<target>.backups/` directories. Remove
-only installer backup directories without installing:
+| Action | Effect |
+|---|---|
+| `install` | Full setup: all file components, MCP merge, specter registration (y/N on a TTY, skipped otherwise), plugins last |
+| `update <component\|all>` | Overwrite one component; `all` excludes `plugins` and `specter` (run `update plugins` / `update specter` explicitly) |
+| `reinstall [--yes]` | `remove all` then `install`, both with backups; confirm prompt on a TTY, non-TTY without `--yes` aborts |
+| `remove <component\|all> [--yes]` | Delete only files present in the repo source for that component, after a snapshot and a confirm prompt; non-TTY without `--yes` aborts; `plugins` and `specter` are not removable |
+| `clean-backups` | Remove `~/.claude-backups/` and `.refresh-backups/` |
+| `pull [--restore <timestamp>]` | Import local config into the repo |
 
-```bash
-./scripts/install.sh --clean-backups
-```
+`install` and `update` treat the repo as authoritative: managed directories are replaced
+and anything not in the repo is kept only in the run's snapshot (`~/.claude-backups/<stamp>/`).
 
-Update current repo into local config (smoke test, install, then remove installer backups):
+The `plugins` component installs or updates every plugin listed in `enabledPlugins` of
+`claude/claude-settings.json` (and adds/refreshes its `extraKnownMarketplaces`) via
+`claude plugin ...`, regardless of its true/false value; `settings.json` alone decides what is
+enabled. It needs `claude` on `PATH` (otherwise it warns and is skipped), removes Cavecrew agents
+afterwards, and passes `-y` to `plugin update` when not on a TTY.
 
-```bash
-./scripts/update.sh
-```
+The `specter` component registers `$NUYTEK_SPECTER_ROOT` (default `~/dev/specter`) as
+OpenSpec store `specter`. It requires `openspec` and that store root, and fails if either
+is unavailable or if `specter` points to another root.
+
+Each run that changes anything takes one lazy snapshot at `~/.claude-backups/<stamp>/`, mirroring paths relative to `$HOME` (e.g. `.claude/agents/`, `.claude.json`); the first copy of a path in a run wins. The CLI also
+deletes `__pycache__` and `*.pyc` from `claude/hooks/` and the deployed hooks.
 
 Then set secrets/auth outside repo:
 
@@ -46,26 +50,24 @@ Validate:
 
 ```bash
 claude doctor
-opencode debug config
-opencode mcp list
 ```
 
-Refresh imports local config into repo; use `update.sh` to deploy repo into local config:
+Pull imports local config into the repo; use `install`/`update` to deploy repo into local config:
 
 ```bash
-./scripts/refresh-from-local.sh
+./scripts/nuytek-harness pull
 ```
 
-Refresh replaces managed paths exactly, excluding runtime data, caches, credentials, and
+Pull replaces managed paths exactly, excluding runtime data, caches, credentials, and
 `.git`. Previous managed repo state is saved under gitignored `.refresh-backups/<timestamp>/`.
 
 ```bash
-./scripts/refresh-from-local.sh --restore <timestamp>
-./scripts/refresh-from-local.sh --clean-backups
+./scripts/nuytek-harness pull --restore <timestamp>
+./scripts/nuytek-harness clean-backups
 ./scripts/smoke-install.sh
 ```
 
-Smoke always uses temporary `HOME`; installed CLI checks print `SKIP` when unavailable.
+Smoke always uses temporary `HOME` with `NUYTEK_SKIP_PLUGINS=1`; installed CLI checks print `SKIP` when unavailable.
 
 ## System overview
 
@@ -135,7 +137,7 @@ Each SDD phase agent is an **executor**, not a sub-orchestrator: it does the
 phase's work itself, never delegates further, and returns a structured
 `status / executive_summary / artifacts / next_recommended / risks` envelope.
 
-## Commands (`commands/`)
+## Commands (`claude/commands/`)
 
 Slash-command entry points:
 
@@ -188,20 +190,19 @@ Reference material loaded on demand (not always-on context):
 - `github-issue/`, `github-pr/`, `linear-issue/`, `zenhub-issue/`, `release-notes/` — orchestrator-only tracker drafting (publish only after explicit user OK)
 - `skill-registry/` — indexes skills by trigger phrase and path
 
-## Configs (`configs/`)
+## Configs (`claude/`, `shared/`)
 
-Sanitized/generic versions of the global harness config (no user-specific
-paths, tracker credentials, or personal notes — those live only in the
-private `~/.claude/CLAUDE.md`):
+Global harness config (user-specific paths and personal notes stay in the private
+`~/.claude/CLAUDE.md`):
 
-- `generic-config.md` — engineering principles, agent commandments, delegation protocol
-- `common-sdd.md` — shared executor-boundary protocol for all SDD phase agents
-- `engram-protocol.md` — memory save/search triggers
-- `mcp-servers.md` — MCP servers and plugins in use, no secrets
-- `CLAUDE.md` — live Claude global instructions snapshot
-- `claude-settings.json` — live Claude settings snapshot
-- `claude-mcp.json` — Claude MCP servers merged into `~/.claude.json`
-- `context7.md` — Context7 MCP rule
+- `shared/common-sdd.md` — shared executor-boundary protocol for all SDD phase agents
+- `shared/engram-protocol.md` — memory save/search triggers
+- `shared/rules/context7.md` — Context7 MCP rule
+- `claude/mcp-servers.md` — MCP servers and plugins in use, no secrets
+- `claude/CLAUDE.md` — live Claude global instructions snapshot
+- `claude/claude-settings.json` — live Claude settings snapshot
+- `claude/claude-mcp.json` — Claude MCP servers merged into `~/.claude.json`
+- `claude/scripts/claude-out-context.sh` — out-of-context launcher
 
 ## MCP servers
 
@@ -214,15 +215,15 @@ private `~/.claude/CLAUDE.md`):
 | `linear-server` | Linear issues/projects/initiatives |
 | `zenhub` | ZenHub epics/goals/tasks (optional; needs `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`) |
 | `filesystem` | Sandboxed filesystem access outside project root |
-Full config (types, commands, plugin sources) in `configs/mcp-servers.md`.
+Full config (types, commands, plugin sources) in `claude/mcp-servers.md`.
 
-## Hooks (`hooks/`)
+## Hooks (`claude/hooks/`)
 
 | Hook | Trigger | Purpose |
 |------|---------|---------|
 | `stop-verify.sh` | Stop | Verifies work before letting the agent report done |
 | `herdr-agent-state.sh` | SessionStart | Reports session state to `herdr` (external agent monitor) |
-| `*.sh` | Runtime hooks | Installed into `~/.claude/hooks/` by `scripts/install.sh` |
+| `*.sh` | Runtime hooks | Installed into `~/.claude/hooks/` by `scripts/nuytek-harness` |
 
 ## Memory system
 
@@ -257,9 +258,8 @@ Two independent, stackable plugin modes (default `full`, pinned in
 - **caveman** — governs *how the agent talks*: ultra-compressed prose, no filler
 - **ponytail** — governs *how the agent codes*: YAGNI ladder, stdlib/native before custom, shortest working diff
 
-See `configs/mcp-servers.md` for the full plugin/MCP list.
+See `claude/mcp-servers.md` for the full plugin/MCP list.
 
 ## Status Bars
 
-- Claude Code: `claude-hud` (`jarrodwatts/claude-hud`) via `statusLine.command` in `configs/claude-settings.json`
-- OpenCode TUI: `opencode-subagent-statusline` via `opencode/tui.json`
+- Claude Code: `claude-hud` (`jarrodwatts/claude-hud`) via `statusLine.command` in `claude/claude-settings.json`

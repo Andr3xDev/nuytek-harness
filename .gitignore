@@ -2,11 +2,11 @@ node_modules/
 **/node_modules/
 
 # OpenCode runtime/cache
-opencode/sessions/
-opencode/cache/
-opencode/logs/
-opencode/opencode-notifier-state.json
-opencode/opencode-notifier.resolved.json
+legacy/opencode/sessions/
+legacy/opencode/cache/
+legacy/opencode/logs/
+legacy/opencode/opencode-notifier-state.json
+legacy/opencode/opencode-notifier.resolved.json
 
 # Claude runtime/cache if accidentally copied here
 projects/
@@ -27,3 +27,7 @@ stats-cache.json
 **/.DS_Store
 *.swp
 *.swo
+
+# Python bytecode
+__pycache__/
+*.pyc

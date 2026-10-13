@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+set -euo pipefail
+((BASH_VERSINFO[0] >= 4)) || { echo "nuytek-harness: bash >= 4 required" >&2; exit 1; }
+
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+SCRIPTS="$ROOT/scripts"
+# shellcheck source=lib.sh
+source "$SCRIPTS/lib.sh"
+
+ACTIONS=(install reinstall update remove clean-backups pull)
+
+usage() {
+  cat <<'EOF'
+usage: nuytek-harness <action> [args] [target]
+
+  install [target]                    full setup (files, mcp, specter, plugins)
+  reinstall [target]                  remove all, then install (one snapshot)
+  update <component|all> [target]     overwrite one component ("all" skips plugins, specter)
+  remove <component|all> [target] [--yes]
+  clean-backups [target]
+  pull [target] [--restore <stamp>]   copy deployed config back into this repo
+
+target defaults to "claude". No arguments on a TTY opens a menu.
+EOF
+}
+
+YES=false
+RESTORE=""
+POSITIONAL=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --yes|-y) YES=true ;;
+    --restore) [ "$#" -ge 2 ] || { usage >&2; exit 1; }; RESTORE="$2"; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) POSITIONAL+=("$1") ;;
+  esac
+  shift
+done
+
+load_target() {
+  [ -f "$SCRIPTS/targets/$1.sh" ] || die "unknown target: $1"
+  # shellcheck source=/dev/null
+  source "$SCRIPTS/targets/$1.sh"
+}
+
+contains() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do [ "$item" = "$needle" ] && return 0; done
+  return 1
+}
+
+# Expands "all"; prints one component per line. Callers validate names first (die in a subshell would not abort).
+select_components() {
+  local wanted="$1" name
+  shift
+  if [ "$wanted" = all ]; then
+    for name in "${COMPONENTS[@]}"; do
+      contains "$name" "$@" || echo "$name"
+    done
+  else
+    echo "$wanted"
+  fi
+}
+
+do_install() {
+  local name
+  for name in "${COMPONENTS[@]}"; do
+    if [ "$name" = specter ]; then
+      ask "Register OpenSpec store 'specter' from $SPECTER_ROOT?" || continue
+    fi
+    echo "installing $name"
+    install_component "$name"
+  done
+  echo "installed $TARGET harness"
+}
+
+do_update() {
+  local name
+  while IFS= read -r name; do
+    echo "updating $name"
+    install_component "$name"
+  done < <(select_components "$1" "${SPECIAL_COMPONENTS[@]}")
+}
+
+do_remove() {
+  local name path total=0
+  local -a names=()
+  if [ "$1" != all ] && contains "$1" "${SPECIAL_COMPONENTS[@]}"; then
+    echo "$1 is not removable"
+    return
+  fi
+  mapfile -t names < <(select_components "$1" "${SPECIAL_COMPONENTS[@]}")
+  for name in "${names[@]}"; do
+    while IFS= read -r path; do
+      echo "  [$name] $path"
+      total=$((total + 1))
+    done < <(removal_list "$name")
+  done
+  if [ "$total" -eq 0 ]; then
+    echo "nothing to remove"
+    return
+  fi
+  if ! $YES; then confirm "Remove $total path(s)? (a snapshot is taken first)"; fi
+  for name in "${names[@]}"; do
+    if [ -n "$(removal_list "$name")" ]; then
+      echo "removing $name"
+      remove_component "$name"
+    fi
+  done
+}
+
+# Prints the chosen item; returns 1 on quit. Invalid numbers re-prompt (select default).
+pick_from_menu() {
+  local choice
+  PS3="$1 > "
+  select choice in "${@:2}" quit; do
+    [ "$choice" = quit ] && return 1
+    [ -n "$choice" ] && { echo "$choice"; return; }
+  done
+}
+
+run_menu() {
+  local -A help=(
+    [install]="full setup (files, mcp, specter, plugins)"
+    [reinstall]="remove all, then install (one snapshot)"
+    [update]="overwrite one component"
+    [remove]="delete one component's files (backed up first)"
+    [clean-backups]="delete installer backups"
+    [pull]="copy deployed config back into this repo, or restore a snapshot"
+  )
+  local -a labels=()
+  local action label comp mode stamp
+  for action in "${ACTIONS[@]}"; do labels+=("$action - ${help[$action]}"); done
+  label="$(pick_from_menu action "${labels[@]}")" || exit 0
+  action="${label%% *}"
+  POSITIONAL=("$action")
+  case "$action" in
+    update|remove)
+      comp="$(pick_from_menu component all "${COMPONENTS[@]}")" || exit 0
+      POSITIONAL+=("$comp")
+      ;;
+    pull)
+      mode="$(pick_from_menu pull "pull now" restore)" || exit 0
+      if [ "$mode" = restore ]; then
+        mapfile -t stamps < <(ls -1 "$REFRESH_BACKUPS" 2>/dev/null || true)
+        [ "${#stamps[@]}" -gt 0 ] || { echo "no snapshots in $REFRESH_BACKUPS"; exit 0; }
+        stamp="$(pick_from_menu snapshot "${stamps[@]}")" || exit 0
+        POSITIONAL+=(--restore "$stamp")
+      fi
+      ;;
+  esac
+  # remove and reinstall already confirm after listing what they delete.
+  case "$action" in
+    remove|reinstall) ;;
+    *) ask "Run: nuytek-harness ${POSITIONAL[*]}?" || { echo "aborted"; exit 0; } ;;
+  esac
+}
+
+if [ "${#POSITIONAL[@]}" -eq 0 ]; then
+  [ -t 0 ] || { usage >&2; exit 1; }
+  load_target claude
+  TARGET=claude
+  run_menu
+  # re-parse the menu's choice through the normal option loop
+  set -- "${POSITIONAL[@]}"
+  POSITIONAL=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --restore) RESTORE="$2"; shift ;;
+      *) POSITIONAL+=("$1") ;;
+    esac
+    shift
+  done
+fi
+
+ACTION="${POSITIONAL[0]}"
+ARGS=("${POSITIONAL[@]:1}")
+contains "$ACTION" "${ACTIONS[@]}" || { usage >&2; exit 1; }
+
+COMPONENT=""
+if [ "$ACTION" = update ] || [ "$ACTION" = remove ]; then
+  [ "${#ARGS[@]}" -ge 1 ] || { usage >&2; exit 1; }
+  COMPONENT="${ARGS[0]}"
+  ARGS=("${ARGS[@]:1}")
+fi
+[ "${#ARGS[@]}" -le 1 ] || { usage >&2; exit 1; }
+TARGET="${ARGS[0]:-claude}"
+load_target "$TARGET"
+if [ -n "$COMPONENT" ]; then
+  [ "$COMPONENT" = all ] || contains "$COMPONENT" "${COMPONENTS[@]}" || die "unknown component: $COMPONENT"
+fi
+
+case "$ACTION" in
+  install) do_install ;;
+  reinstall)
+    do_remove all
+    do_install
+    ;;
+  update) do_update "$COMPONENT" ;;
+  remove) do_remove "$COMPONENT" ;;
+  clean-backups) clean_backups ;;
+  pull)
+    if [ -n "$RESTORE" ]; then pull_restore "$RESTORE"; else pull_all; fi
+    ;;
+esac
+[ -z "$SNAPSHOT" ] || echo "snapshot: $SNAPSHOT"

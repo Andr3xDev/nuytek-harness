@@ -52,7 +52,7 @@ You may run allow-listed test, lint, format-check, typecheck, compile, build, an
 1. **Correctness** — does the implementation fulfill every spec scenario?
 2. **Coverage** — do tests exercise the edge cases from the spec?
 3. **Patterns** — does the code follow existing codebase conventions?
-4. **Quality standards** — the owner standards in the global harness (`configs/CLAUDE.md` section 3): SOLID, KISS, YAGNI, DRY, clean/extensible/maintainable/semantically correct, simple yet powerful, no comments that narrate code, tests that genuinely serve their function.
+4. **Quality standards** — the owner standards in the global harness (`claude/CLAUDE.md` section 3): SOLID, KISS, YAGNI, DRY, clean/extensible/maintainable/semantically correct, simple yet powerful, no comments that narrate code, tests that genuinely serve their function.
 5. **Security and efficiency (when relevant)** — unvalidated inputs, exposed secrets, injection risks, hot-path costs; only where the code handles untrusted input, secrets, money, permissions, or a hot path.
 6. **Performance** — N+1 queries, unnecessary loops, blocking calls?
 7. **Maintainability** — readable? duplicated logic? appropriate abstraction level?

@@ -5,36 +5,38 @@ Portable source for my agent setup across machines.
 ## Installs
 
 - Claude Code agents: `agents/` -> `~/.claude/agents/`
-- Claude Code commands: `commands/` -> `~/.claude/commands/`
+- Claude Code commands: `claude/commands/` -> `~/.claude/commands/`
 - Claude Code skills: `skills/` -> `~/.claude/skills/`
-- Claude hooks: `hooks/*.sh` -> `~/.claude/hooks/`
-- Claude global instructions: `configs/CLAUDE.md` -> `~/.claude/CLAUDE.md`
-- Claude settings/hooks reference: `configs/claude-settings.json` -> `~/.claude/settings.json`
-- Claude MCP registry: `configs/claude-mcp.json` -> merged into `~/.claude.json#mcpServers`
-- Claude helper docs: `configs/common-sdd.md`, `configs/engram-protocol.md`, `configs/context7.md` -> `~/.claude/`
+- Claude hooks: `claude/hooks/` -> `~/.claude/hooks/`
+- Claude sounds: `claude/sounds/` -> `~/.claude/sounds/`
+- Claude global instructions: `claude/CLAUDE.md` -> `~/.claude/CLAUDE.md`
+- Claude settings/hooks reference: `claude/claude-settings.json` -> `~/.claude/settings.json`
+- Claude MCP registry: `claude/claude-mcp.json` -> merged into `~/.claude.json#mcpServers`
+- Shared helper docs: `shared/common-sdd.md`, `shared/engram-protocol.md` -> `~/.claude/`; `shared/rules/context7.md` -> `~/.claude/rules/context7.md`
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
-- Out-of-context launcher: `scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
-- OpenCode config: `opencode/` -> `~/.config/opencode/`
+- Out-of-context launcher: `claude/scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
+
+OpenCode config is frozen in `legacy/opencode/` and is not installed.
 
 ## Not Included
 
 - Secrets: `GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear auth, Claude cloud connector auth
 - Runtime data: Claude history, project transcripts, paste cache, jobs, stats
-- Dependency caches: `node_modules`, plugin caches, OpenCode sessions/logs
+- Dependency caches: `node_modules`, plugin caches
 - Machine-specific cloud connectors: disconnect/connect at `https://claude.ai/customize/connectors`
 
 ## Required Commands
 
+- `bash` >= 4
 - `claude`
-- `opencode`
-- `git` and `node` for the upstream Caveman installer; `npx` for local MCPs
+- `node` and the `claude` CLI for the plugins component; `npx` for local MCPs
 - `engram`
 - `codegraph`
 - `openspec`
 
 ## Helper Scripts
 
-- `codegraph-health`: shared CodeGraph health/maintenance helper for Claude Code and OpenCode agents.
+- `codegraph-health`: shared CodeGraph health/maintenance helper for Claude Code agents.
 - `claude-out-context`: launches Claude Code with memory and tracker persistence disabled.
 
 ## Expected MCPs
@@ -47,17 +49,18 @@ Portable source for my agent setup across machines.
 - `linear-server`: `https://mcp.linear.app/mcp`
 - `zenhub` (optional): `npx -y mcp-remote https://api.zenhub.com/mcp` with `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`
 
-## Expected OpenCode Plugins
+## Expected Plugins
 
-- `caveman`: installed for Claude Code and OpenCode by the upstream installer from current `main`; it modifies user-level configuration
+- `plugins`: every plugin in `enabledPlugins` and marketplace in `extraKnownMarketplaces` of `claude/claude-settings.json` is installed or updated through `claude plugin`; enable/disable state is left to `settings.json`
 
-## Refresh
+## Pull
 
-Run `./scripts/refresh-from-local.sh` on the source machine after changing live config.
+Run `./scripts/nuytek-harness pull` on the source machine after changing live config.
 Review diff before committing.
 
-Refresh owns exactly `agents/`, `commands/`, `skills/`, `hooks/`, `opencode/`, and
-`configs/{CLAUDE.md,claude-settings.json,common-sdd.md,engram-protocol.md,context7.md}`.
-It mirrors these paths from local config and prunes stale managed files. `configs/claude-mcp.json`,
-`configs/generic-config.md`, `configs/mcp-servers.md`, docs, and scripts are repository-owned because
-they have no safe one-to-one local source; refresh preserves them.
+Pull owns exactly `agents/`, `skills/`, `claude/{commands,hooks,sounds}/`,
+`claude/{CLAUDE.md,claude-settings.json}`, and
+`shared/{common-sdd.md,engram-protocol.md,rules/context7.md}`.
+It mirrors these paths from local config and prunes stale managed files. `claude/claude-mcp.json`,
+`claude/mcp-servers.md`, `claude/scripts/`, `legacy/`, docs, and scripts are repository-owned because
+they have no safe one-to-one local source; pull preserves them.
