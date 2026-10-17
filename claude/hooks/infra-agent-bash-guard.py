@@ -3,11 +3,10 @@
 
 Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
-passed through untouched, except file-delete commands, which get "ask".
+passed through untouched.
 """
 import fnmatch
 import json
-import re
 import sys
 
 GIT_DENY = [
@@ -64,11 +63,6 @@ VALIDATION_ALLOW = [
 ]
 
 SHELL_METACHARACTERS = ["&&", ";", "|", "$(", "`", "\n", ">", "<"]
-
-FILE_DELETE_PATTERN = re.compile(
-    r"(?:^|[\s;&|(`])(?:rm|rmdir|unlink|shred)(?:\s|$)"
-    r"|(?:^|[\s;&|(`])find\s.*\s-delete(?:\s|$)"
-)
 
 RULES = {
     "sdd-explore": {
@@ -213,8 +207,6 @@ def has_shell_metacharacters(command: str) -> bool:
 def decide(agent_type: str, command: str):
     rules = RULES.get(agent_type)
     if rules is None:
-        if FILE_DELETE_PATTERN.search(command):
-            return "ask", "infra-agent-bash-guard: deleting files requires user confirmation."
         return None
 
     if has_shell_metacharacters(command):
@@ -362,14 +354,6 @@ def _selftest() -> int:
         ("code-reviewer", "git clean -fd", "ask"),
         ("code-reviewer", "git checkout -- f", "ask"),
         ("code-reviewer", "git restore f", "ask"),
-        ("builder", "rm -rf dist", "ask"),
-        ("builder", "sudo rm x", "ask"),
-        ("builder", "cd a && rm b", "ask"),
-        ("builder", "find . -name '*.pyc' -delete", "ask"),
-        ("builder", "unlink f", "ask"),
-        (None, "rm f", "ask"),
-        ("builder", "npm run format", None),
-        ("builder", "grep -rn rmdir_helper src", None),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)

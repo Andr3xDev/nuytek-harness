@@ -65,7 +65,14 @@
       "Agent(caveman:cavecrew-reviewer)"
     ],
     "ask": [
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(unlink *)",
+      "Bash(shred *)",
+      "Bash(find *-delete*)",
+      "Bash(find *-exec rm*)",
+      "Bash(xargs rm*)"
     ]
   },
   "hooks": {
@@ -75,7 +82,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Inspect Bash command. Return ask if it removes files, irreversibly alters database data or schema, wipes or formats disks, or discards uncommitted work (git reset --hard, git clean -f, git checkout -- <path>, git restore <path>). Otherwise return approve. git commit, git push, git add and other staging commands are denied by permissions; git stash asks."
+            "prompt": "Inspect Bash command. Return ask if it irreversibly alters database data or schema, wipes or formats disks, or discards uncommitted work (git reset --hard, git clean -f, git checkout -- <path>, git restore <path>). Otherwise return approve. git commit, git push, git add and other staging commands are denied by permissions; git stash asks."
           },
           {
             "type": "command",
