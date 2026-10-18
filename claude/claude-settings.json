@@ -77,7 +77,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Inspect Bash command: $ARGUMENTS\n\nFlag it only if it is truly irreversible: destroying database data or schema, wiping or formatting disks, or discarding uncommitted git work (git reset --hard, git clean -f, git checkout -- <path>, git restore <path>). Everything else is reversible and must be approved: creating or editing files inside the repo (git tracks them), including via scripts, and running tests, linters or the hook self-test. Respond with JSON only: {\"ok\": true} to approve, or {\"ok\": false, \"reason\": \"<why it is irreversible>\"} to flag it for the user. Never stop the agent. git push is denied by permissions; git add, commit, rm, mv and restore --staged are denied by the agent guard hook for everyone except git-ops; git stash asks.",
+            "prompt": "Inspect Bash command: $ARGUMENTS\n\nFlag only truly irreversible actions: destroying database data or schema, wiping or formatting disks. Approve everything else, including file edits inside the repo, tests and linters; git discards are handled by the guard hook. Respond with JSON only: {\"ok\": true} or {\"ok\": false, \"reason\": \"<why it is irreversible>\"}.",
             "continueOnBlock": true
           },
           {

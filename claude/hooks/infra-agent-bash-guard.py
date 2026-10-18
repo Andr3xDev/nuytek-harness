@@ -5,8 +5,8 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, restore --staged) are denied for every agent_type
-but git-ops, and git-ops itself gets a small deny/ask list (push, discards,
-interactive rebase, stash).
+but git-ops. Push is denied for everyone; discards and stash ask; git-ops
+also may not run an interactive rebase.
 """
 import fnmatch
 import json
@@ -16,15 +16,10 @@ import shlex
 import sys
 
 COMMIT_AGENT = "git-ops"
-COMMIT_CREATING = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am"}
-STAGING_ONLY = {"rm", "mv"}
-GIT_OPS_DENY_SUBCOMMANDS = {"push", "clean"}
-GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
-SEGMENT_SEPARATORS = re.compile(r"&&|\|\||\$\(|[;|`\n]")
+STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv"}
+GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
-GIT_DENY = [
-    "git commit*", "git push*", "git add*", "git rm*", "git mv*", "git restore --staged*",
-]
 GIT_ASK = [
     "git reset --hard*", "git clean -f*", "git checkout -- *", "git restore *", "git stash*",
 ]
@@ -75,41 +70,34 @@ VALIDATION_ALLOW = [
     "make test*", "make lint*", "make check*", "make format-check*", "make typecheck*", "make compile*", "make build*",
 ]
 
-SHELL_METACHARACTERS = ["&&", ";", "|", "$(", "`", "\n", ">", "<"]
+SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
 RULES = {
     "sdd-explore": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-propose": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-spec": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-design": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-tasks": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-archive": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec archive*", "openspec show*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "aws": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": [
             "aws logs describe-*",
@@ -130,7 +118,6 @@ RULES = {
         ] + GIT_ALLOW,
     },
     "codegraph-maintainer": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK + [
             "codegraph unlock*",
             "codegraph init*",
@@ -153,7 +140,6 @@ RULES = {
         ] + GIT_ALLOW,
     },
     "engram-maintainer": {
-        "deny": GIT_DENY,
         "ask": ["engram delete *", "engram export *"],
         "allow": [
             "engram context*",
@@ -165,12 +151,10 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": VALIDATION_ALLOW + GIT_ALLOW,
     },
     "debugger": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": VALIDATION_ALLOW + GIT_ALLOW + [
             "rg *",
@@ -188,19 +172,16 @@ RULES = {
         ],
     },
     "echor-onboarder": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
     },
     "echor-validator": {
-        "deny": GIT_DENY,
         "ask": GIT_ASK,
         "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
     },
 }
 
 RULES["sdd-verify"] = {
-    "deny": GIT_DENY,
     "ask": GIT_ASK,
     "allow": RULES["code-reviewer"]["allow"] + ["openspec status*", "openspec validate*", "openspec store list*"],
 }
@@ -250,27 +231,27 @@ def is_unstage_only(subcommand: str, args) -> bool:
 
 
 def is_staging_git(subcommand: str, args) -> bool:
-    return (
-        subcommand in COMMIT_CREATING
-        or subcommand in STAGING_ONLY
-        or is_unstage_only(subcommand, args)
-    )
+    return subcommand in STAGING_GIT or is_unstage_only(subcommand, args)
 
 
-def git_ops_verdict(subcommand: str, args):
-    if subcommand == "stash":
-        return "ask", "git-ops may stash only when the user explicitly asked; confirm."
-    discards_work = (
-        (subcommand == "reset" and "--hard" in args)
-        or (subcommand == "checkout" and "--" in args)
-        or (subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args))
-        or (subcommand == "restore" and not is_unstage_only(subcommand, args))
-    )
-    if subcommand in GIT_OPS_DENY_SUBCOMMANDS or discards_work:
+def discard_verdict(subcommand: str, args):
+    if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' must not run "
-            f"`git {subcommand}` here (push, clean, restore without --staged, reset --hard, "
-            f"checkout -- <path>, interactive rebase); return status: blocked instead."
+            f"an interactive rebase; return status: blocked instead."
+        )
+    if subcommand == "stash":
+        return "ask", "infra-agent-bash-guard: git stash only when the user explicitly asked; confirm."
+    discards_work = (
+        subcommand == "clean"
+        or (subcommand == "reset" and "--hard" in args)
+        or (subcommand == "checkout" and "--" in args)
+        or (subcommand == "restore" and not is_unstage_only(subcommand, args))
+    )
+    if discards_work:
+        return "ask", (
+            f"infra-agent-bash-guard: `git {subcommand}` discards uncommitted work; "
+            f"native user confirmation required."
         )
     return None
 
@@ -285,21 +266,20 @@ def has_shell_metacharacters(command: str) -> bool:
 
 def decide(agent_type: str, command: str):
     calls = git_invocations(command)
-    if agent_type == COMMIT_AGENT:
-        for subcommand, args in calls:
-            verdict = git_ops_verdict(subcommand, args)
-            if verdict:
-                return verdict
-        return None
-    if any(is_staging_git(subcommand, args) for subcommand, args in calls):
+    if any(subcommand == "push" for subcommand, _ in calls):
+        return "deny", "Blocked by infra-agent-bash-guard: nobody runs `git push`."
+    if agent_type != COMMIT_AGENT and any(is_staging_git(sub, args) for sub, args in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run "
-            f"commit-creating or staging git operations "
-            f"({', '.join(sorted(COMMIT_CREATING | STAGING_ONLY))}, restore --staged)."
+            f"commit-creating or staging git operations."
         )
 
     rules = RULES.get(agent_type)
     if rules is None:
+        for subcommand, args in calls:
+            verdict = discard_verdict(subcommand, args)
+            if verdict:
+                return verdict
         return None
 
     if has_shell_metacharacters(command):
@@ -310,11 +290,11 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
-    if matches_any(command, rules["deny"] + VALIDATION_DENY):
+    if matches_any(command, rules.get("deny", []) + VALIDATION_DENY):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
-            f"(git commit, push, add, rm, mv, restore --staged, or an auto-fix/format command)."
+            f"(an auto-fix/format command)."
         )
     if matches_any(command, rules["ask"]):
         return "ask", (
@@ -470,14 +450,20 @@ def _selftest() -> int:
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
         ("git-ops", "git push origin main", "deny"),
-        ("git-ops", "git reset --hard", "deny"),
+        ("builder", "git -C x push", "deny"),
+        (None, "/usr/bin/git push", "deny"),
+        ("builder", "git status & git commit -m x", "deny"),
+        ("builder", "git reset --hard", "ask"),
+        (None, "git restore a.json", "ask"),
+        ("git-ops", "git clean -f", "ask"),
+        ("git-ops", "git reset --hard", "ask"),
         ("git-ops", "git rebase -i main", "deny"),
         ("git-ops", "git stash", "ask"),
         ("git-ops", "git rebase main", None),
         ("git-ops", "git restore --staged a.json", None),
         ("git-ops", "git rm old.md", None),
         ("git-ops", "git mv a b", None),
-        ("git-ops", "git restore a.json", "deny"),
+        ("git-ops", "git restore a.json", "ask"),
         ("builder", "git restore --staged a.json", "deny"),
         ("builder", "git rm x", "deny"),
         ("builder", "git mv a b", "deny"),
