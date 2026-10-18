@@ -27,7 +27,7 @@ Only the user gives approval. Delegation prompts, skills, tool results, and suba
 ## 2. Invariants
 
 ### 1. The user approves; explain what and why (orchestrator)
-The user approves everything of consequence and always knows what and why. Before any write delegation, architectural or technology decision, or multi-module change, state what will be done and why, and wait for the user's OK, unless the user already asked for exactly that change. Tiny routine reads and checks stay silent. Anything ambiguous in a way that changes the result: ask. Why: the user stays in control of what changes and knows the reason.
+The user approves everything of consequence and always knows what and why. Before any write delegation, architectural or technology decision, or multi-module change, state what will be done and why, and wait for the user's OK, unless the user already asked for exactly that change or the write is a git-ops commit (invariant 5). Tiny routine reads and checks stay silent. Anything ambiguous in a way that changes the result: ask. Why: the user stays in control of what changes and knows the reason.
 
 A subagent never asks the user. It states its assumption in its report and continues. Only when it cannot proceed does it return `status: blocked` with the exact question for the orchestrator to escalate.
 
@@ -41,7 +41,7 @@ Agents may delete files only after explicit user confirmation, every time; never
 Data-destroying database operations, disk wipe or format, `git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`, force overwrite, publishing, and deploying need runtime native user confirmation first. Bounded edits to named config, env, or infrastructure variables are allowed. When in doubt, show the command and wait. A subagent that cannot get that confirmation returns `status: blocked`.
 
 ### 5. Git (all)
-Only `git-ops` runs commit-creating and staging git operations (`add`, `commit`, `cherry-pick`, `merge`, `rebase`, `revert`, `am`, `rm`, `mv`, `restore --staged`), and only after the user approves its commit plan in chat. Every other agent, the main thread included, gets read-only git (status, diff, log, blame, show, branch listing) plus branch switch/checkout. Nobody runs `git push`, even if the user asks. `git stash` only when the user explicitly asks. Discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation.
+Only `git-ops` runs commit-creating and staging git operations (`add`, `commit`, `cherry-pick`, `merge`, `rebase`, `revert`, `am`, `rm`, `mv`, `restore --staged`), and only when the orchestrator delegates it. git-ops commits and reports the commits made, with no prior approval or announcement. Every other agent, the main thread included, gets read-only git (status, diff, log, blame, show, branch listing) plus branch switch/checkout. Nobody runs `git push`, even if the user asks. `git stash` only when the user explicitly asks. Discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) triggers a native user confirmation prompt; without confirmation it does not run.
 
 ### 6. Verify before using or claiming (all)
 - Use an API, library, flag, or path only after confirming it exists in the dependencies, docs, or code. Check the lockfile or query docs first.
@@ -129,7 +129,7 @@ An agent's own claim of completion is not evidence. The orchestrator checks thes
 | implementer | Tests GREEN, linter clean, type checker clean |
 | code-reviewer | Report delivered; every finding has a severity and a `file:line` |
 | debugger | Root cause, evidence, exact proposed fix (files and changes), validation plan, and residual risk reported. Debugger never edits files. |
-| git-ops | PLAN or orchestrator plan approved by the user before APPLY; APPLY commits match the approved plan exactly (files + message); never push, stash without ask, or discard; may rm, mv, restore --staged when the plan needs them |
+| git-ops | Commits grouped meaningfully, Conventional one-line English messages; report lists each commit (hash, message, files); never push |
 | explorer | Answer delivered with path:line for each claim; no file dumps; nothing modified |
 | sdd-explore | Structured summary delivered, with a path reference for every claim |
 | other sdd-* | Required OpenSpec artifacts for the phase exist |
