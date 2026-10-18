@@ -113,25 +113,25 @@ Claude Code has no per-agent command allow-list built into agent frontmatter bey
 
 `/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
 
-Commit-creating and staging git is denied for every agent except git-ops; push is denied for all; discards ask.
+Commit-creating and staging git is denied for every agent except git-ops; push is denied for all. The hook never returns `ask` (a hook `ask` in a background subagent never reaches the user): discards and `git stash` prompt through native `permissions.ask`, and odd invocation forms (`git -C`, absolute path, `env git`, chained) are denied, so use the plain `git <sub>` form. Read-only agents may not discard at all. The Ask column lists commands the hook passes through to native `permissions.ask`.
 
 | Agent | Allow | Ask | Deny |
 |---|---|---|---|
-| aws | `aws logs describe-*`, `aws dynamodb *`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, `git *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | none |
-| codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, `git *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*`, `codegraph unlock/init/sync/index*`, `codegraph-health*` | none |
-| debugger | Same test/lint/build commands as code-reviewer; read-only Git; `rg`, `wc`, `du`, `ls`, `cat`, `head`, `tail`, `zcat`, `gzip -cd`, `journalctl`, `docker logs`, `kubectl logs` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
+| aws | `aws logs describe-*`, `aws dynamodb *`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, `git *` | none | none |
+| codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, `git *` | `codegraph unlock/init/sync/index*`, `codegraph-health*` | none |
+| debugger | Same test/lint/build commands as code-reviewer; read-only Git; `rg`, `wc`, `du`, `ls`, `cat`, `head`, `tail`, `zcat`, `gzip -cd`, `journalctl`, `docker logs`, `kubectl logs` | none | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
 | engram-maintainer | `engram context/search/stats/projects list/doctor/timeline` | `engram delete *`, `engram export *` | all unrelated shell commands |
-| code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
-| judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | none |
-| sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git; native `Write`/`Edit` for prompt-scoped `explore.md` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
-| sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
-| sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
-| sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
-| echor-onboarder, echor-validator | Read-only Git (`status`/`log`/`diff`/`show`/`rev-parse`), `ls *`, `rg *`, `cat *` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
-| echor-updater | Same read-only Git and inspection commands as `echor-onboarder` | `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` | all other shell commands |
+| code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git | none | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
+| judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | none | none |
+| sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git; native `Write`/`Edit` for prompt-scoped `explore.md` | none | all other shell commands |
+| sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
+| sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | none | all other shell commands |
+| sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
+| echor-onboarder, echor-validator | Read-only Git (`status`/`log`/`diff`/`show`/`rev-parse`), `ls *`, `rg *`, `cat *` | none | all other shell commands |
+| echor-updater | Same read-only Git and inspection commands as `echor-onboarder` | none | all other shell commands |
 | echor-consultador | none | none | all shell commands |
 
-Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging denied except for git-ops, push denied, discards and stash ask, and git-ops may not run `rebase -i`.
+Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging denied except for git-ops, push denied, discards and stash passed to native ask in plain form (denied in odd forms), and git-ops may not run `rebase -i`.
 
 This is the pattern to reuse if another agent needs a Bash restriction in the future — for example, `test-writer` arguably should not touch production code paths. Today that boundary is prompt discipline only (documented in `test-writer`'s own instructions); no hook enforces it. This is a known gap, not yet addressed.
 

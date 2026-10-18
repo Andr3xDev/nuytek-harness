@@ -5,8 +5,14 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, restore --staged) are denied for every agent_type
-but git-ops. Push is denied for everyone; discards and stash ask; git-ops
-also may not run an interactive rebase.
+but git-ops. Push is denied for everyone; git-ops also may not run an
+interactive rebase.
+
+The hook never returns `ask`: a hook `ask` inside a background subagent never
+reaches the user. Confirmations live in native `permissions.ask`. Discards and
+stash pass through to those rules in plain `git <sub>` form; any other form
+is denied because the native prefix rules cannot see it. `native_ask` commands
+also pass through to native rules.
 """
 import fnmatch
 import json
@@ -16,13 +22,10 @@ import shlex
 import sys
 
 COMMIT_AGENT = "git-ops"
-STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv"}
+STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv", "pull"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
-GIT_ASK = [
-    "git reset --hard*", "git clean -f*", "git checkout -- *", "git restore *", "git stash*",
-]
 GIT_ALLOW = [
     "git status*",
     "git log*",
@@ -74,31 +77,24 @@ SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
 RULES = {
     "sdd-explore": {
-        "ask": GIT_ASK,
         "allow": ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-propose": {
-        "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-spec": {
-        "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-design": {
-        "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-tasks": {
-        "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "sdd-archive": {
-        "ask": GIT_ASK,
         "allow": ["openspec status*", "openspec validate*", "openspec archive*", "openspec show*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
     },
     "aws": {
-        "ask": GIT_ASK,
         "allow": [
             "aws logs describe-*",
             "aws logs filter-log-events *",
@@ -118,7 +114,7 @@ RULES = {
         ] + GIT_ALLOW,
     },
     "codegraph-maintainer": {
-        "ask": GIT_ASK + [
+        "native_ask": [
             "codegraph unlock*",
             "codegraph init*",
             "codegraph sync*",
@@ -140,7 +136,7 @@ RULES = {
         ] + GIT_ALLOW,
     },
     "engram-maintainer": {
-        "ask": ["engram delete *", "engram export *"],
+        "native_ask": ["engram delete *", "engram export *"],
         "allow": [
             "engram context*",
             "engram search*",
@@ -151,11 +147,9 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "ask": GIT_ASK,
         "allow": VALIDATION_ALLOW + GIT_ALLOW,
     },
     "debugger": {
-        "ask": GIT_ASK,
         "allow": VALIDATION_ALLOW + GIT_ALLOW + [
             "rg *",
             "wc *",
@@ -172,17 +166,14 @@ RULES = {
         ],
     },
     "echor-onboarder": {
-        "ask": GIT_ASK,
         "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
     },
     "echor-validator": {
-        "ask": GIT_ASK,
         "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
     },
 }
 
 RULES["sdd-verify"] = {
-    "ask": GIT_ASK,
     "allow": RULES["code-reviewer"]["allow"] + ["openspec status*", "openspec validate*", "openspec store list*"],
 }
 RULES["judge-a"] = RULES["code-reviewer"]
@@ -234,24 +225,28 @@ def is_staging_git(subcommand: str, args) -> bool:
     return subcommand in STAGING_GIT or is_unstage_only(subcommand, args)
 
 
-def discard_verdict(subcommand: str, args):
+def is_plain_git_start(command: str, subcommand: str) -> bool:
+    return re.match(rf"git\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
+
+
+def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' must not run "
             f"an interactive rebase; return status: blocked instead."
         )
-    if subcommand == "stash":
-        return "ask", "infra-agent-bash-guard: git stash only when the user explicitly asked; confirm."
-    discards_work = (
-        subcommand == "clean"
+    needs_native_confirmation = (
+        subcommand == "stash"
+        or subcommand == "clean"
         or (subcommand == "reset" and "--hard" in args)
         or (subcommand == "checkout" and "--" in args)
         or (subcommand == "restore" and not is_unstage_only(subcommand, args))
     )
-    if discards_work:
-        return "ask", (
-            f"infra-agent-bash-guard: `git {subcommand}` discards uncommitted work; "
-            f"native user confirmation required."
+    if needs_native_confirmation and not (is_first_call and is_plain_git_start(command, subcommand)):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: `git {subcommand}` needs native user "
+            f"confirmation, which only triggers for the plain `git {subcommand} ...` form "
+            f"as the whole command; rerun it that way."
         )
     return None
 
@@ -276,8 +271,8 @@ def decide(agent_type: str, command: str):
 
     rules = RULES.get(agent_type)
     if rules is None:
-        for subcommand, args in calls:
-            verdict = discard_verdict(subcommand, args)
+        for index, (subcommand, args) in enumerate(calls):
+            verdict = discard_verdict(command, index == 0, subcommand, args)
             if verdict:
                 return verdict
         return None
@@ -290,17 +285,14 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
-    if matches_any(command, rules.get("deny", []) + VALIDATION_DENY):
+    if matches_any(command, VALIDATION_DENY):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
             f"(an auto-fix/format command)."
         )
-    if matches_any(command, rules["ask"]):
-        return "ask", (
-            f"infra-agent-bash-guard: '{agent_type}' agent requires "
-            f"confirmation for this command."
-        )
+    if matches_any(command, rules.get("native_ask", [])):
+        return None
     if matches_any(command, rules["allow"]):
         return "allow", (
             f"infra-agent-bash-guard: command matches '{agent_type}' "
@@ -346,9 +338,10 @@ def _selftest() -> int:
         ("aws", "aws logs describe-log-groups && git push origin main", "deny"),
         ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
         ("engram-maintainer", "engram context", "allow"),
-        ("engram-maintainer", "engram delete 42", "ask"),
-        ("engram-maintainer", "engram delete project demo --hard", "ask"),
-        ("engram-maintainer", "engram export backup.json", "ask"),
+        ("engram-maintainer", "engram delete 42", None),
+        ("engram-maintainer", "engram delete project demo --hard", None),
+        ("engram-maintainer", "engram export backup.json", None),
+        ("codegraph-maintainer", "codegraph sync", None),
         ("engram-maintainer", "engram save title text", "deny"),
         ("aws", "aws logs describe-log-groups", "allow"),
         ("code-reviewer", "npm test", "allow"),
@@ -419,17 +412,19 @@ def _selftest() -> int:
         ("debugger", "tail app.log > out.txt", "deny"),
         ("debugger", "ruff check --fix .", "deny"),
         ("debugger", "git commit -m x", "deny"),
-        ("debugger", "git reset --hard", "ask"),
+        ("debugger", "git reset --hard", "deny"),
         ("code-reviewer", "git add .", "deny"),
         ("code-reviewer", "git rm f", "deny"),
         ("code-reviewer", "git restore --staged f", "deny"),
-        ("code-reviewer", "git stash", "ask"),
-        ("code-reviewer", "git clean -fd", "ask"),
-        ("code-reviewer", "git checkout -- f", "ask"),
-        ("code-reviewer", "git restore f", "ask"),
+        ("code-reviewer", "git stash", "deny"),
+        ("code-reviewer", "git clean -fd", "deny"),
+        ("code-reviewer", "git checkout -- f", "deny"),
+        ("code-reviewer", "git restore f", "deny"),
         ("git-ops", "git commit -m 'feat: x'", None),
         ("git-ops", "git add a.py b.py", None),
         ("builder", "git commit -m x", "deny"),
+        ("builder", "git pull", "deny"),
+        ("git-ops", "git pull", None),
         ("builder", "cd x && git commit -m x", "deny"),
         (None, "git add .", "deny"),
         (None, "cd x && git add -A", "deny"),
@@ -453,17 +448,22 @@ def _selftest() -> int:
         ("builder", "git -C x push", "deny"),
         (None, "/usr/bin/git push", "deny"),
         ("builder", "git status & git commit -m x", "deny"),
-        ("builder", "git reset --hard", "ask"),
-        (None, "git restore a.json", "ask"),
-        ("git-ops", "git clean -f", "ask"),
-        ("git-ops", "git reset --hard", "ask"),
+        ("builder", "git reset --hard", None),
+        ("builder", "git -C x reset --hard", "deny"),
+        (None, "git restore a.json", None),
+        (None, "cd x && git restore a.json", "deny"),
+        ("builder", "/usr/bin/git clean -f", "deny"),
+        ("builder", "env git restore f", "deny"),
+        ("builder", "git status && git reset --hard", "deny"),
+        ("git-ops", "git clean -f", None),
+        ("git-ops", "git reset --hard", None),
         ("git-ops", "git rebase -i main", "deny"),
-        ("git-ops", "git stash", "ask"),
+        ("git-ops", "git stash", None),
         ("git-ops", "git rebase main", None),
         ("git-ops", "git restore --staged a.json", None),
         ("git-ops", "git rm old.md", None),
         ("git-ops", "git mv a b", None),
-        ("git-ops", "git restore a.json", "ask"),
+        ("git-ops", "git restore a.json", None),
         ("builder", "git restore --staged a.json", "deny"),
         ("builder", "git rm x", "deny"),
         ("builder", "git mv a b", "deny"),

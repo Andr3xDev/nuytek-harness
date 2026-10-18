@@ -60,7 +60,20 @@
       "Agent(caveman:cavecrew-reviewer)"
     ],
     "ask": [
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
       "Bash(git stash:*)",
+      "Bash(engram delete *)",
+      "Bash(engram export *)",
+      "Bash(codegraph unlock*)",
+      "Bash(codegraph init*)",
+      "Bash(codegraph sync*)",
+      "Bash(codegraph index*)",
+      "Bash(codegraph-health*)",
+      "Bash(scripts/codegraph-health.sh*)",
+      "Bash(./scripts/codegraph-health.sh*)",
       "Bash(rm *)",
       "Bash(rmdir *)",
       "Bash(unlink *)",
@@ -77,7 +90,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Inspect Bash command: $ARGUMENTS\n\nFlag only truly irreversible actions: destroying database data or schema, wiping or formatting disks. Approve everything else, including file edits inside the repo, tests and linters; git discards are handled by the guard hook. Respond with JSON only: {\"ok\": true} or {\"ok\": false, \"reason\": \"<why it is irreversible>\"}.",
+            "prompt": "Inspect Bash command: $ARGUMENTS\n\nFlag only truly irreversible actions: destroying database data or schema, wiping or formatting disks. Approve everything else, including file edits inside the repo, tests and linters; git discards are handled by native permission rules. Respond with JSON only: {\"ok\": true} or {\"ok\": false, \"reason\": \"<why it is irreversible>\"}.",
             "continueOnBlock": true
           },
           {
