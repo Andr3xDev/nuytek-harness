@@ -3,11 +3,24 @@
 
 Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
-passed through untouched.
+passed through untouched, except that commit-creating and staging git
+operations (incl. rm, mv, restore --staged) are denied for every agent_type
+but git-ops, and git-ops itself gets a small deny/ask list (push, discards,
+interactive rebase, stash).
 """
 import fnmatch
 import json
+import os
+import re
+import shlex
 import sys
+
+COMMIT_AGENT = "git-ops"
+COMMIT_CREATING = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am"}
+STAGING_ONLY = {"rm", "mv"}
+GIT_OPS_DENY_SUBCOMMANDS = {"push", "clean"}
+GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+SEGMENT_SEPARATORS = re.compile(r"&&|\|\||\$\(|[;|`\n]")
 
 GIT_DENY = [
     "git commit*", "git push*", "git add*", "git rm*", "git mv*", "git restore --staged*",
@@ -196,6 +209,72 @@ RULES["judge-b"] = RULES["code-reviewer"]
 RULES["echor-updater"] = RULES["echor-onboarder"]
 
 
+def git_invocations(command: str):
+    """Return (subcommand, args) for every git call found in `command`.
+
+    Splits on chain separators, finds a token whose basename is `git` (so
+    `/usr/bin/git` and `env X=1 git` work), then skips global options such as
+    `-C <path>`, `-c k=v`, `--git-dir=...`, `--no-pager`. `commit-tree` is its
+    own subcommand, so it never matches `commit`.
+
+    shortcut: `sh -c "git ..."` strings, aliases and variable-built commands
+    can evade; quoted text that merely mentions `git commit` fails closed.
+    Upgrade to a real shell parser if that matters.
+    """
+    calls = []
+    for segment in SEGMENT_SEPARATORS.split(command):
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            tokens = segment.split()
+        for index, token in enumerate(tokens):
+            if os.path.basename(token) != "git":
+                continue
+            rest = iter(tokens[index + 1:])
+            for option in rest:
+                if option in GIT_OPTIONS_WITH_VALUE:
+                    next(rest, None)
+                elif not option.startswith("-"):
+                    calls.append((option, list(rest)))
+                    break
+            break
+    return calls
+
+
+def is_unstage_only(subcommand: str, args) -> bool:
+    return (
+        subcommand == "restore"
+        and "--staged" in args
+        and not any(a in ("--worktree", "-W") for a in args)
+    )
+
+
+def is_staging_git(subcommand: str, args) -> bool:
+    return (
+        subcommand in COMMIT_CREATING
+        or subcommand in STAGING_ONLY
+        or is_unstage_only(subcommand, args)
+    )
+
+
+def git_ops_verdict(subcommand: str, args):
+    if subcommand == "stash":
+        return "ask", "git-ops may stash only when the user explicitly asked; confirm."
+    discards_work = (
+        (subcommand == "reset" and "--hard" in args)
+        or (subcommand == "checkout" and "--" in args)
+        or (subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args))
+        or (subcommand == "restore" and not is_unstage_only(subcommand, args))
+    )
+    if subcommand in GIT_OPS_DENY_SUBCOMMANDS or discards_work:
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' must not run "
+            f"`git {subcommand}` here (push, clean, restore without --staged, reset --hard, "
+            f"checkout -- <path>, interactive rebase); return status: blocked instead."
+        )
+    return None
+
+
 def matches_any(command: str, patterns) -> bool:
     return any(fnmatch.fnmatchcase(command, p) for p in patterns)
 
@@ -205,6 +284,20 @@ def has_shell_metacharacters(command: str) -> bool:
 
 
 def decide(agent_type: str, command: str):
+    calls = git_invocations(command)
+    if agent_type == COMMIT_AGENT:
+        for subcommand, args in calls:
+            verdict = git_ops_verdict(subcommand, args)
+            if verdict:
+                return verdict
+        return None
+    if any(is_staging_git(subcommand, args) for subcommand, args in calls):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run "
+            f"commit-creating or staging git operations "
+            f"({', '.join(sorted(COMMIT_CREATING | STAGING_ONLY))}, restore --staged)."
+        )
+
     rules = RULES.get(agent_type)
     if rules is None:
         return None
@@ -221,7 +314,7 @@ def decide(agent_type: str, command: str):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
-            f"(git commit, push, staging commands)."
+            f"(git commit, push, add, rm, mv, restore --staged, or an auto-fix/format command)."
         )
     if matches_any(command, rules["ask"]):
         return "ask", (
@@ -354,6 +447,43 @@ def _selftest() -> int:
         ("code-reviewer", "git clean -fd", "ask"),
         ("code-reviewer", "git checkout -- f", "ask"),
         ("code-reviewer", "git restore f", "ask"),
+        ("git-ops", "git commit -m 'feat: x'", None),
+        ("git-ops", "git add a.py b.py", None),
+        ("builder", "git commit -m x", "deny"),
+        ("builder", "cd x && git commit -m x", "deny"),
+        (None, "git add .", "deny"),
+        (None, "cd x && git add -A", "deny"),
+        (None, "git status", None),
+        ("builder", "npm test", None),
+        ("builder", "git -C x commit -m y", "deny"),
+        ("builder", "git -c a=b commit", "deny"),
+        ("builder", "/usr/bin/git add .", "deny"),
+        ("builder", "env git commit", "deny"),
+        ("builder", "git --no-pager commit", "deny"),
+        ("builder", "git cherry-pick abc", "deny"),
+        ("builder", "git merge feat", "deny"),
+        ("builder", "git rebase main", "deny"),
+        ("builder", "git commit-tree x", None),
+        ("builder", "git status", None),
+        ("builder", "git log", None),
+        ("builder", "git -C x status", None),
+        ("git-ops", "git commit -m x", None),
+        ("git-ops", "git -C x push", "deny"),
+        ("git-ops", "git push origin main", "deny"),
+        ("git-ops", "git reset --hard", "deny"),
+        ("git-ops", "git rebase -i main", "deny"),
+        ("git-ops", "git stash", "ask"),
+        ("git-ops", "git rebase main", None),
+        ("git-ops", "git restore --staged a.json", None),
+        ("git-ops", "git rm old.md", None),
+        ("git-ops", "git mv a b", None),
+        ("git-ops", "git restore a.json", "deny"),
+        ("builder", "git restore --staged a.json", "deny"),
+        ("builder", "git rm x", "deny"),
+        ("builder", "git mv a b", "deny"),
+        (None, "git restore --staged a.json", "deny"),
+        (None, "git rm x", "deny"),
+        (None, "git mv a b", "deny"),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
