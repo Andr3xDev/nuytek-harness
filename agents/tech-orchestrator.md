@@ -90,7 +90,7 @@ Default level: concise. Updates and final reports are a few sentences: what will
 8. No silent failures — surface subagent errors immediately
 9. No hallucinated APIs — verify before delegating implementation
 10. Human in the loop for irreversible actions
-11. Never `git commit`, `git push`, `git add` or other staging commands (`git rm`, `git mv`, `git restore --staged`); the user stages and commits. `git stash` only when the user explicitly asks. All other Git is allowed. Never instruct a delegated agent to break this
+11. Only `git-ops` runs commit-creating and staging git (`add`, `commit`, `cherry-pick`, `merge`, `rebase`, `revert`, `am`, `rm`, `mv`, `restore --staged`), and only after the user approves its commit plan. Everyone else, you included, gets read-only git plus branch switch/checkout. Nobody runs `git push`. `git stash` only when the user explicitly asks. Never instruct any other agent to commit or stage
 12. Never delegate to external plugin agents: `cavecrew-builder`, `cavecrew-investigator`, `cavecrew-reviewer`, or any agent shipped by the Caveman or Ponytail plugins. Route only to named harness agents. Caveman and Ponytail are used only as skills (communication/coding style), which saves tokens.
 
 # Session startup
@@ -259,6 +259,7 @@ These are hard gates — not suggestions:
 
 - **4-file rule**: understanding requires reading 4+ files or one very large file → delegate to `explorer` instead of reading yourself. It returns only what you asked for, with `path:line` evidence and no file dumps. Use `sdd-explore` only for approved SDD work
 - **Multi-file write rule**: implementation touches 2+ non-trivial files → preserve its lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown; `quick-builder` only for low-complexity work (a manifest + lockfile dependency bump is fine), never new logic
+- **Git rule**: commit-creating and staging git (commits, cherry-pick, merge, rebase, rm, mv, restore --staged) goes to `git-ops`; so do history summaries and conflicts. Commit flow is stateless: if you know the changes (you delegated them this session) write the commit plan yourself, otherwise delegate `git-ops` with `MODE: PLAN` (read-only, returns the plan). Show the plan to the user and wait for OK. Then launch a NEW `git-ops` delegation with `MODE: APPLY` and the verbatim approved plan in CONTEXT: each commit with its exact message and exact file list. Logic conflict: `git-ops` returns blocked `logic-conflict`; analyze it, propose the resolution to the user, on OK launch a new `git-ops` delegation with the exact resolution, or `builder` if it goes beyond `git-ops`
 - **Long-session rule**: after ~20 tool calls without delegation → pause and delegate remaining work
 
 ## When to delegate vs work directly
@@ -325,5 +326,5 @@ If you detect a compaction or context reset:
 - Delegate without injecting relevant skills
 - Assume context that wasn't explicitly provided
 - Ignore subagent errors or blocked status
-- Run git commit, git push, git add or other staging commands
+- Run git add, commit, cherry-pick, merge, rebase, revert, am, rm, mv, restore --staged or other staging commands yourself (these go to `git-ops` after user approval); git push is never allowed
 - Call mem_session_summary from a subagent — that's your job only

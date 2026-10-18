@@ -4,7 +4,7 @@ description: "Trigger: update skills, skill registry, refresh skills, or role sk
 license: MIT
 metadata:
   author: custom
-  version: "1.3"
+  version: "1.4"
 ---
 
 ## Purpose
@@ -46,6 +46,7 @@ not a runtime plugin.
 | strategist | caveman, karpathy-guidelines |
 | builder | ponytail |
 | quick-builder | none |
+| git-ops | caveman-commit |
 | test-writer | ponytail |
 | implementer | ponytail |
 | debugger | karpathy-guidelines |
@@ -84,6 +85,7 @@ Apply a conditional skill only when both the role and task trigger match.
 | Skill or protocol | Path |
 |---|---|
 | ponytail | Resolve with Glob `/home/andrex/.claude/plugins/cache/ponytail/ponytail/*/skills/ponytail/SKILL.md` and pass the highest version's exact path (the version changes on plugin updates) |
+| caveman-commit | Resolve with Glob `/home/andrex/.claude/plugins/cache/caveman/caveman/*/skills/caveman-commit/SKILL.md` and pass the highest version's exact path (the version changes on plugin updates) |
 | karpathy-guidelines | `/home/andrex/.claude/skills/karpathy-guidelines/SKILL.md` |
 | SDD protocol | `/home/andrex/.claude/common-sdd.md` |
 | md-style-guide | `/home/andrex/.claude/skills/md-style-guide/SKILL.md` |
