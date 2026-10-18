@@ -4,9 +4,9 @@
 Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
-operations (incl. rm, mv, restore --staged) are denied for every agent_type
+operations (incl. rm, mv, non-hard reset) are denied for every agent_type
 but git-ops. Push is denied for everyone; git-ops also may not run an
-interactive rebase.
+interactive rebase or `git restore`.
 
 The hook never returns `ask`: a hook `ask` inside a background subagent never
 reaches the user. Confirmations live in native `permissions.ask`. Discards and
@@ -213,16 +213,8 @@ def git_invocations(command: str):
     return calls
 
 
-def is_unstage_only(subcommand: str, args) -> bool:
-    return (
-        subcommand == "restore"
-        and "--staged" in args
-        and not any(a in ("--worktree", "-W") for a in args)
-    )
-
-
 def is_staging_git(subcommand: str, args) -> bool:
-    return subcommand in STAGING_GIT or is_unstage_only(subcommand, args)
+    return subcommand in STAGING_GIT or (subcommand == "reset" and "--hard" not in args)
 
 
 def is_plain_git_start(command: str, subcommand: str) -> bool:
@@ -240,7 +232,7 @@ def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
         or subcommand == "clean"
         or (subcommand == "reset" and "--hard" in args)
         or (subcommand == "checkout" and "--" in args)
-        or (subcommand == "restore" and not is_unstage_only(subcommand, args))
+        or subcommand == "restore"
     )
     if needs_native_confirmation and not (is_first_call and is_plain_git_start(command, subcommand)):
         return "deny", (
@@ -263,6 +255,11 @@ def decide(agent_type: str, command: str):
     calls = git_invocations(command)
     if any(subcommand == "push" for subcommand, _ in calls):
         return "deny", "Blocked by infra-agent-bash-guard: nobody runs `git push`."
+    if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
+            f"`git reset -q -- <file>`; it never runs git restore."
+        )
     if agent_type != COMMIT_AGENT and any(is_staging_git(sub, args) for sub, args in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run "
@@ -460,14 +457,19 @@ def _selftest() -> int:
         ("git-ops", "git rebase -i main", "deny"),
         ("git-ops", "git stash", None),
         ("git-ops", "git rebase main", None),
-        ("git-ops", "git restore --staged a.json", None),
+        ("git-ops", "git restore --staged a.json", "deny"),
         ("git-ops", "git rm old.md", None),
         ("git-ops", "git mv a b", None),
-        ("git-ops", "git restore a.json", None),
-        ("builder", "git restore --staged a.json", "deny"),
+        ("git-ops", "git restore a.json", "deny"),
+        ("git-ops", "git reset -q -- a.json", None),
+        ("git-ops", "git reset --soft HEAD~1", None),
+        ("builder", "git restore --staged a.json", None),
+        ("builder", "git restore a.json", None),
+        ("builder", "git reset a.json", "deny"),
+        ("builder", "git reset --soft HEAD~1", "deny"),
         ("builder", "git rm x", "deny"),
         ("builder", "git mv a b", "deny"),
-        (None, "git restore --staged a.json", "deny"),
+        (None, "git restore --staged a.json", None),
         (None, "git rm x", "deny"),
         (None, "git mv a b", "deny"),
     ]
