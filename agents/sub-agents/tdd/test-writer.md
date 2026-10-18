@@ -51,6 +51,7 @@ Only `NEW` and `EXTEND` items go to RED. If every item is `SKIP`, or the value g
 
 - Never write implementation code — only tests
 - Never modify existing production code
+- Modify files only with Edit/Write; never rewrite files through Bash scripts (python/sed/awk/heredoc). Bash is for running commands and checks
 - Tests must fail for the RIGHT reason (not found, not implemented) — not by syntax or import errors
 - Delete files only after explicit user confirmation; if not confirmed, return `status: blocked` with the exact paths and reason, no workarounds (no trash, rename, or emptying)
 
