@@ -302,19 +302,20 @@ def decide(agent_type: str, command: str):
     )
 
 
-def main() -> int:
+def evaluate_payload(raw: str):
     try:
-        payload = json.load(sys.stdin)
+        payload = json.loads(raw)
     except Exception:
-        return 0
+        return "ask", "infra-agent-bash-guard: could not parse hook payload"
 
-    tool_name = payload.get("tool_name")
-    agent_type = payload.get("agent_type")
-
-    if tool_name != "Bash":
-        return 0
+    if payload.get("tool_name") != "Bash":
+        return None
     command = (payload.get("tool_input") or {}).get("command", "")
-    result = decide(agent_type, command)
+    return decide(payload.get("agent_type"), command)
+
+
+def main() -> int:
+    result = evaluate_payload(sys.stdin.read())
 
     if result is None:
         return 0
@@ -481,6 +482,10 @@ def _selftest() -> int:
             f"expected={expected!r} got={decision!r}"
         )
         print(f"PASS: agent={agent_type!r} command={command!r} -> {decision!r}")
+
+    unparsable = evaluate_payload("not json")
+    assert unparsable and unparsable[0] == "ask", f"FAIL: unparsable payload got={unparsable!r}"
+    print("PASS: unparsable payload -> 'ask'")
 
     print("All self-test cases passed.")
     return 0
