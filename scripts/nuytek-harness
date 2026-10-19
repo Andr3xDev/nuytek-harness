@@ -191,6 +191,19 @@ if [ -n "$COMPONENT" ]; then
   [ "$COMPONENT" = all ] || contains "$COMPONENT" "${COMPONENTS[@]}" || die "unknown component: $COMPONENT"
 fi
 
+check_dependencies() {
+  local tool
+  local -a missing=()
+  for tool in claude node python3 jq engram codegraph openspec; do
+    command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+  done
+  [ "${#missing[@]}" -eq 0 ] || die "missing required tools: ${missing[*]}"
+}
+
+case "$ACTION" in
+  install|reinstall|update) check_dependencies ;;
+esac
+
 case "$ACTION" in
   install) do_install ;;
   reinstall)

@@ -189,6 +189,7 @@ NODE
 # Enable/disable state stays with settings.json; this only installs or updates.
 install_plugins() {
   local kind id arg present yes_flag=""
+  local -a failed=()
   if [ "${NUYTEK_SKIP_PLUGINS:-}" = 1 ]; then
     echo "skipping plugins (NUYTEK_SKIP_PLUGINS=1)"
     return
@@ -201,17 +202,21 @@ install_plugins() {
   while IFS=$'\t' read -r kind id arg present; do
     if [ "$kind" = marketplace ]; then
       if [ "$present" = 1 ]; then
-        claude plugin marketplace update "$id" || echo "warning: marketplace update failed: $id" >&2
+        claude plugin marketplace update "$id" || failed+=("marketplace update $id")
       else
-        claude plugin marketplace add "$arg" || echo "warning: marketplace add failed: $arg" >&2
+        claude plugin marketplace add "$arg" || failed+=("marketplace add $arg")
       fi
     elif [ "$present" = 1 ]; then
-      claude plugin update "$id" $yes_flag || echo "warning: plugin update failed: $id" >&2
+      claude plugin update "$id" $yes_flag || failed+=("plugin update $id")
     else
-      claude plugin install "$id" || echo "warning: plugin install failed: $id" >&2
+      claude plugin install "$id" || failed+=("plugin install $id")
     fi
   done < <(plugins_plan)
   remove_cavecrew_assets
+  if [ "${#failed[@]}" -gt 0 ]; then
+    local IFS=,
+    echo "warning: ${#failed[@]} plugin step(s) failed: ${failed[*]}" >&2
+  fi
 }
 
 # --- dispatch -----------------------------------------------------------

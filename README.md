@@ -3,13 +3,17 @@
 Personal Claude Code harness. Portable source to install the same agent
 config on any of my machines. OpenCode config is frozen in `legacy/opencode/` and is not installed.
 
+## Prerequisites
+
+bash >= 4 and these tools on `PATH` (install/update abort listing any that are missing): `claude`, `node` (MCP config merge), `python3`, `jq`, `engram`, `codegraph`, `openspec`.
+
 ## Install
 
 ```bash
 ./scripts/nuytek-harness install
 ```
 
-Requires bash >= 4. Optional: `ln -s "$PWD/scripts/nuytek-harness" ~/.local/bin/nuytek-harness` (symlinks are resolved).
+Optional: `ln -s "$PWD/scripts/nuytek-harness" ~/.local/bin/nuytek-harness` (symlinks are resolved).
 
 Actions (target defaults to `claude`; no arguments on a TTY opens a menu with action descriptions, `quit` at every level, a pull/restore snapshot picker, and a y/N summary before running):
 
