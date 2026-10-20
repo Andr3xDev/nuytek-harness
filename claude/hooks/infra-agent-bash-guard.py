@@ -5,7 +5,8 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, non-hard reset) are denied for every agent_type
-but git-ops. Push is denied for everyone; git-ops also may not run an
+but git-ops. Push is denied for everyone but git-ops (plain form only; force
+push is confirmed by native `permissions.ask`); git-ops also may not run an
 interactive rebase or `git restore`.
 
 The hook never returns `ask`: a hook `ask` inside a background subagent never
@@ -247,7 +248,17 @@ def has_shell_metacharacters(command: str) -> bool:
 def decide(agent_type: str, command: str):
     calls = git_invocations(command)
     if any(subcommand == "push" for subcommand, _ in calls):
-        return "deny", "Blocked by infra-agent-bash-guard: nobody runs `git push`."
+        if agent_type != COMMIT_AGENT:
+            return "deny", (
+                f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run `git push`."
+            )
+        if not (len(calls) == 1 and is_plain_git_start(command, "push")):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: `git push` must be the plain "
+                "`git push ...` form as the whole command, so native force-push "
+                "confirmation can match it."
+            )
+        return None
     if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
@@ -430,7 +441,12 @@ def _selftest() -> int:
         ("builder", "git -C x status", None),
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
-        ("git-ops", "git push origin main", "deny"),
+        ("git-ops", "git push origin main", None),
+        ("git-ops", "git push --force origin main", None),
+        ("git-ops", "git commit -m x && git push", "deny"),
+        ("git-ops", "/usr/bin/git push", "deny"),
+        ("builder", "git push origin main", "deny"),
+        (None, "git push origin main", "deny"),
         ("builder", "git -C x push", "deny"),
         (None, "/usr/bin/git push", "deny"),
         ("builder", "git status & git commit -m x", "deny"),
