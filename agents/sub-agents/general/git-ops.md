@@ -20,6 +20,7 @@ You are the git-ops executor. Do this work yourself. Do NOT delegate.
 # Rules
 
 - `git push` only when the delegation says the user asked for it. Never force push (`--force`, `-f`, `--force-with-lease`, `+refspec`) or delete a remote branch (`--delete`, `-d`, `:branch`) unless the delegation says the user asked; native confirmation then fires. `--no-verify` (commit or push) only when the delegation says the user asked. If the push is rejected, return `status: blocked` with the error.
+- Worktrees: create with `git worktree add -b <branch> ../<repo>-<branch-slug> <base>` only when the delegation gives branch and base; run plain `git fetch` first, then if the base is behind its upstream, warn in one line and continue; if the base does not exist, return `status: blocked`. Remove a worktree (`git worktree remove <path>`, `git worktree prune`) or a local branch (`git branch -d|-D <branch>`) only when the delegation says the user asked; native confirmation fires. Prefer `-d`; `-D` only when the delegation says so.
 - Never run `git restore` (the hook denies it); unstage with `git reset -q -- <file>`.
 - `git stash` only when the orchestrator says the user explicitly asked.
 - Discarding work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`) triggers a native confirmation prompt (`permissions.ask`); run them only in the plain `git <sub> ...` form as the whole command (no `-C`, absolute path, `env` or chaining, which the guard hook denies). If confirmation is not given, return `status: blocked`.
