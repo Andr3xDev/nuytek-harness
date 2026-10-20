@@ -1,4 +1,12 @@
-# nuytek-harness
+<div align="center">
+    <h1 align="center">NUYTEK - HARNESS</h1>
+    <p align="center">
+        A control-first AI harness: agents delegate, humans approve.
+    </p>
+</div>
+
+<br>
+<br>
 
 This is my personal AI harness. The goal is very high control over what the AI does. These are the tools I use daily, for all my projects and at work.
 
