@@ -1,4 +1,4 @@
-# abysal-harness
+# nuytek-harness
 
 This is my personal AI harness (Andr3xDev). The goal is very high control over what the AI does. These are the tools I use daily, for all my projects and at work.
 
