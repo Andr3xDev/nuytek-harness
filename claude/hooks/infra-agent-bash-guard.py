@@ -7,7 +7,9 @@ passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, non-hard reset) are denied for every agent_type
 but git-ops. Push is denied for everyone but git-ops (plain form only; force
 push is confirmed by native `permissions.ask`); git-ops also may not run an
-interactive rebase or `git restore`.
+interactive rebase or `git restore`. Worktree mutations are denied for everyone
+but git-ops; git-ops deletions (`git worktree remove|prune`, `git branch
+-d|-D|--delete`) pass only in plain form, for native `permissions.ask`.
 
 The hook never returns `ask`: a hook `ask` inside a background subagent never
 reaches the user. Confirmations live in native `permissions.ask`. Discards and
@@ -24,6 +26,9 @@ import sys
 
 COMMIT_AGENT = "git-ops"
 STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv", "pull"}
+WORKTREE_MUTATIONS = {"add", "remove", "prune", "move", "lock", "unlock", "repair"}
+WORKTREE_DELETIONS = {"remove", "prune"}
+BRANCH_DELETE_FLAGS = {"-d", "-D", "--delete"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
@@ -33,6 +38,7 @@ GIT_ALLOW = [
     "git diff*",
     "git show*",
     "git branch --list*",
+    "git worktree list*",
     "git blame*",
 ]
 
@@ -215,6 +221,12 @@ def is_plain_git_start(command: str, subcommand: str) -> bool:
     return re.match(rf"git\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
 
 
+def is_deleting_git(subcommand: str, args) -> bool:
+    if subcommand == "worktree":
+        return bool(args) and args[0] in WORKTREE_DELETIONS
+    return subcommand == "branch" and any(a in BRANCH_DELETE_FLAGS for a in args)
+
+
 def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
@@ -259,6 +271,14 @@ def decide(agent_type: str, command: str):
                 "confirmation can match it."
             )
         return None
+    if agent_type == COMMIT_AGENT:
+        deleting = [sub for sub, args in calls if is_deleting_git(sub, args)]
+        if deleting and not (len(calls) == 1 and is_plain_git_start(command, deleting[0])):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: worktree/branch deletion must be the plain "
+                "`git worktree remove|prune ...` or `git branch -d|-D ...` form as the whole "
+                "command, so native confirmation can match it."
+            )
     if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
@@ -268,6 +288,13 @@ def decide(agent_type: str, command: str):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run "
             f"commit-creating or staging git operations."
+        )
+    if agent_type != COMMIT_AGENT and any(
+        sub == "worktree" and args and args[0] in WORKTREE_MUTATIONS for sub, args in calls
+    ):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may create, "
+            f"change or remove git worktrees."
         )
 
     rules = RULES.get(agent_type)
@@ -477,6 +504,17 @@ def _selftest() -> int:
         (None, "git restore --staged a.json", None),
         (None, "git rm x", "deny"),
         (None, "git mv a b", "deny"),
+        ("git-ops", "git worktree add -b fix/x ../repo-fix-x main", None),
+        ("git-ops", "git worktree remove ../repo-fix-x", None),
+        ("git-ops", "git -C . worktree remove ../x", "deny"),
+        ("git-ops", "git status && git branch -D x", "deny"),
+        ("git-ops", "git branch -D x", None),
+        ("git-ops", "env git worktree prune", "deny"),
+        (None, "git worktree add -b fix/x ../repo-fix-x main", "deny"),
+        ("builder", "git worktree add -b fix/x ../repo-fix-x main", "deny"),
+        ("builder", "git worktree remove ../repo-fix-x", "deny"),
+        (None, "git worktree list", None),
+        ("code-reviewer", "git worktree list", "allow"),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
