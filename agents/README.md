@@ -6,9 +6,7 @@
 
 ## What is this directory
 
-This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`), and the vault agents under `sub-agents/echor/` (`echor-onboarder`, `echor-updater`, `echor-consultador`, `echor-validator`).
-
-OpenCode is on standby and is not maintained now; Claude Code is the active source of truth for this directory.
+This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`).
 
 TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. `test-writer` runs a mandatory Phase 0 test inventory before RED. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
 
@@ -64,7 +62,6 @@ The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its man
 | sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
 | debugger, explorer, code-reviewer, judge-a, judge-b | karpathy-guidelines |
 | aws, codegraph-maintainer, engram-maintainer | none — infrastructure |
-| echor-onboarder, echor-updater, echor-consultador, echor-validator | echor-vault |
 
 `caveman` is only injected into user-facing primaries (`orchestrator`, `strategist`).
 `ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`). `quick-builder` is a code writer that receives no skills.
@@ -90,23 +87,6 @@ delegation policy.
 
 <br>
 
-## Echor vault agents
-
-`sub-agents/echor/` mirrors the four agents that maintain Echor, the Obsidian vault at `~/dev/echor` centralizing knowledge about the user's 100+ repos. All four load the shared `echor-vault` skill (vault paths, naming, frontmatter schema, read recipes, write rules) before doing any work.
-
-| Agent | Role | Writes |
-|---|---|---|
-| echor-onboarder | Creates the vault entry for a repo that has none | `~/dev/echor/projects/<slug>/index.md`, `decisions.md` |
-| echor-updater | Detects what changed and updates an existing index or appends a closed local decision | edits existing `index.md`, `decisions.md` |
-| echor-consultador | Read-only query service over the vault | nothing, ever |
-| echor-validator | Read-only consistency audit, vault versus real code | nothing, report only |
-
-`echor-onboarder` and `echor-validator` share the same read-only Git and inspection allow-list (`git status*`, `git log*`, `git diff*`, `git show*`, `git rev-parse*`, `ls *`, `rg *`, `cat *`); commit-creating and staging git and `git push` are denied, and `git reset --hard*`, `git clean -f*`, `git checkout -- *`, `git restore *`, `git stash*` require confirmation. `echor-updater` uses the same Bash allow-list but only `edit` (no `write`), since it only ever modifies an existing note. `echor-consultador` has no Bash access at all — `read`/`glob`/`grep` only, nothing else.
-
-`/echor` (`claude/commands/echor.md`) routes to the four agents by subcommand: `onboard <repo-path>`, `update <slug|all>`, `close <slug> <decision summary>`, `ask <question>`, `validate [slug|all]`.
-
-<br>
-
 ## Enforcement of permissions (AUTH gates)
 
 Claude Code has no per-agent command allow-list built into agent frontmatter beyond `tools`/`disallowedTools`. The gap is closed with `PreToolUse` hooks registered in `settings.json`.
@@ -127,9 +107,6 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 | sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
 | sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | none | all other shell commands |
 | sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
-| echor-onboarder, echor-validator | Read-only Git (`status`/`log`/`diff`/`show`/`rev-parse`), `ls *`, `rg *`, `cat *` | none | all other shell commands |
-| echor-updater | Same read-only Git and inspection commands as `echor-onboarder` | none | all other shell commands |
-| echor-consultador | none | none | all shell commands |
 
 Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging denied except for git-ops, push denied, discards and stash passed to native ask in plain form (denied in odd forms), and git-ops may not run `rebase -i`.
 
@@ -144,9 +121,3 @@ This is the pattern to reuse if another agent needs a Bash restriction in the fu
 ## Circuit breaker
 
 `tech-orchestrator.md`, "Validation and close" section: if `code-reviewer` reports the same BLOCKER on the same finding/file 3 times in a row, the orchestrator stops the reviewer-implementer cycle and escalates to the human instead of iterating further.
-
-<br>
-
-## Parity between Claude Code and OpenCode
-
-OpenCode is on standby. Claude Code is the active source of truth; parity between the two is not maintained until OpenCode is resumed.

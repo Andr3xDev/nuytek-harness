@@ -165,12 +165,6 @@ RULES = {
             "kubectl logs *",
         ],
     },
-    "echor-onboarder": {
-        "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
-    },
-    "echor-validator": {
-        "allow": GIT_ALLOW + ["git rev-parse*", "ls *", "rg *", "cat *"],
-    },
 }
 
 RULES["sdd-verify"] = {
@@ -178,7 +172,6 @@ RULES["sdd-verify"] = {
 }
 RULES["judge-a"] = RULES["code-reviewer"]
 RULES["judge-b"] = RULES["code-reviewer"]
-RULES["echor-updater"] = RULES["echor-onboarder"]
 
 
 def git_invocations(command: str):
@@ -394,11 +387,6 @@ def _selftest() -> int:
         ("sdd-verify", "openspec validate change --json --store specter", "allow"),
         ("sdd-archive", "openspec archive demo-change -y --store specter", "allow"),
         ("code-reviewer", "npm test && git push origin main", "deny"),
-        ("echor-onboarder", "git rev-parse --short HEAD", "allow"),
-        ("echor-onboarder", "rg -l lucyna /home/andrex/dev/some-repo", "allow"),
-        ("echor-onboarder", "git commit -m x", "deny"),
-        ("echor-updater", "ls /home/andrex/dev/echor/projects", "allow"),
-        ("echor-validator", "git push origin main", "deny"),
         ("debugger", "pytest", "allow"),
         ("debugger", "journalctl -u app --since today", "allow"),
         ("debugger", "docker logs api", "allow"),
