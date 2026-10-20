@@ -5,8 +5,11 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, non-hard reset) are denied for every agent_type
-but git-ops. Push is denied for everyone; git-ops also may not run an
-interactive rebase or `git restore`.
+but git-ops. Push is denied for everyone but git-ops (plain form only; force
+push is confirmed by native `permissions.ask`); git-ops also may not run an
+interactive rebase or `git restore`. Worktree mutations are denied for everyone
+but git-ops; git-ops deletions (`git worktree remove|prune`, `git branch
+-d|-D|--delete`) pass only in plain form, for native `permissions.ask`.
 
 The hook never returns `ask`: a hook `ask` inside a background subagent never
 reaches the user. Confirmations live in native `permissions.ask`. Discards and
@@ -23,6 +26,10 @@ import sys
 
 COMMIT_AGENT = "git-ops"
 STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv", "pull"}
+WORKTREE_MUTATIONS = {"add", "remove", "prune", "move", "lock", "unlock", "repair"}
+WORKTREE_DELETIONS = {"remove", "prune"}
+BRANCH_DELETE_FLAG = re.compile(r"--delete|-[a-zA-Z]*[dD][a-zA-Z]*")
+PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
@@ -32,6 +39,7 @@ GIT_ALLOW = [
     "git diff*",
     "git show*",
     "git branch --list*",
+    "git worktree list*",
     "git blame*",
 ]
 
@@ -214,6 +222,25 @@ def is_plain_git_start(command: str, subcommand: str) -> bool:
     return re.match(rf"git\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
 
 
+def is_deleting_git(subcommand: str, args) -> bool:
+    if subcommand == "worktree":
+        return bool(args) and args[0] in WORKTREE_DELETIONS
+    return subcommand == "branch" and any(BRANCH_DELETE_FLAG.fullmatch(a) for a in args)
+
+
+def has_force_or_delete_cluster(push_args) -> bool:
+    """True for letter clusters like `-uf`, which evade the native `-f`/`-d` ask globs."""
+    options = push_args[: push_args.index("--")] if "--" in push_args else push_args
+    return any(
+        PUSH_RISKY_SHORT_CLUSTER.fullmatch(a) and ("f" in a or "d" in a) for a in options
+    )
+
+
+def has_delete_refspec(push_args) -> bool:
+    """True for `:branch` refspecs; `:*` is legacy prefix syntax, so no native ask glob can match them."""
+    return any(a.startswith(":") for a in push_args)
+
+
 def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
@@ -247,7 +274,36 @@ def has_shell_metacharacters(command: str) -> bool:
 def decide(agent_type: str, command: str):
     calls = git_invocations(command)
     if any(subcommand == "push" for subcommand, _ in calls):
-        return "deny", "Blocked by infra-agent-bash-guard: nobody runs `git push`."
+        if agent_type != COMMIT_AGENT:
+            return "deny", (
+                f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run `git push`."
+            )
+        if not (len(calls) == 1 and is_plain_git_start(command, "push")):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: `git push` must be the plain "
+                "`git push ...` form as the whole command, so native force-push "
+                "confirmation can match it."
+            )
+        push_args = next(args for sub, args in calls if sub == "push")
+        if has_force_or_delete_cluster(push_args):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: use separate flags (e.g. `-u -f`) so "
+                "native confirmation fires."
+            )
+        if has_delete_refspec(push_args):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: use `git push <remote> --delete <branch>` "
+                "so native confirmation fires."
+            )
+        return None
+    if agent_type == COMMIT_AGENT:
+        deleting = [sub for sub, args in calls if is_deleting_git(sub, args)]
+        if deleting and not (len(calls) == 1 and is_plain_git_start(command, deleting[0])):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: worktree/branch deletion must be the plain "
+                "`git worktree remove|prune ...` or `git branch -d|-D ...` form as the whole "
+                "command, so native confirmation can match it."
+            )
     if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
@@ -257,6 +313,13 @@ def decide(agent_type: str, command: str):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run "
             f"commit-creating or staging git operations."
+        )
+    if agent_type != COMMIT_AGENT and any(
+        sub == "worktree" and args and args[0] in WORKTREE_MUTATIONS for sub, args in calls
+    ):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may create, "
+            f"change or remove git worktrees."
         )
 
     rules = RULES.get(agent_type)
@@ -430,7 +493,12 @@ def _selftest() -> int:
         ("builder", "git -C x status", None),
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
-        ("git-ops", "git push origin main", "deny"),
+        ("git-ops", "git push origin main", None),
+        ("git-ops", "git push --force origin main", None),
+        ("git-ops", "git commit -m x && git push", "deny"),
+        ("git-ops", "/usr/bin/git push", "deny"),
+        ("builder", "git push origin main", "deny"),
+        (None, "git push origin main", "deny"),
         ("builder", "git -C x push", "deny"),
         (None, "/usr/bin/git push", "deny"),
         ("builder", "git status & git commit -m x", "deny"),
@@ -461,6 +529,36 @@ def _selftest() -> int:
         (None, "git restore --staged a.json", None),
         (None, "git rm x", "deny"),
         (None, "git mv a b", "deny"),
+        ("git-ops", "git worktree add -b fix/x ../repo-fix-x main", None),
+        ("git-ops", "git worktree remove ../repo-fix-x", None),
+        ("git-ops", "git -C . worktree remove ../x", "deny"),
+        ("git-ops", "git status && git branch -D x", "deny"),
+        ("git-ops", "git branch -D x", None),
+        ("git-ops", "env git worktree prune", "deny"),
+        (None, "git worktree add -b fix/x ../repo-fix-x main", "deny"),
+        ("builder", "git worktree add -b fix/x ../repo-fix-x main", "deny"),
+        ("builder", "git worktree remove ../repo-fix-x", "deny"),
+        (None, "git worktree list", None),
+        ("code-reviewer", "git worktree list", "allow"),
+        ("git-ops", "git push -uf origin x", "deny"),
+        ("git-ops", "git push origin -ud x", "deny"),
+        ("git-ops", "git push -u origin x", None),
+        ("git-ops", "git push -f origin x", None),
+        ("git-ops", "git push --follow-tags", None),
+        ("git-ops", "git push -n", None),
+        ("git-ops", "git push origin HEAD:main", None),
+        ("git-ops", "git push origin a:b", None),
+        ("git-ops", "git push origin :x", "deny"),
+        ("git-ops", "git push -u origin x", None),
+        ("git-ops", "git -C . branch -dr x", "deny"),
+        ("git-ops", "git branch -dr x", None),
+        ("git-ops", "git branch --delete x", None),
+        ("git-ops", "git worktree prune", None),
+        ("git-ops", "git branch -vv", None),
+        ("git-ops", "git -C . branch -vv", None),
+        ("git-ops", "git -C . branch --sort=-committerdate", None),
+        ("builder", "git branch -D x", None),
+        ("builder", "git -C . worktree list", None),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
