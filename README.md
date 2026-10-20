@@ -22,32 +22,36 @@ Secrets and auth stay outside the repo (`GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZEN
 
 ```mermaid
 flowchart TD
-    U[User] --> O[tech-orchestrator]
-    O -->|states what and why| A{User approval}
-    A --> E[Explore]
-    A --> P[Plan - SDD]
-    A --> I[Implement]
-    A --> R[Review]
-    A --> D[Debug]
+    U([User]) <-->|discuss, decide, approve| O[tech-orchestrator]
+    O --> EX["Explore: explorer"]
+    O --> DB["Debug: debugger"]
+    O --> SDD["SDD plan: propose, explore, spec, design, tasks"]
+    O -->|small fix| BLD
+    DB -->|approved fix| BLD
 
-    P --> P1[sdd-propose / explore / spec / design / tasks]
-    I --> Q[quick-builder / builder]
-    I --> T[TDD: test-writer then implementer]
-    R --> CR[code-reviewer]
-    D --> DB[debugger]
+    subgraph LOOP[Iteration loop]
+        BLD[builder / quick-builder]
+        RED["test-writer: RED"] --> GREEN["implementer: GREEN"]
+        BLD --> REV
+        GREEN --> REV
+        REV["Review: code-reviewer, or judgment-day on request"] -->|blockers| BLD
+        REV --> CHK{User review}
+        CHK -->|adjust| BLD
+        CHK -->|ok| GIT[git-ops commit]
+    end
 
-    P1 --> Q
-    Q --> CR
-    T --> CR
-    CR --> V[sdd-verify]
-    V --> G[git-ops commits]
-    CR --> G
+    SDD --> BLD
+    SDD -->|TDD lane| RED
+    CHK -->|scope or design change| SDD
+    GIT -->|next planned phase| BLD
+    GIT -->|all phases done| VER[sdd-verify]
+    VER --> ARC[sdd-archive]
 
-    M[(Engram memory)] -.-> O
-    S[(OpenSpec store: specter)] -.-> P1
+    MEM[(Engram)] -.-> O
+    SPEC[("OpenSpec: specter")] -.-> SDD
 ```
 
-The orchestrator never writes code. It delegates, and the user approves anything of consequence.
+Not a one-shot system: I work with the orchestrator in a constant back-and-forth, and it never writes code itself — it delegates and asks before anything of consequence. Work moves in iterations: build, review, my review, adjust until it's right. When an iteration is good, git-ops commits it and we move to the next phase of the SDD plan; if an adjustment changes scope or design, the SDD artifacts are updated first. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
 
 ### Agents
 
@@ -56,7 +60,7 @@ Defined in `agents/`.
 | Group | Agents |
 |---|---|
 | Orchestration | `tech-orchestrator`, `strategist` |
-| Build / write | `builder`, `quick-builder`, `explorer` |
+| Build / write | `builder`, `quick-builder` |
 | TDD | `test-writer`, `implementer` |
 | Review | `code-reviewer`, `judge-a`, `judge-b` |
 | Investigation | `debugger`, `explorer` |
