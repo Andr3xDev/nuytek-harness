@@ -236,6 +236,11 @@ def has_force_or_delete_cluster(push_args) -> bool:
     )
 
 
+def has_delete_refspec(push_args) -> bool:
+    """True for `:branch` refspecs; `:*` is legacy prefix syntax, so no native ask glob can match them."""
+    return any(a.startswith(":") for a in push_args)
+
+
 def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
@@ -284,6 +289,11 @@ def decide(agent_type: str, command: str):
             return "deny", (
                 "Blocked by infra-agent-bash-guard: use separate flags (e.g. `-u -f`) so "
                 "native confirmation fires."
+            )
+        if has_delete_refspec(push_args):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: use `git push <remote> --delete <branch>` "
+                "so native confirmation fires."
             )
         return None
     if agent_type == COMMIT_AGENT:
@@ -537,6 +547,8 @@ def _selftest() -> int:
         ("git-ops", "git push --follow-tags", None),
         ("git-ops", "git push -n", None),
         ("git-ops", "git push origin HEAD:main", None),
+        ("git-ops", "git push origin a:b", None),
+        ("git-ops", "git push origin :x", "deny"),
         ("git-ops", "git push -u origin x", None),
         ("git-ops", "git -C . branch -dr x", "deny"),
         ("git-ops", "git branch -dr x", None),
