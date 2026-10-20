@@ -61,8 +61,6 @@ flowchart TD
     VER --> ARC[sdd-archive]
 ```
 
-Engram is the shared memory across sessions: the orchestrator and most subagents search it and save decisions, bug fixes, and discoveries; only the orchestrator writes session summaries. It is left out of the diagram to keep it readable.
-
 Not a one-shot system: I work with the orchestrator in a constant back-and-forth, and it never writes code itself — it delegates and asks before anything of consequence. Work moves in iterations: build, review, my review, adjust until it's right. When an iteration is good, git-ops commits it and we move to the next phase of the SDD plan; if an adjustment changes scope or design, the SDD artifacts are updated first. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
 
 ### Agents
@@ -130,7 +128,7 @@ Custom slash commands.
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-Native `permissions` ask before deletes, git discards, stash and CodeGraph maintenance, and deny `git push` and external Cavecrew agents.
+Native `permissions` ask before deletes, git discards, stash and CodeGraph maintenance, and deny `git push`.
 
 ### Plugins
 
@@ -145,5 +143,5 @@ Installed from marketplaces by the installer.
 
 ### Memory
 
-- **Engram**: persistent cross-session memory (decisions, bug fixes, conventions).
+- **Engram**: persistent cross-session memory shared by the orchestrator and most subagents (decisions, bug fixes, conventions).
 - **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in the central store `specter`.
