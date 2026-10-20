@@ -93,7 +93,7 @@ Claude Code has no per-agent command allow-list built into agent frontmatter bey
 
 `/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
 
-Commit-creating and staging git is denied for every agent except git-ops; push is denied for all. The hook never returns `ask` (a hook `ask` in a background subagent never reaches the user): discards and `git stash` prompt through native `permissions.ask`, and odd invocation forms (`git -C`, absolute path, `env git`, chained) are denied, so use the plain `git <sub>` form. Read-only agents may not discard at all. The Ask column lists commands the hook passes through to native `permissions.ask`.
+Commit-creating and staging git is denied for every agent except git-ops; push is denied for all but git-ops, and only when the user asked; force push prompts through native `permissions.ask`. The hook never returns `ask` (a hook `ask` in a background subagent never reaches the user): discards and `git stash` prompt through native `permissions.ask`, and odd invocation forms (`git -C`, absolute path, `env git`, chained) are denied, so use the plain `git <sub>` form. Read-only agents may not discard at all. The Ask column lists commands the hook passes through to native `permissions.ask`.
 
 | Agent | Allow | Ask | Deny |
 |---|---|---|---|
@@ -108,13 +108,13 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 | sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | none | all other shell commands |
 | sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
 
-Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging denied except for git-ops, push denied, discards and stash passed to native ask in plain form (denied in odd forms), and git-ops may not run `rebase -i`.
+Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging denied except for git-ops, push denied except for git-ops in plain form (force push goes to native ask), discards and stash passed to native ask in plain form (denied in odd forms), and git-ops may not run `rebase -i`.
 
 This is the pattern to reuse if another agent needs a Bash restriction in the future — for example, `test-writer` arguably should not touch production code paths. Today that boundary is prompt discipline only (documented in `test-writer`'s own instructions); no hook enforces it. This is a known gap, not yet addressed.
 
 ### `debugger` investigate-only policy
 
-`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` after user approval. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and the git staging/push denial still apply.
+`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` after user approval. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and the git staging and push denial still apply.
 
 <br>
 

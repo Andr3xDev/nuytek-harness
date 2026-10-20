@@ -133,14 +133,14 @@ Custom slash commands.
 
 | Hook | Purpose |
 |---|---|
-| Bash guard | Per-agent Bash allow-list; only `git-ops` may stage or commit, nobody pushes |
+| Bash guard | Per-agent Bash allow-list; only `git-ops` may stage, commit or push (push only when the user asks) |
 | Irreversible-action prompt hook | Flags destructive database and disk operations |
 | Stop verify | On Stop, warns if tests or lint fail (never blocks) |
 | `herdr` state | Reports session state to `herdr` |
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-Native `permissions` ask before deletes, git discards, stash and CodeGraph maintenance, and deny `git push`.
+Native `permissions` ask before deletes, git discards, stash, force push and CodeGraph maintenance.
 
 ### Plugins
 

@@ -90,7 +90,7 @@ Default level: concise. Updates and final reports are a few sentences: what will
 8. No silent failures — surface subagent errors immediately
 9. No hallucinated APIs — verify before delegating implementation
 10. Human in the loop for irreversible actions
-11. Git follows invariant 5: you never stage or commit; delegate to `git-ops`, then relay its report of the commits made; nobody pushes. Never instruct any other agent to commit or stage
+11. Git follows invariant 5: you never stage or commit; delegate to `git-ops` and do not announce the delegation or relay its commit report; surface only git-ops failures or blocks. Push only when the user explicitly asks (one-off or session mode until they say otherwise); delegate it to `git-ops`, nobody else pushes. Force push goes through native confirmation. `--no-verify` only when the user explicitly asks. Never instruct any other agent to commit or stage
 12. Never delegate to external plugin agents: `cavecrew-builder`, `cavecrew-investigator`, `cavecrew-reviewer`, or any agent shipped by the Caveman or Ponytail plugins. Route only to named harness agents. Caveman and Ponytail are used only as skills (communication/coding style), which saves tokens.
 
 # Session startup
@@ -259,7 +259,7 @@ These are hard gates — not suggestions:
 
 - **4-file rule**: understanding requires reading 4+ files or one very large file → delegate to `explorer` instead of reading yourself. It returns only what you asked for, with `path:line` evidence and no file dumps. Use `sdd-explore` only for approved SDD work
 - **Multi-file write rule**: implementation touches 2+ non-trivial files → preserve its lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown; `quick-builder` only for low-complexity work (a manifest + lockfile dependency bump is fine), never new logic
-- **Git rule**: commit-creating and staging git (invariant 5) goes to `git-ops`; so do history summaries and conflicts. Delegate `git-ops` with the scope and, when you know them, grouping hints. It commits and reports the commits made (hash, message, files); relay that report to the user. No approval wait for commits. Logic conflict: `git-ops` returns blocked `logic-conflict`; analyze it, propose the resolution to the user, on OK launch a new `git-ops` delegation with the exact resolution, or `builder` if it goes beyond `git-ops`
+- **Git rule**: commit-creating and staging git (invariant 5) goes to `git-ops`; so do history summaries and conflicts. Delegate `git-ops` with the scope and, when you know them, grouping hints. It commits and returns the commits made (hash, message, files) to you; do not relay them to the user, and surface only failures or blocks (logic-conflict, GPG timeout, rejected push). No approval wait for commits. Pass the push instruction in the delegation only when the user asked for it (one-off or session mode), and tell `git-ops` when the user asked for force push or `--no-verify`. Logic conflict: `git-ops` returns blocked `logic-conflict`; analyze it, propose the resolution to the user, on OK launch a new `git-ops` delegation with the exact resolution, or `builder` if it goes beyond `git-ops`
 - **Long-session rule**: after ~20 tool calls without delegation → pause and delegate remaining work
 
 ## When to delegate vs work directly
@@ -326,5 +326,5 @@ If you detect a compaction or context reset:
 - Delegate without injecting relevant skills
 - Assume context that wasn't explicitly provided
 - Ignore subagent errors or blocked status
-- Run commit-creating or staging git yourself, or git push (invariant 5)
+- Run commit-creating or staging git yourself, or git push yourself; push is delegated to `git-ops` and only when the user asked (invariant 5)
 - Call mem_session_summary from a subagent — that's your job only
