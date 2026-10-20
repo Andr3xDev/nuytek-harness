@@ -1,13 +1,6 @@
 node_modules/
 **/node_modules/
 
-# OpenCode runtime/cache
-legacy/opencode/sessions/
-legacy/opencode/cache/
-legacy/opencode/logs/
-legacy/opencode/opencode-notifier-state.json
-legacy/opencode/opencode-notifier.resolved.json
-
 # Claude runtime/cache if accidentally copied here
 projects/
 paste-cache/
