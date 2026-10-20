@@ -36,9 +36,10 @@ flowchart TD
     O --> DB["Debug: debugger"]
     O --> SDD["SDD plan: propose, explore, spec, design, tasks"]
     SPEC[("OpenSpec: specter")] -.- SDD
-    O -->|small fix| BUILD
-    DB -->|approved fix| BUILD
-    SDD --> BUILD
+    O -->|small fix| BLD
+    DB -->|approved fix| BLD
+    SDD -->|plan approved: phase 1| RED
+    O -->|TDD on request| RED
 
     subgraph LOOP[Iteration loop]
         direction TD
