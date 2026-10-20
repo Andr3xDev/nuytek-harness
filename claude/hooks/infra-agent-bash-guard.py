@@ -28,7 +28,8 @@ COMMIT_AGENT = "git-ops"
 STAGING_GIT = {"add", "commit", "cherry-pick", "merge", "rebase", "revert", "am", "rm", "mv", "pull"}
 WORKTREE_MUTATIONS = {"add", "remove", "prune", "move", "lock", "unlock", "repair"}
 WORKTREE_DELETIONS = {"remove", "prune"}
-BRANCH_DELETE_FLAGS = {"-d", "-D", "--delete"}
+BRANCH_DELETE_FLAG = re.compile(r"--delete|-[a-zA-Z]*[dD][a-zA-Z]*")
+PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
@@ -224,7 +225,15 @@ def is_plain_git_start(command: str, subcommand: str) -> bool:
 def is_deleting_git(subcommand: str, args) -> bool:
     if subcommand == "worktree":
         return bool(args) and args[0] in WORKTREE_DELETIONS
-    return subcommand == "branch" and any(a in BRANCH_DELETE_FLAGS for a in args)
+    return subcommand == "branch" and any(BRANCH_DELETE_FLAG.fullmatch(a) for a in args)
+
+
+def has_force_or_delete_cluster(push_args) -> bool:
+    """True for letter clusters like `-uf`, which evade the native `-f`/`-d` ask globs."""
+    options = push_args[: push_args.index("--")] if "--" in push_args else push_args
+    return any(
+        PUSH_RISKY_SHORT_CLUSTER.fullmatch(a) and ("f" in a or "d" in a) for a in options
+    )
 
 
 def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
@@ -269,6 +278,12 @@ def decide(agent_type: str, command: str):
                 "Blocked by infra-agent-bash-guard: `git push` must be the plain "
                 "`git push ...` form as the whole command, so native force-push "
                 "confirmation can match it."
+            )
+        push_args = next(args for sub, args in calls if sub == "push")
+        if has_force_or_delete_cluster(push_args):
+            return "deny", (
+                "Blocked by infra-agent-bash-guard: use separate flags (e.g. `-u -f`) so "
+                "native confirmation fires."
             )
         return None
     if agent_type == COMMIT_AGENT:
@@ -515,6 +530,23 @@ def _selftest() -> int:
         ("builder", "git worktree remove ../repo-fix-x", "deny"),
         (None, "git worktree list", None),
         ("code-reviewer", "git worktree list", "allow"),
+        ("git-ops", "git push -uf origin x", "deny"),
+        ("git-ops", "git push origin -ud x", "deny"),
+        ("git-ops", "git push -u origin x", None),
+        ("git-ops", "git push -f origin x", None),
+        ("git-ops", "git push --follow-tags", None),
+        ("git-ops", "git push -n", None),
+        ("git-ops", "git push origin HEAD:main", None),
+        ("git-ops", "git push -u origin x", None),
+        ("git-ops", "git -C . branch -dr x", "deny"),
+        ("git-ops", "git branch -dr x", None),
+        ("git-ops", "git branch --delete x", None),
+        ("git-ops", "git worktree prune", None),
+        ("git-ops", "git branch -vv", None),
+        ("git-ops", "git -C . branch -vv", None),
+        ("git-ops", "git -C . branch --sort=-committerdate", None),
+        ("builder", "git branch -D x", None),
+        ("builder", "git -C . worktree list", None),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
