@@ -26,30 +26,32 @@ flowchart TD
     O --> EX["Explore: explorer"]
     O --> DB["Debug: debugger"]
     O --> SDD["SDD plan: propose, explore, spec, design, tasks"]
-    O -->|small fix| BLD
-    DB -->|approved fix| BLD
+    SPEC[("OpenSpec: specter")] -.- SDD
+    O -->|small fix| BUILD
+    DB -->|approved fix| BUILD
+    SDD --> BUILD
 
     subgraph LOOP[Iteration loop]
-        BLD[builder / quick-builder]
-        RED["test-writer: RED"] --> GREEN["implementer: GREEN"]
-        BLD --> REV
-        GREEN --> REV
-        REV["Review: code-reviewer, or judgment-day on request"] -->|blockers| BLD
+        direction TD
+        subgraph BUILD[Build]
+            BLD[builder / quick-builder]
+            RED["TDD 1: test-writer, RED"] --> GREEN["TDD 2: implementer, GREEN"]
+        end
+        BUILD --> REV["Review: code-reviewer, or judgment-day on request"]
+        REV -->|blockers| BUILD
         REV --> CHK{User review}
-        CHK -->|adjust| BLD
+        CHK -->|adjust| BUILD
         CHK -->|ok| GIT[git-ops commit]
     end
 
-    SDD --> BLD
-    SDD -->|TDD lane| RED
     CHK -->|scope or design change| SDD
-    GIT -->|next planned phase| BLD
-    GIT -->|all phases done| VER[sdd-verify]
+    GIT --> NEXT{More phases?}
+    NEXT -->|yes| BUILD
+    NEXT -->|no| VER[sdd-verify]
     VER --> ARC[sdd-archive]
-
-    MEM[(Engram)] -.-> O
-    SPEC[("OpenSpec: specter")] -.-> SDD
 ```
+
+Engram is the shared memory across sessions: the orchestrator and most subagents search it and save decisions, bug fixes, and discoveries; only the orchestrator writes session summaries. It is left out of the diagram to keep it readable.
 
 Not a one-shot system: I work with the orchestrator in a constant back-and-forth, and it never writes code itself — it delegates and asks before anything of consequence. Work moves in iterations: build, review, my review, adjust until it's right. When an iteration is good, git-ops commits it and we move to the next phase of the SDD plan; if an adjustment changes scope or design, the SDD artifacts are updated first. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
 
