@@ -82,7 +82,7 @@ fi
 
 REPO="$WORK/repo"
 mkdir -p "$REPO"
-tar --exclude='./.git' --exclude='./legacy' -C "$ROOT" -cf - . | tar -C "$REPO" -xf -
+tar --exclude='./.git' -C "$ROOT" -cf - . | tar -C "$REPO" -xf -
 printf 'stale\n' > "$REPO/agents/stale.md"
 printf 'new\n' > "$HOME/.claude/agents/current.md"
 printf 'local\n' > "$HOME/.claude/common-sdd.md"

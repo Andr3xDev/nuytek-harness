@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "@dietrichgebert/ponytail": "*",
-    "@mohak34/opencode-notifier": "0.3.0",
-    "@opencode/plugin": "2.0.14"
-  }
-}

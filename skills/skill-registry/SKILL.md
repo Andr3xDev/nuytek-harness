@@ -57,7 +57,6 @@ not a runtime plugin.
 | sdd-explore, sdd-verify | karpathy-guidelines, SDD protocol |
 | sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
 | aws, codegraph-maintainer, engram-maintainer | none |
-| echor-onboarder, echor-updater, echor-consultador, echor-validator | echor-vault |
 
 ## Conditional Role Skills
 
@@ -65,7 +64,7 @@ Apply a conditional skill only when both the role and task trigger match.
 
 | Skill | Eligible roles | Task trigger |
 |---|---|---|
-| find-docs | tech-orchestrator, strategist, builder, test-writer, implementer, debugger, sdd-explore, sdd-design, aws, echor-onboarder, echor-updater | Library, framework, SDK, API, CLI, cloud service, setup, migration, or API uncertainty. |
+| find-docs | tech-orchestrator, strategist, builder, test-writer, implementer, debugger, sdd-explore, sdd-design, aws | Library, framework, SDK, API, CLI, cloud service, setup, migration, or API uncertainty. |
 | refactoring-techniques | builder, implementer, debugger, code-reviewer | Refactor or behavior-preserving restructuring. |
 | senior-architect | tech-orchestrator, strategist, sdd-explore, sdd-propose, sdd-design | Architecture, system design, database choice, stack evaluation, dependency analysis, or trade-off comparison. |
 | software-design-patterns | strategist, sdd-explore, sdd-design | Choosing, understanding, or identifying a design pattern. |
@@ -97,7 +96,6 @@ Apply a conditional skill only when both the role and task trigger match.
 | context-compact | `/home/andrex/.claude/skills/context-compact/SKILL.md` |
 | skill-registry | `/home/andrex/.claude/skills/skill-registry/SKILL.md` |
 | judgment-day | `/home/andrex/.claude/skills/judgment-day/SKILL.md` |
-| echor-vault | `/home/andrex/.claude/skills/echor-vault/SKILL.md` |
 | linear-issue | `/home/andrex/.claude/skills/linear-issue/SKILL.md` |
 | github-issue | `/home/andrex/.claude/skills/github-issue/SKILL.md` |
 | github-pr | `/home/andrex/.claude/skills/github-pr/SKILL.md` |

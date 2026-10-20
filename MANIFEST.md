@@ -16,8 +16,6 @@ Portable source for my agent setup across machines.
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
 - Out-of-context launcher: `claude/scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
 
-OpenCode config is frozen in `legacy/opencode/` and is not installed.
-
 ## Not Included
 
 - Secrets: `GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear auth, Claude cloud connector auth
@@ -62,5 +60,5 @@ Pull owns exactly `agents/`, `skills/`, `claude/{commands,hooks,sounds}/`,
 `claude/{CLAUDE.md,claude-settings.json}`, and
 `shared/{common-sdd.md,engram-protocol.md,rules/context7.md}`.
 It mirrors these paths from local config and prunes stale managed files. `claude/claude-mcp.json`,
-`claude/mcp-servers.md`, `claude/scripts/`, `legacy/`, docs, and scripts are repository-owned because
+`claude/mcp-servers.md`, `claude/scripts/`, docs, and scripts are repository-owned because
 they have no safe one-to-one local source; pull preserves them.
