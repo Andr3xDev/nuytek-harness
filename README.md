@@ -12,6 +12,8 @@ This is my personal AI harness. The goal is very high control over what the AI d
 
 Fixed paths, tokens, model choices and similar values are here because they work for me. If you reuse this, adjust them to your own setup.
 
+<br>
+
 ## Installation
 
 Requirements: bash >= 4 and `claude`, `node`, `python3`, `jq`, `engram`, `codegraph`, `openspec` on `PATH`.
@@ -34,6 +36,8 @@ Every change takes a snapshot in `~/.claude-backups/`.
 Available for: Claude Code.
 
 Secrets and auth stay outside the repo (`GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear MCP auth).
+
+<br>
 
 ## Overview
 
