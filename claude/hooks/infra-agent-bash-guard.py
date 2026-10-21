@@ -144,7 +144,6 @@ RULES = {
         ] + GIT_ALLOW,
     },
     "engram-maintainer": {
-        "native_ask": ["engram delete *", "engram export *"],
         "allow": [
             "engram context*",
             "engram search*",
@@ -152,6 +151,8 @@ RULES = {
             "engram projects list*",
             "engram doctor*",
             "engram timeline*",
+            "engram delete *",
+            "engram export *",
         ],
     },
     "code-reviewer": {
@@ -392,9 +393,9 @@ def _selftest() -> int:
         ("aws", "aws logs describe-log-groups && git push origin main", "deny"),
         ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
         ("engram-maintainer", "engram context", "allow"),
-        ("engram-maintainer", "engram delete 42", None),
-        ("engram-maintainer", "engram delete project demo --hard", None),
-        ("engram-maintainer", "engram export backup.json", None),
+        ("engram-maintainer", "engram delete 42", "allow"),
+        ("engram-maintainer", "engram delete project demo --hard", "allow"),
+        ("engram-maintainer", "engram export backup.json", "allow"),
         ("codegraph-maintainer", "codegraph sync", None),
         ("engram-maintainer", "engram save title text", "deny"),
         ("aws", "aws logs describe-log-groups", "allow"),
