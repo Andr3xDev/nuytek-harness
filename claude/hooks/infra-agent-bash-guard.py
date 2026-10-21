@@ -43,6 +43,17 @@ GIT_ALLOW = [
     "git blame*",
 ]
 
+GH_READ_ALLOW = [
+    "gh run list*",
+    "gh run view*",
+    "gh pr view*",
+    "gh pr diff*",
+    "gh pr checks*",
+    "gh pr list*",
+    "gh issue view*",
+    "gh workflow view*",
+]
+
 VALIDATION_DENY = [
     "npm run *fix*", "pnpm run *fix*", "yarn run *fix*", "bun run *fix*",
     "eslint *--fix*", "ruff format*", "ruff check *--fix*", "cargo clippy *--fix*",
@@ -156,10 +167,10 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW,
+        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW,
     },
     "debugger": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW + [
+        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW + [
             "rg *",
             "wc *",
             "du *",
@@ -176,11 +187,13 @@ RULES = {
     },
 }
 
+REVIEW_ALLOW = VALIDATION_ALLOW + GIT_ALLOW
+
 RULES["sdd-verify"] = {
-    "allow": RULES["code-reviewer"]["allow"] + ["openspec status*", "openspec validate*", "openspec store list*"],
+    "allow": REVIEW_ALLOW + ["openspec status*", "openspec validate*", "openspec store list*"],
 }
-RULES["judge-a"] = RULES["code-reviewer"]
-RULES["judge-b"] = RULES["code-reviewer"]
+RULES["judge-a"] = {"allow": REVIEW_ALLOW}
+RULES["judge-b"] = {"allow": REVIEW_ALLOW}
 
 
 def git_invocations(command: str):
@@ -550,6 +563,17 @@ def _selftest() -> int:
         ("builder", "git worktree remove ../repo-fix-x", "deny"),
         (None, "git worktree list", None),
         ("code-reviewer", "git worktree list", "allow"),
+        ("debugger", "gh run view 123 --log-failed", "allow"),
+        ("debugger", "gh run list --limit 5", "allow"),
+        ("debugger", "gh pr view 6 --json mergeable,mergeStateStatus", "allow"),
+        ("debugger", "gh pr checks 6", "allow"),
+        ("code-reviewer", "gh pr diff 6", "allow"),
+        ("code-reviewer", "gh pr view 6 --comments", "allow"),
+        ("debugger", "gh api repos/o/r/pulls -X POST", "deny"),
+        ("debugger", "gh pr checkout 6", "deny"),
+        ("code-reviewer", "gh pr merge 6", "deny"),
+        ("sdd-verify", "gh pr view 6", "deny"),
+        ("judge-a", "gh pr view 6", "deny"),
         ("git-ops", "git push -uf origin x", "deny"),
         ("git-ops", "git push origin -ud x", "deny"),
         ("git-ops", "git push -u origin x", None),
