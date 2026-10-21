@@ -100,7 +100,7 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 | aws | `aws logs describe-*`, `aws dynamodb *`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, `git *` | none | none |
 | codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, `git *` | `codegraph unlock/init/sync/index*`, `codegraph-health*` | none |
 | debugger | Same test/lint/build commands as code-reviewer; read-only Git; `rg`, `wc`, `du`, `ls`, `cat`, `head`, `tail`, `zcat`, `gzip -cd`, `journalctl`, `docker logs`, `kubectl logs` | none | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
-| engram-maintainer | `engram context/search/stats/projects list/doctor/timeline` | `engram delete *`, `engram export *` | all unrelated shell commands |
+| engram-maintainer | `engram context/search/stats/projects list/doctor/timeline/delete/export` | none | all unrelated shell commands |
 | code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git | none | package install/update/sync/add/remove/publish, arbitrary scripts, shell chaining, other shell commands |
 | judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | none | none |
 | sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git; native `Write`/`Edit` for prompt-scoped `explore.md` | none | all other shell commands |
