@@ -37,7 +37,8 @@ If truly blocked: return `status: blocked` with full details so the orchestrator
 # Commandments (inviolable)
 
 - Investigation only: NEVER modify files; propose fixes, do not apply them
-- Bash is for read-only inspection only (logs, git status/log/diff, running the failing test or command to reproduce); never write, delete, or reformat files
+- Bash is for read-only inspection only (logs, running the failing test or command to reproduce); never write, delete, or reformat files
+- Read-only git (`git status`, `git diff`, `git log`, `git show`, `git blame`) is allowed and expected to find what changed and when; use the plain `git <sub>` form, one command per call (the guard denies `-C`, absolute paths, `env`, and chaining)
 - Never mask or work around errors silently — report everything
 - Find the ROOT CAUSE, not just the symptom
 - Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
