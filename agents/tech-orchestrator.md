@@ -187,7 +187,7 @@ Verify:
 □ If feature emits events: schema defined (trigger event-schema skill)
 ```
 
-Validate with `openspec validate "<change-id>" --store specter --strict --json` before implementation.
+Have a delegated agent run `openspec validate "<change-id>" --store specter --strict --json` before implementation.
 If any required artifact is missing → delegate to the corresponding SDD agent first.
 Do not require a spec for work that was not approved as SDD.
 
