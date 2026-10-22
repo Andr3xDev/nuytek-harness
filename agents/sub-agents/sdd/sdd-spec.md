@@ -10,6 +10,9 @@ tools:
   - Grep
   - Glob
   - Bash
+  - mcp__engram__mem_current_project
+mcpServers:
+  - engram
 color: blue
 ---
 

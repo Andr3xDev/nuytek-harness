@@ -43,6 +43,7 @@ tools:
   # Linear — epic/goal/initiative tracking
   - mcp__linear-server__*
 disallowedTools:
+  - Write
   - Edit
   - Bash
 mcpServers:

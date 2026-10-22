@@ -14,9 +14,11 @@ tools:
   - mcp__context7__resolve-library-id
   - mcp__context7__query-docs
   - mcp__codegraph__codegraph_explore
+  - mcp__engram__mem_current_project
 mcpServers:
   - context7
   - codegraph
+  - engram
 color: blue
 ---
 
