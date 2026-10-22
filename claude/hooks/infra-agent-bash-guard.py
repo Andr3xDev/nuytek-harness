@@ -33,7 +33,12 @@ PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
-GIT_ALLOW = [
+# Permission roles: plain allow-lists, concatenated per agent in RULES.
+ROLE_READ_FS = [
+    "ls *", "tree *", "wc *", "du *", "cat *", "head *", "tail *", "grep *", "rg *",
+]
+
+ROLE_GIT_READ = [
     "git status*",
     "git log*",
     "git diff*",
@@ -43,7 +48,7 @@ GIT_ALLOW = [
     "git blame*",
 ]
 
-GH_READ_ALLOW = [
+ROLE_GH_READ = [
     "gh run list*",
     "gh run view*",
     "gh pr view*",
@@ -63,7 +68,7 @@ VALIDATION_DENY = [
     "bundle exec rubocop *-A*", "bundle exec rubocop *-a*", "bundle exec rubocop *--autocorrect*",
 ]
 
-VALIDATION_ALLOW = [
+ROLE_VALIDATE = [
     # Node.js
     "npm test*", "npm run test*", "npm run lint*", "npm run typecheck*", "npm run format-check*", "npm run format:check*", "npm run build*",
     "pnpm test*", "pnpm run test*", "pnpm run lint*", "pnpm run typecheck*", "pnpm run format-check*", "pnpm run format:check*", "pnpm run build*",
@@ -92,26 +97,54 @@ VALIDATION_ALLOW = [
     "make test*", "make lint*", "make check*", "make format-check*", "make typecheck*", "make compile*", "make build*",
 ]
 
+# rg --pre/--hostname-bin run arbitrary programs and tree -o writes files; denied for every guarded agent.
+READ_FS_DENY = ["rg *--pre*", "rg *--hostname-bin*", "tree *-*o*"]
+
+ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
+
+ROLE_OPENSPEC_AUTHOR = [
+    "openspec status*", "openspec validate*", "openspec show*", "openspec new*",
+    "openspec instructions*", "openspec store list*",
+]
+
+ROLE_OPENSPEC_ARCHIVE = [
+    "openspec status*", "openspec validate*", "openspec archive*", "openspec show*",
+    "openspec instructions*", "openspec store list*",
+]
+
+ROLE_OPENSPEC_VERIFY = ["openspec status*", "openspec validate*", "openspec store list*"]
+
+ROLE_LOGS = [
+    "zcat *",
+    "gzip -cd *",
+    "journalctl *",
+    "docker logs *",
+    "kubectl logs *",
+]
+
 SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
 RULES = {
+    "explorer": {
+        "allow": ROLE_READ_FS + ROLE_GIT_READ,
+    },
     "sdd-explore": {
-        "allow": ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_READ + ROLE_GIT_READ + ROLE_READ_FS,
     },
     "sdd-propose": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-spec": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-design": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-tasks": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-archive": {
-        "allow": ["openspec status*", "openspec validate*", "openspec archive*", "openspec show*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ,
     },
     "aws": {
         "allow": [
@@ -130,7 +163,7 @@ RULES = {
             "aws ecs describe-*",
             "aws ecs list-*",
             "aws ec2 describe-*",
-        ] + GIT_ALLOW,
+        ] + ROLE_GIT_READ,
     },
     "codegraph-maintainer": {
         "native_ask": [
@@ -152,7 +185,7 @@ RULES = {
             "codegraph callees*",
             "codegraph impact*",
             "codegraph affected*",
-        ] + GIT_ALLOW,
+        ] + ROLE_GIT_READ,
     },
     "engram-maintainer": {
         "allow": [
@@ -167,30 +200,17 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW,
+        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ,
     },
     "debugger": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW + [
-            "rg *",
-            "wc *",
-            "du *",
-            "ls *",
-            "cat *",
-            "head *",
-            "tail *",
-            "zcat *",
-            "gzip -cd *",
-            "journalctl *",
-            "docker logs *",
-            "kubectl logs *",
-        ],
+        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ + ROLE_READ_FS + ROLE_LOGS,
     },
 }
 
-REVIEW_ALLOW = VALIDATION_ALLOW + GIT_ALLOW
+REVIEW_ALLOW = ROLE_VALIDATE + ROLE_GIT_READ
 
 RULES["sdd-verify"] = {
-    "allow": REVIEW_ALLOW + ["openspec status*", "openspec validate*", "openspec store list*"],
+    "allow": REVIEW_ALLOW + ROLE_OPENSPEC_VERIFY,
 }
 RULES["judge-a"] = {"allow": REVIEW_ALLOW}
 RULES["judge-b"] = {"allow": REVIEW_ALLOW}
@@ -352,7 +372,7 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
-    if matches_any(command, VALIDATION_DENY):
+    if matches_any(command, VALIDATION_DENY + READ_FS_DENY):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
@@ -593,6 +613,31 @@ def _selftest() -> int:
         ("git-ops", "git -C . branch --sort=-committerdate", None),
         ("builder", "git branch -D x", None),
         ("builder", "git -C . worktree list", None),
+        ("explorer", "ls src", "allow"),
+        ("explorer", "rg needle src", "allow"),
+        ("explorer", "git log -n 5", "allow"),
+        ("explorer", "rg --pre cat x", "deny"),
+        ("explorer", "rg --pre=sh x", "deny"),
+        ("explorer", "rg needle --pre-glob '*.gz' src", "deny"),
+        ("explorer", "ls | sh", "deny"),
+        ("explorer", "find . -delete", "deny"),
+        ("explorer", "rm -rf x", "deny"),
+        ("explorer", "git add .", "deny"),
+        ("sdd-explore", "rg foo", "allow"),
+        ("sdd-explore", "cat proposal.md", "allow"),
+        ("sdd-explore", "openspec list", "allow"),
+        ("sdd-explore", "rg --pre sh x", "deny"),
+        ("debugger", "rg --pre sh x", "deny"),
+        ("debugger", "grep -rn foo src", "allow"),
+        ("debugger", "tree src", "allow"),
+        ("explorer", "tree src", "allow"),
+        ("explorer", "tree -o x .", "deny"),
+        ("explorer", "tree -ao x .", "deny"),
+        ("explorer", "rg --hostname-bin sh x", "deny"),
+        ("code-reviewer", "rg --pre sh x", "deny"),
+        ("sdd-verify", "rg foo", "deny"),
+        ("code-reviewer", "cat x", "deny"),
+        ("judge-a", "ls", "deny"),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)

@@ -83,7 +83,7 @@ delegation policy.
 
 ## Explorer
 
-`explorer` (`sub-agents/general/explorer.md`) is a read-only agent (haiku-5-5, effort xhigh; tools Read/Glob/Grep, codegraph, engram-read; no Bash). The orchestrator delegates reading to it when a task needs 4+ files or one very large file. It returns only what is needed, with `path:line` evidence. It is distinct from `sdd-explore`, which belongs to the SDD flow and writes `explore.md`.
+`explorer` (`sub-agents/general/explorer.md`) is a read-only agent (haiku-5-5, effort xhigh; tools Read/Glob/Grep/Bash, codegraph, engram-read; Bash limited by the guard to read-only fs and git read commands). The orchestrator delegates reading to it when a task needs 4+ files or one very large file. It returns only what is needed, with `path:line` evidence. It is distinct from `sdd-explore`, which belongs to the SDD flow and writes `explore.md`.
 
 <br>
 
@@ -92,6 +92,8 @@ delegation policy.
 Claude Code has no per-agent command allow-list built into agent frontmatter beyond `tools`/`disallowedTools`. The gap is closed with `PreToolUse` hooks registered in `settings.json`.
 
 `/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
+
+Each agent's allow-list is composed from named roles (plain lists in the guard): `ROLE_READ_FS` (`ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg`), `ROLE_GIT_READ`, `ROLE_GH_READ`, `ROLE_VALIDATE`, `ROLE_LOGS`, and the `ROLE_OPENSPEC_*` groups. `explorer` = fs + git read; `sdd-explore` = openspec read + git read + fs read; `debugger` = validate + git/gh read + fs read + logs. `rg --pre`/`--pre-glob` (arbitrary program execution) is denied for every guarded agent.
 
 Commit-creating and staging git is denied for every agent except git-ops; push is denied for all but git-ops, and only when the user asked; force push prompts through native `permissions.ask`. Worktree mutations (`add`, `remove`, `prune`, `move`, `lock`, `unlock`, `repair`) are denied for all but git-ops, and worktree/branch deletes prompt through native `permissions.ask`; `git worktree list` stays read-only. The hook never returns `ask` (a hook `ask` in a background subagent never reaches the user): discards and `git stash` prompt through native `permissions.ask`, and odd invocation forms (`git -C`, absolute path, `env git`, chained) are denied, so use the plain `git <sub>` form. Read-only agents may not discard at all. The Ask column lists commands the hook passes through to native `permissions.ask`.
 
