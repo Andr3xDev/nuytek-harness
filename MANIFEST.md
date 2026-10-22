@@ -11,6 +11,7 @@ Portable source for my agent setup across machines.
 - Claude sounds: `claude/sounds/` -> `~/.claude/sounds/`
 - Claude global instructions: `claude/CLAUDE.md` -> `~/.claude/CLAUDE.md`
 - Claude settings/hooks reference: `claude/claude-settings.json` -> `~/.claude/settings.json`
+- Claude HUD config: `claude/claude-hud-config.json` -> `~/.claude/plugins/claude-hud/config.json`
 - Claude MCP registry: `claude/claude-mcp.json` -> merged into `~/.claude.json#mcpServers`
 - Shared helper docs: `shared/common-sdd.md`, `shared/engram-protocol.md` -> `~/.claude/`; `shared/rules/context7.md` -> `~/.claude/rules/context7.md`
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
@@ -57,7 +58,7 @@ Run `./scripts/nuytek-harness pull` on the source machine after changing live co
 Review diff before committing.
 
 Pull owns exactly `agents/`, `skills/`, `claude/{commands,hooks,sounds}/`,
-`claude/{CLAUDE.md,claude-settings.json}`, and
+`claude/{CLAUDE.md,claude-settings.json,claude-hud-config.json}`, and
 `shared/{common-sdd.md,engram-protocol.md,rules/context7.md}`.
 It mirrors these paths from local config and prunes stale managed files. `claude/claude-mcp.json`,
 `claude/mcp-servers.md`, `claude/scripts/`, docs, and scripts are repository-owned because

@@ -17,6 +17,7 @@ COMPONENT_TABLE=(
   "sounds dir claude/sounds .claude/sounds 1"
   "claude-md file claude/CLAUDE.md .claude/CLAUDE.md 1"
   "settings file claude/claude-settings.json .claude/settings.json 1"
+  "claude-hud-config file claude/claude-hud-config.json .claude/plugins/claude-hud/config.json 1"
   "common-sdd file shared/common-sdd.md .claude/common-sdd.md 1"
   "engram-protocol file shared/engram-protocol.md .claude/engram-protocol.md 1"
   "context7 file shared/rules/context7.md .claude/rules/context7.md 1"

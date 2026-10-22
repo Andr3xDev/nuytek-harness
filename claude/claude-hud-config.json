@@ -1,0 +1,12 @@
+{
+  "gitStatus": {
+    "showDirty": false
+  },
+  "display": {
+    "showAgents": true,
+    "showAgentEffort": true,
+    "showCost": true,
+    "showDuration": true,
+    "showSessionName": true
+  }
+}
