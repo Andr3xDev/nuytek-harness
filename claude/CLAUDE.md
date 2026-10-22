@@ -49,7 +49,7 @@ Data-destroying database operations, disk wipe or format, `git reset --hard`, `g
 - **`--no-verify`** (commit or push): only when the user explicitly asks.
 - **Stash**: `git stash` only when the user explicitly asks.
 - **Discards**: discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) triggers a native user confirmation prompt (`permissions.ask`); without confirmation it does not run.
-- **Command form**: use the plain `git <sub>` form as the whole command; `-C`, absolute paths, `env` and chaining are denied by the guard hook.
+- **Command form**: use the plain `git <sub>` form. The guard hook denies `-C` for every agent except git-ops and denies chaining for read-only roles; absolute paths and `env` are convention. git-ops push and deletions must be the plain form as the whole command.
 
 ### 6. Verify before using or claiming (all)
 - Use an API, library, flag, or path only after confirming it exists in the dependencies, docs, or code. Check the lockfile or query docs first.

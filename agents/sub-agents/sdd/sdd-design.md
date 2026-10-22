@@ -8,6 +8,7 @@ model: claude-sonnet-5-5
 tools:
   - Read
   - Write
+  - Edit
   - Grep
   - Glob
   - Bash
