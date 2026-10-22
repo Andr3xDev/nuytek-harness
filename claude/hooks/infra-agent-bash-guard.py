@@ -97,8 +97,10 @@ ROLE_VALIDATE = [
     "make test*", "make lint*", "make check*", "make format-check*", "make typecheck*", "make compile*", "make build*",
 ]
 
-# rg --pre/--hostname-bin run arbitrary programs and tree -o writes files; denied for every guarded agent.
-READ_FS_DENY = ["rg *--pre*", "rg *--hostname-bin*", "tree *-*o*"]
+# rg --pre/--hostname-bin run arbitrary programs; denied for every guarded agent. tree and git write flags are token-checked below.
+READ_FS_DENY = ["rg *--pre*", "rg *--hostname-bin*"]
+TREE_WRITE_SHORT_FLAGS = ("o", "R")  # -o writes a file; -R with -H writes 00Tree.html per directory
+GIT_WRITE_EXEC_FLAGS = {"--ext-diff", "--textconv"}  # run external programs configured in the repo
 
 ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
 
@@ -301,6 +303,29 @@ def matches_any(command: str, patterns) -> bool:
     return any(fnmatch.fnmatchcase(command, p) for p in patterns)
 
 
+def is_tree_write(command: str) -> bool:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens or os.path.basename(tokens[0]) != "tree":
+        return False
+    return any(
+        t == "--output" or t.startswith("--output=")
+        or (t.startswith("-") and not t.startswith("--") and any(f in t for f in TREE_WRITE_SHORT_FLAGS))
+        for t in tokens[1:]
+    )
+
+
+def has_git_write_flag(calls) -> bool:
+    """True when a git call writes files (`--output`) or runs external programs; `--output-indicator-*` stays allowed."""
+    return any(
+        a in GIT_WRITE_EXEC_FLAGS or a == "--output" or a.startswith("--output=")
+        for _, args in calls
+        for a in args
+    )
+
+
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
@@ -372,7 +397,11 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
-    if matches_any(command, VALIDATION_DENY + READ_FS_DENY):
+    if (
+        matches_any(command, VALIDATION_DENY + READ_FS_DENY)
+        or is_tree_write(command)
+        or has_git_write_flag(calls)
+    ):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
@@ -633,6 +662,20 @@ def _selftest() -> int:
         ("explorer", "tree src", "allow"),
         ("explorer", "tree -o x .", "deny"),
         ("explorer", "tree -ao x .", "deny"),
+        ("explorer", "tree -L 2 docs", "allow"),
+        ("explorer", "tree -I node_modules", "allow"),
+        ("explorer", "tree --noreport src", "allow"),
+        ("explorer", "tree --output=x .", "deny"),
+        ("explorer", "tree -R -H . x", "deny"),
+        ("explorer", "git diff --output=x", "deny"),
+        ("explorer", "git log -p --output x", "deny"),
+        ("explorer", "git show --ext-diff HEAD", "deny"),
+        ("explorer", "git diff --textconv", "deny"),
+        ("explorer", "git diff --output-indicator-new=+ HEAD", "allow"),
+        ("code-reviewer", "git diff --ext-diff", "deny"),
+        # git diff/log/show reject abbreviated long options (verified), so `--ext` is a harmless git error
+        ("explorer", "git diff --ext", "allow"),
+        ("builder", "git diff --output=x", None),
         ("explorer", "rg --hostname-bin sh x", "deny"),
         ("code-reviewer", "rg --pre sh x", "deny"),
         ("sdd-verify", "rg foo", "deny"),
