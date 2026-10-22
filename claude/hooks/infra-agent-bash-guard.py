@@ -101,6 +101,13 @@ ROLE_VALIDATE = [
 READ_FS_DENY = ["rg *--pre*", "rg *--hostname-bin*"]
 TREE_WRITE_SHORT_FLAGS = ("o", "R")  # -o writes a file; -R with -H writes 00Tree.html per directory
 GIT_WRITE_EXEC_FLAGS = {"--ext-diff", "--textconv"}  # run external programs configured in the repo
+SECRET_FILE_PATTERNS = [
+    ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc",
+]
+SECRET_FILE_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
+SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
+RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
+GREP_RECURSIVE_FLAG = re.compile(r"--recursive|-[a-zA-Z]*[rR][a-zA-Z]*")
 
 ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
 
@@ -326,6 +333,29 @@ def has_git_write_flag(calls) -> bool:
     )
 
 
+def reads_secret(command: str) -> bool:
+    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default)."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens:
+        return False
+    program, args = os.path.basename(tokens[0]), tokens[1:]
+    if (program == "rg" and any(RG_SHOW_ALL_FLAG.fullmatch(a) for a in args)) or (
+        program == "grep" and any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args)
+    ):
+        return True
+    return any(
+        any(segment in t for segment in SECRET_DIR_SEGMENTS)
+        or (
+            os.path.basename(t) not in SECRET_FILE_EXAMPLES
+            and matches_any(os.path.basename(t), SECRET_FILE_PATTERNS)
+        )
+        for t in args
+    )
+
+
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
@@ -406,6 +436,12 @@ def decide(agent_type: str, command: str):
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
             f"(an auto-fix/format command)."
+        )
+    if reads_secret(command):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
+            f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
+            f"searching recursively/with hidden files is not permitted."
         )
     if matches_any(command, rules.get("native_ask", [])):
         return None
@@ -657,7 +693,7 @@ def _selftest() -> int:
         ("sdd-explore", "openspec list", "allow"),
         ("sdd-explore", "rg --pre sh x", "deny"),
         ("debugger", "rg --pre sh x", "deny"),
-        ("debugger", "grep -rn foo src", "allow"),
+        ("debugger", "grep -rn foo src", "deny"),
         ("debugger", "tree src", "allow"),
         ("explorer", "tree src", "allow"),
         ("explorer", "tree -o x .", "deny"),
@@ -681,6 +717,25 @@ def _selftest() -> int:
         ("sdd-verify", "rg foo", "deny"),
         ("code-reviewer", "cat x", "deny"),
         ("judge-a", "ls", "deny"),
+        ("explorer", "cat .env", "deny"),
+        ("explorer", "head config/.env.local", "deny"),
+        ("explorer", "grep KEY .env.production", "deny"),
+        ("explorer", "cat ~/.ssh/id_rsa", "deny"),
+        ("explorer", "tail /home/u/.aws/credentials", "deny"),
+        ("explorer", "cat certs/server.pem", "deny"),
+        ("explorer", "rg --hidden foo", "deny"),
+        ("explorer", "rg -uu foo", "deny"),
+        ("explorer", "rg --no-ignore foo", "deny"),
+        ("explorer", "rg -. foo", "deny"),
+        ("explorer", "grep -rn foo .", "deny"),
+        ("explorer", "grep -R foo src", "deny"),
+        ("explorer", "cat .env.example", "allow"),
+        ("explorer", "cat README.md", "allow"),
+        ("explorer", "rg foo src", "allow"),
+        ("explorer", "grep -n foo src/app.py", "allow"),
+        ("explorer", "ls -la", "allow"),
+        ("debugger", "cat .env", "deny"),
+        ("builder", "cat .env", None),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
