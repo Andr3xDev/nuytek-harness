@@ -180,6 +180,7 @@ RULES = {
             "codegraph init*",
             "codegraph sync*",
             "codegraph index*",
+            "codegraph uninit*",
             "codegraph-health*",
             "scripts/codegraph-health.sh*",
             "./scripts/codegraph-health.sh*",
@@ -197,6 +198,7 @@ RULES = {
         ] + ROLE_GIT_READ,
     },
     "engram-maintainer": {
+        "native_ask": ["engram delete *--hard*"],
         "allow": [
             "engram context*",
             "engram search*",
@@ -492,7 +494,8 @@ def _selftest() -> int:
         ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
         ("engram-maintainer", "engram context", "allow"),
         ("engram-maintainer", "engram delete 42", "allow"),
-        ("engram-maintainer", "engram delete project demo --hard", "allow"),
+        ("engram-maintainer", "engram delete project demo --hard", None),
+        ("engram-maintainer", "engram delete 42 --hard", None),
         ("engram-maintainer", "engram export backup.json", "allow"),
         ("codegraph-maintainer", "codegraph sync", None),
         ("engram-maintainer", "engram save title text", "deny"),

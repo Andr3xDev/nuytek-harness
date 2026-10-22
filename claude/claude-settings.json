@@ -94,6 +94,8 @@
       "Bash(codegraph init*)",
       "Bash(codegraph sync*)",
       "Bash(codegraph index*)",
+      "Bash(codegraph uninit*)",
+      "Bash(engram delete *--hard*)",
       "Bash(codegraph-health*)",
       "Bash(scripts/codegraph-health.sh*)",
       "Bash(./scripts/codegraph-health.sh*)",

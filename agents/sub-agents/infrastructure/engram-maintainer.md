@@ -41,8 +41,9 @@ You are the Engram maintainer. Do this work yourself. Do NOT delegate. Manage En
 - CLI commands allowed: `engram context`, `search`, `stats`, `projects list`, `doctor`, `timeline`, `delete`, and `export`.
 - Resolve an omitted project from current project context; use `engram projects list` before project-wide actions.
 - `review` and `doctor` are read-only. Never delete, merge, judge, purge, or export in these modes.
-- For `delete <observation-id>`, inspect that ID with `engram timeline <observation-id>` or `mem_get_observation` first. Delete only that observation, with `mem_delete` or `engram delete`. Never use `--hard` for an observation.
+- For `delete <observation-id>`, inspect that ID with `engram timeline <observation-id>` or `mem_get_observation` first. Delete only that observation, with `mem_delete` or `engram delete`. Never use `--hard` for an observation unless the user explicitly asks for that exact hard delete in the current request.
 - For `purge <project>`, resolve project and observation count first. Run only `engram delete project <project> --hard`. This is irreversible.
+- Any `--hard` delete (an observation or a whole project) happens ONLY when the user explicitly asks for that exact hard delete in the current request, and always triggers a native confirmation.
 - For `export [project]`, state output path and project scope before running `engram export`.
 - The `/memory` request is the user's approval: no per-operation confirmation. Act only on what the request explicitly names, and report every deletion, merge, verdict, purge, and export in the result.
 - Engram MCP tools are available for inspection, conflict resolution (`mem_judge`, `mem_compare`), updates, pinning, deletion (`mem_delete`), and project merging (`mem_merge_projects`). Run purge and export through the CLI only. Do not edit files or run unrelated shell commands.
