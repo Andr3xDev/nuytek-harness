@@ -227,6 +227,30 @@ RULES["judge-a"] = {"allow": REVIEW_ALLOW}
 RULES["judge-b"] = {"allow": REVIEW_ALLOW}
 
 
+def _git_calls(command: str):
+    """Yield (global_options, subcommand, args) for every git call in `command`."""
+    for segment in SEGMENT_SEPARATORS.split(command):
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            tokens = segment.split()
+        for index, token in enumerate(tokens):
+            if os.path.basename(token) != "git":
+                continue
+            rest = iter(tokens[index + 1:])
+            global_options = []
+            for option in rest:
+                if option in GIT_OPTIONS_WITH_VALUE:
+                    global_options.append(option)
+                    next(rest, None)
+                elif not option.startswith("-"):
+                    yield global_options, option, list(rest)
+                    break
+                else:
+                    global_options.append(option)
+            break
+
+
 def git_invocations(command: str):
     """Return (subcommand, args) for every git call found in `command`.
 
@@ -239,24 +263,12 @@ def git_invocations(command: str):
     can evade; quoted text that merely mentions `git commit` fails closed.
     Upgrade to a real shell parser if that matters.
     """
-    calls = []
-    for segment in SEGMENT_SEPARATORS.split(command):
-        try:
-            tokens = shlex.split(segment)
-        except ValueError:
-            tokens = segment.split()
-        for index, token in enumerate(tokens):
-            if os.path.basename(token) != "git":
-                continue
-            rest = iter(tokens[index + 1:])
-            for option in rest:
-                if option in GIT_OPTIONS_WITH_VALUE:
-                    next(rest, None)
-                elif not option.startswith("-"):
-                    calls.append((option, list(rest)))
-                    break
-            break
-    return calls
+    return [(subcommand, args) for _, subcommand, args in _git_calls(command)]
+
+
+def uses_git_dash_c(command: str) -> bool:
+    """True if a git call passes `-C`; same evasion limits as `git_invocations`."""
+    return any("-C" in options for options, _, _ in _git_calls(command))
 
 
 def is_staging_git(subcommand: str, args) -> bool:
@@ -364,6 +376,11 @@ def has_shell_metacharacters(command: str) -> bool:
 
 def decide(agent_type: str, command: str):
     calls = git_invocations(command)
+    if agent_type != COMMIT_AGENT and uses_git_dash_c(command):
+        return "deny", (
+            "Blocked by infra-agent-bash-guard: git `-C` is reserved for "
+            f"'{COMMIT_AGENT}'; use the plain `git <sub>` form from the working directory."
+        )
     if any(subcommand == "push" for subcommand, _ in calls):
         if agent_type != COMMIT_AGENT:
             return "deny", (
@@ -601,7 +618,10 @@ def _selftest() -> int:
         ("builder", "git commit-tree x", None),
         ("builder", "git status", None),
         ("builder", "git log", None),
-        ("builder", "git -C x status", None),
+        ("builder", "git -C x status", "deny"),
+        ("quick-builder", "git -C /abs diff --stat", "deny"),
+        (None, "git -C /abs diff --stat", "deny"),
+        ("builder", "git -c core.pager=cat diff", None),
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
         ("git-ops", "git push origin main", None),
@@ -680,7 +700,7 @@ def _selftest() -> int:
         ("git-ops", "git -C . branch -vv", None),
         ("git-ops", "git -C . branch --sort=-committerdate", None),
         ("builder", "git branch -D x", None),
-        ("builder", "git -C . worktree list", None),
+        ("builder", "git -C . worktree list", "deny"),
         ("explorer", "ls src", "allow"),
         ("explorer", "rg needle src", "allow"),
         ("explorer", "git log -n 5", "allow"),
