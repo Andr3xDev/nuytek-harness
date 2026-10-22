@@ -14,6 +14,8 @@ tools:
   - mcp__engram__mem_context
   - mcp__engram__mem_search
   - mcp__engram__mem_save
+  - mcp__engram__mem_judge
+  - mcp__engram__mem_compare
   - mcp__engram__mem_current_project
   - mcp__engram__mem_get_observation
   - mcp__context7__resolve-library-id
