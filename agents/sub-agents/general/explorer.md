@@ -10,6 +10,7 @@ tools:
   - Read
   - Glob
   - Grep
+  - Bash
   - mcp__engram__mem_context
   - mcp__engram__mem_search
   - mcp__engram__mem_current_project
@@ -25,6 +26,7 @@ You are the explorer. Do this work yourself. Do NOT delegate. Do NOT modify anyt
 # Rules
 
 - Read-only.
+- Bash is limited to read-only fs and git read commands (`ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg`, plus the read-only git set ROLE_GIT_READ); no pipes or redirects.
 - Use CodeGraph first when the repo has `.codegraph/`; otherwise Glob/Grep, then targeted Read.
 - Read line ranges, not whole files, when a file is large.
 - Answer only the question in TASK.

@@ -33,7 +33,12 @@ PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 
-GIT_ALLOW = [
+# Permission roles: plain allow-lists, concatenated per agent in RULES.
+ROLE_READ_FS = [
+    "ls *", "tree *", "wc *", "du *", "cat *", "head *", "tail *", "grep *", "rg *",
+]
+
+ROLE_GIT_READ = [
     "git status*",
     "git log*",
     "git diff*",
@@ -43,7 +48,7 @@ GIT_ALLOW = [
     "git blame*",
 ]
 
-GH_READ_ALLOW = [
+ROLE_GH_READ = [
     "gh run list*",
     "gh run view*",
     "gh pr view*",
@@ -63,7 +68,7 @@ VALIDATION_DENY = [
     "bundle exec rubocop *-A*", "bundle exec rubocop *-a*", "bundle exec rubocop *--autocorrect*",
 ]
 
-VALIDATION_ALLOW = [
+ROLE_VALIDATE = [
     # Node.js
     "npm test*", "npm run test*", "npm run lint*", "npm run typecheck*", "npm run format-check*", "npm run format:check*", "npm run build*",
     "pnpm test*", "pnpm run test*", "pnpm run lint*", "pnpm run typecheck*", "pnpm run format-check*", "pnpm run format:check*", "pnpm run build*",
@@ -92,26 +97,63 @@ VALIDATION_ALLOW = [
     "make test*", "make lint*", "make check*", "make format-check*", "make typecheck*", "make compile*", "make build*",
 ]
 
+# rg --pre/--hostname-bin run arbitrary programs; denied for every guarded agent. tree and git write flags are token-checked below.
+READ_FS_DENY = ["rg *--pre*", "rg *--hostname-bin*"]
+TREE_WRITE_SHORT_FLAGS = ("o", "R")  # -o writes a file; -R with -H writes 00Tree.html per directory
+GIT_WRITE_EXEC_FLAGS = {"--ext-diff", "--textconv"}  # run external programs configured in the repo
+SECRET_FILE_PATTERNS = [
+    ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc",
+]
+SECRET_FILE_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
+SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
+RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
+GREP_RECURSIVE_FLAG = re.compile(r"--recursive|-[a-zA-Z]*[rR][a-zA-Z]*")
+
+ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
+
+ROLE_OPENSPEC_AUTHOR = [
+    "openspec status*", "openspec validate*", "openspec show*", "openspec new*",
+    "openspec instructions*", "openspec store list*",
+]
+
+ROLE_OPENSPEC_ARCHIVE = [
+    "openspec status*", "openspec validate*", "openspec archive*", "openspec show*",
+    "openspec instructions*", "openspec store list*",
+]
+
+ROLE_OPENSPEC_VERIFY = ["openspec status*", "openspec validate*", "openspec store list*"]
+
+ROLE_LOGS = [
+    "zcat *",
+    "gzip -cd *",
+    "journalctl *",
+    "docker logs *",
+    "kubectl logs *",
+]
+
 SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
 RULES = {
+    "explorer": {
+        "allow": ROLE_READ_FS + ROLE_GIT_READ,
+    },
     "sdd-explore": {
-        "allow": ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_READ + ROLE_GIT_READ + ROLE_READ_FS,
     },
     "sdd-propose": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-spec": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-design": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-tasks": {
-        "allow": ["openspec status*", "openspec validate*", "openspec show*", "openspec new*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-archive": {
-        "allow": ["openspec status*", "openspec validate*", "openspec archive*", "openspec show*", "openspec instructions*", "openspec store list*"] + GIT_ALLOW,
+        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ,
     },
     "aws": {
         "allow": [
@@ -130,7 +172,7 @@ RULES = {
             "aws ecs describe-*",
             "aws ecs list-*",
             "aws ec2 describe-*",
-        ] + GIT_ALLOW,
+        ] + ROLE_GIT_READ,
     },
     "codegraph-maintainer": {
         "native_ask": [
@@ -138,6 +180,7 @@ RULES = {
             "codegraph init*",
             "codegraph sync*",
             "codegraph index*",
+            "codegraph uninit*",
             "codegraph-health*",
             "scripts/codegraph-health.sh*",
             "./scripts/codegraph-health.sh*",
@@ -152,9 +195,10 @@ RULES = {
             "codegraph callees*",
             "codegraph impact*",
             "codegraph affected*",
-        ] + GIT_ALLOW,
+        ] + ROLE_GIT_READ,
     },
     "engram-maintainer": {
+        "native_ask": ["engram delete *--hard*"],
         "allow": [
             "engram context*",
             "engram search*",
@@ -167,30 +211,17 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW,
+        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ,
     },
     "debugger": {
-        "allow": VALIDATION_ALLOW + GIT_ALLOW + GH_READ_ALLOW + [
-            "rg *",
-            "wc *",
-            "du *",
-            "ls *",
-            "cat *",
-            "head *",
-            "tail *",
-            "zcat *",
-            "gzip -cd *",
-            "journalctl *",
-            "docker logs *",
-            "kubectl logs *",
-        ],
+        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ + ROLE_READ_FS + ROLE_LOGS,
     },
 }
 
-REVIEW_ALLOW = VALIDATION_ALLOW + GIT_ALLOW
+REVIEW_ALLOW = ROLE_VALIDATE + ROLE_GIT_READ
 
 RULES["sdd-verify"] = {
-    "allow": REVIEW_ALLOW + ["openspec status*", "openspec validate*", "openspec store list*"],
+    "allow": REVIEW_ALLOW + ROLE_OPENSPEC_VERIFY,
 }
 RULES["judge-a"] = {"allow": REVIEW_ALLOW}
 RULES["judge-b"] = {"allow": REVIEW_ALLOW}
@@ -281,6 +312,52 @@ def matches_any(command: str, patterns) -> bool:
     return any(fnmatch.fnmatchcase(command, p) for p in patterns)
 
 
+def is_tree_write(command: str) -> bool:
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens or os.path.basename(tokens[0]) != "tree":
+        return False
+    return any(
+        t == "--output" or t.startswith("--output=")
+        or (t.startswith("-") and not t.startswith("--") and any(f in t for f in TREE_WRITE_SHORT_FLAGS))
+        for t in tokens[1:]
+    )
+
+
+def has_git_write_flag(calls) -> bool:
+    """True when a git call writes files (`--output`) or runs external programs; `--output-indicator-*` stays allowed."""
+    return any(
+        a in GIT_WRITE_EXEC_FLAGS or a == "--output" or a.startswith("--output=")
+        for _, args in calls
+        for a in args
+    )
+
+
+def reads_secret(command: str) -> bool:
+    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default)."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if not tokens:
+        return False
+    program, args = os.path.basename(tokens[0]), tokens[1:]
+    if (program == "rg" and any(RG_SHOW_ALL_FLAG.fullmatch(a) for a in args)) or (
+        program == "grep" and any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args)
+    ):
+        return True
+    return any(
+        any(segment in t for segment in SECRET_DIR_SEGMENTS)
+        or (
+            os.path.basename(t) not in SECRET_FILE_EXAMPLES
+            and matches_any(os.path.basename(t), SECRET_FILE_PATTERNS)
+        )
+        for t in args
+    )
+
+
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
@@ -352,11 +429,21 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
-    if matches_any(command, VALIDATION_DENY):
+    if (
+        matches_any(command, VALIDATION_DENY + READ_FS_DENY)
+        or is_tree_write(command)
+        or has_git_write_flag(calls)
+    ):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; this command is on its explicit deny list "
             f"(an auto-fix/format command)."
+        )
+    if reads_secret(command):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
+            f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
+            f"searching recursively/with hidden files is not permitted."
         )
     if matches_any(command, rules.get("native_ask", [])):
         return None
@@ -407,7 +494,8 @@ def _selftest() -> int:
         ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
         ("engram-maintainer", "engram context", "allow"),
         ("engram-maintainer", "engram delete 42", "allow"),
-        ("engram-maintainer", "engram delete project demo --hard", "allow"),
+        ("engram-maintainer", "engram delete project demo --hard", None),
+        ("engram-maintainer", "engram delete 42 --hard", None),
         ("engram-maintainer", "engram export backup.json", "allow"),
         ("codegraph-maintainer", "codegraph sync", None),
         ("engram-maintainer", "engram save title text", "deny"),
@@ -593,6 +681,64 @@ def _selftest() -> int:
         ("git-ops", "git -C . branch --sort=-committerdate", None),
         ("builder", "git branch -D x", None),
         ("builder", "git -C . worktree list", None),
+        ("explorer", "ls src", "allow"),
+        ("explorer", "rg needle src", "allow"),
+        ("explorer", "git log -n 5", "allow"),
+        ("explorer", "rg --pre cat x", "deny"),
+        ("explorer", "rg --pre=sh x", "deny"),
+        ("explorer", "rg needle --pre-glob '*.gz' src", "deny"),
+        ("explorer", "ls | sh", "deny"),
+        ("explorer", "find . -delete", "deny"),
+        ("explorer", "rm -rf x", "deny"),
+        ("explorer", "git add .", "deny"),
+        ("sdd-explore", "rg foo", "allow"),
+        ("sdd-explore", "cat proposal.md", "allow"),
+        ("sdd-explore", "openspec list", "allow"),
+        ("sdd-explore", "rg --pre sh x", "deny"),
+        ("debugger", "rg --pre sh x", "deny"),
+        ("debugger", "grep -rn foo src", "deny"),
+        ("debugger", "tree src", "allow"),
+        ("explorer", "tree src", "allow"),
+        ("explorer", "tree -o x .", "deny"),
+        ("explorer", "tree -ao x .", "deny"),
+        ("explorer", "tree -L 2 docs", "allow"),
+        ("explorer", "tree -I node_modules", "allow"),
+        ("explorer", "tree --noreport src", "allow"),
+        ("explorer", "tree --output=x .", "deny"),
+        ("explorer", "tree -R -H . x", "deny"),
+        ("explorer", "git diff --output=x", "deny"),
+        ("explorer", "git log -p --output x", "deny"),
+        ("explorer", "git show --ext-diff HEAD", "deny"),
+        ("explorer", "git diff --textconv", "deny"),
+        ("explorer", "git diff --output-indicator-new=+ HEAD", "allow"),
+        ("code-reviewer", "git diff --ext-diff", "deny"),
+        # git diff/log/show reject abbreviated long options (verified), so `--ext` is a harmless git error
+        ("explorer", "git diff --ext", "allow"),
+        ("builder", "git diff --output=x", None),
+        ("explorer", "rg --hostname-bin sh x", "deny"),
+        ("code-reviewer", "rg --pre sh x", "deny"),
+        ("sdd-verify", "rg foo", "deny"),
+        ("code-reviewer", "cat x", "deny"),
+        ("judge-a", "ls", "deny"),
+        ("explorer", "cat .env", "deny"),
+        ("explorer", "head config/.env.local", "deny"),
+        ("explorer", "grep KEY .env.production", "deny"),
+        ("explorer", "cat ~/.ssh/id_rsa", "deny"),
+        ("explorer", "tail /home/u/.aws/credentials", "deny"),
+        ("explorer", "cat certs/server.pem", "deny"),
+        ("explorer", "rg --hidden foo", "deny"),
+        ("explorer", "rg -uu foo", "deny"),
+        ("explorer", "rg --no-ignore foo", "deny"),
+        ("explorer", "rg -. foo", "deny"),
+        ("explorer", "grep -rn foo .", "deny"),
+        ("explorer", "grep -R foo src", "deny"),
+        ("explorer", "cat .env.example", "allow"),
+        ("explorer", "cat README.md", "allow"),
+        ("explorer", "rg foo src", "allow"),
+        ("explorer", "grep -n foo src/app.py", "allow"),
+        ("explorer", "ls -la", "allow"),
+        ("debugger", "cat .env", "deny"),
+        ("builder", "cat .env", None),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)

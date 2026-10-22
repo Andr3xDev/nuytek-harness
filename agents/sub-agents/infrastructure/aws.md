@@ -5,6 +5,9 @@ description: |
   Summarize state and evidence. Never modify cloud resources.
 model: claude-sonnet-5-5
 tools:
+  - Read
+  - Glob
+  - Grep
   - Bash
   - mcp__engram__mem_context
   - mcp__engram__mem_search

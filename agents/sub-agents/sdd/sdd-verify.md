@@ -9,9 +9,9 @@ tools:
   - Read
   - Grep
   - Glob
-   - Bash
-   - Write
-   - Edit
+  - Bash
+  - Write
+  - Edit
   - mcp__engram__mem_context
   - mcp__engram__mem_search
   - mcp__engram__mem_save

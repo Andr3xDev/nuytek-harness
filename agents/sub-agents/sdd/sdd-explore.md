@@ -10,9 +10,9 @@ tools:
   - Read
   - Grep
   - Glob
-   - Bash
-   - Write
-   - Edit
+  - Bash
+  - Write
+  - Edit
   - WebFetch
   - WebSearch
   - mcp__engram__mem_context

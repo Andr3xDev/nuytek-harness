@@ -9,6 +9,7 @@ tools:
   - Read
   - Write
   - Glob
+  - Grep
   - Bash
 color: blue
 ---
