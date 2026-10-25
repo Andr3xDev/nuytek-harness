@@ -67,7 +67,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    - Dependencies between tasks clearly marked
    - Estimated complexity per task (small/medium/large)
 
-4. Reviewability: group tasks into units, each with a clear finish and a verification. Right-size the list to the change; no filler tasks.
+4. Necessary code only (common-sdd.md section F): group tasks into units, each with a clear finish and a verification. Right-size the list to the change; no filler tasks.
 5. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)

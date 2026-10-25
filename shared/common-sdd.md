@@ -137,10 +137,9 @@ under the global memory protocol.
 
 ---
 
-## F. Reviewability and right-sized artifacts
+## F. Necessary code and right-sized artifacts
 
-Reviewability: the change must produce code that is easy to review and validate. Tasks group
-work into units, each with a clear finish and a verification.
+Necessary code: the change produces only the code it needs, held to the quality standards in CLAUDE.md section 3 (KISS, DRY, YAGNI, SOLID, clean, scalable, maintainable). Tasks group work into units, each with a clear finish and a verification.
 
 Right-size artifacts: artifact size follows the change, never a template. A change that needs
 1 requirement gets 1 requirement. No minimum lengths, no restating living specs, no requirements
