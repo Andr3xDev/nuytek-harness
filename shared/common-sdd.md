@@ -24,8 +24,21 @@ and do NOT bounce work back unless the phase explicitly says to stop and report 
 
 ## C. Artifact retrieval (OpenSpec filesystem)
 
-Full SDD runs only for work the user approved as SDD. Its artifacts live only in the configured OpenSpec change directory:
-`{specs_path}/changes/{project}-{change-name}/`.
+Full SDD runs only for work the user approved as SDD. Its artifacts live only in the OpenSpec change directory
+of the store named in your delegation: `{store-root}/openspec/changes/{change-name}/`.
+
+The orchestrator passes `STORE: <store-id>` and the store root path in every SDD delegation CONTEXT.
+Always pass `--store <store-id>` explicitly to every `openspec` command. Never `cd` into the
+store and never rely on the working directory. Agents never run `openspec store setup|register|unregister`
+or `openspec init|update|workset`; if a store is missing, return `status: blocked`.
+
+Change naming: in a product store (the store is the product) the change name has no project prefix.
+Only the shared default store (`openspec_store`) keeps `{project}-{change-name}`. Changes are flat
+under `changes/`; nested change folders are not supported. A change may start with a temporary name
+and be renamed later by moving its folder (no CLI rename). Never rename a store id: repo `store:`
+pointers and `references:` depend on it.
+
+Spec depth and duplicate check: section D.
 
 Full route: `sdd-propose` → `sdd-explore` → `sdd-spec` → `sdd-design` → `sdd-tasks`.
 `sdd-propose` creates the change directory before `sdd-explore` persists `explore.md`.
@@ -47,7 +60,7 @@ Every phase that produces an artifact MUST persist it.
 Skipping this BREAKS the pipeline — downstream phases will not find your output.
 
 Write the complete artifact to its OpenSpec file under
-`{specs_path}/changes/{project}-{change-name}/`. Do not save SDD artifacts to Engram.
+`{store-root}/openspec/changes/{change-name}/`. Do not save SDD artifacts to Engram.
 
 ### Artifact types
 
@@ -55,7 +68,7 @@ Write the complete artifact to its OpenSpec file under
 |----------|---------------|-------------|
 | proposal | `proposal.md` | sdd-propose |
 | explore | `explore.md` | sdd-explore |
-| spec | `specs/{project}/{domain}/spec.md` | sdd-spec |
+| spec | `specs/{subproject}/{domain}/spec.md` (product store) or `specs/{project}/{domain}/spec.md` (default store) | sdd-spec |
 | design | `design.md` | sdd-design |
 | tasks | `tasks.md` | sdd-tasks |
 | apply-progress | `apply-progress.md` | implementer |
@@ -65,11 +78,31 @@ Write the complete artifact to its OpenSpec file under
 
 ### Delta spec format
 
-Delta specs live at `{specs_path}/changes/{project}-{change-name}/specs/{project}/{domain}/spec.md`
-— never a flat `specs/spec.md` (validate rejects it and it never merges). `{project}` is the
-repo name; for a component inside a repo, prefix the domain with the component name, e.g.
-`specs/hypr-abysal/lucyna-osd/spec.md`. On archive, ADDED creates
-`openspec/specs/{project}/{domain}/spec.md`; MODIFIED updates that file in place.
+Delta specs live at `{store-root}/openspec/changes/{change-name}/specs/{a}/{b}/spec.md`
+— never a flat `specs/spec.md` (validate rejects it and it never merges). Depth rule:
+
+- Product store: exactly `specs/{subproject}/{domain}/spec.md`. The store is the product; never repeat the product name.
+- Default shared store: `specs/{project}/{domain}/spec.md`, where `{project}` is the repo name; for a
+  component inside a repo, prefix the domain with the component name, e.g. `specs/hypr-abysal/lucyna-osd/spec.md`.
+
+Reuse an existing first-level folder from `openspec list --specs --json --store <store-id>` before
+creating a new one. Spec ids are `a/b`; read one with `openspec show <a/b> --type spec --store <store-id>`.
+On archive, ADDED creates `openspec/specs/{a}/{b}/spec.md` in the store; MODIFIED updates that file in place.
+One change may carry deltas for several subprojects; each archives into its own living spec.
+
+Duplicate check (`sdd-spec`): nothing in openspec detects duplicate capabilities at different depths.
+Before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with
+the same domain exists at another path, write a MODIFIED delta against it instead, or return
+`status: blocked` if unclear.
+
+Cross-product work: two subprojects of one product = one change with one delta per subproject.
+Two products = paired changes with the SAME change name in each store; each proposal names the other,
+the stores reference each other via `references:` in the store's own `openspec/config.yaml`, and the
+tracker epic groups them. Each validates and archives on its own. Read a referenced store's specs with
+`openspec show <spec-id> --type spec --store <other-store-id>`. Do not use `initiative:` in `.openspec.yaml`.
+
+Validation command: `openspec validate "<change>" --store <store-id> --strict --json`. Always name
+the change; bare `validate` exits 1 in non-TTY.
 
 - Section headers: `## ADDED Requirements`, `## MODIFIED Requirements`,
   `## REMOVED Requirements`, `## RENAMED Requirements`
@@ -104,20 +137,23 @@ under the global memory protocol.
 
 ---
 
-## F. PR review workload guard
+## F. Reviewability and right-sized artifacts
 
-SDD must protect reviewer cognitive load:
+Reviewability: the change must produce code that is easy to review and validate. Tasks group
+work into units, each with a clear finish and a verification.
 
-- Default PR review budget: **400 changed lines** (additions + deletions)
-- `sdd-tasks` MUST forecast whether the planned work exceeds that budget
-- If forecast is High: recommend splitting into chained work units
-- Include in tasks.md: `PR size risk: Low | Medium | High`
-- Each work unit must have: clear start, clear finish, autonomous scope, verification
+Right-size artifacts: artifact size follows the change, never a template. A change that needs
+1 requirement gets 1 requirement. No minimum lengths, no restating living specs, no requirements
+invented for completeness. Explore and design stay short when the scope is already clear; design
+records only decisions that need one. Large, delicate, or foundational work (new project,
+architecture) still gets the full depth.
 
 ---
 
 ## G. Persistence
 
 SDD always reads and writes OpenSpec filesystem artifacts under
-`{specs_path}/changes/{project}-{change-name}/`. Git history provides the audit trail.
+`{store-root}/openspec/changes/{change-name}/`. Git history provides the audit trail.
+openspec never stages or commits; after an SDD block that wrote artifacts the orchestrator
+delegates `git-ops` to commit inside the store root. No SDD agent commits.
 Engram is not an SDD artifact store and has no SDD persistence mode or fallback.

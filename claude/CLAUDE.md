@@ -157,14 +157,13 @@ An agent's own claim of completion is not evidence. The orchestrator checks thes
 Machine-level values. A project CLAUDE.md may override them.
 
 ```yaml
-specs_path: ~/dev/specter/openspec   # central repo for SDD artifacts
-openspec_store: specter              # pass --store specter from any directory
+openspec_store: specter              # default store when the repo declares none; pass --store <id> from any directory
 tracker: linear                      # linear | github | jira | none
 tracker_mcp: mcp__linear-server      # MCP server for tracker operations
 tracker_secondary: github            # PR linking and review context; none if unused
 ```
 
-SDD artifacts live under `specs_path/changes/{project}-{change-name}/`. Layout and rules: `common-sdd.md`. Use `tracker_mcp` for issue and epic management.
+A repo declares its store with `store: <id>` in `<repo>/openspec/config.yaml`; otherwise `openspec_store` applies. SDD artifacts live under `<store-root>/openspec/changes/<change-name>/`. Layout and rules: `common-sdd.md`. Use `tracker_mcp` for issue and epic management.
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

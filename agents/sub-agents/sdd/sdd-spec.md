@@ -35,7 +35,7 @@ Load before work:
 
 Also load when relevant: event-schema.
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store, naming and depth rules: `common-sdd.md`.
 
 # Commandments (inviolable)
 
@@ -45,31 +45,31 @@ Use registered central store `specter` from any working directory. Never `cd` or
 
 # Change name resolution
 
-`{project}` comes from the delegation CONTEXT — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
-`{change-name}` comes from the delegation CONTEXT. Normalize to `{project}-{change-name}` kebab-case (lowercase, hyphens only), matching the name already used by `sdd-propose` for this change.
+`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix in a product store; `{project}-{change-name}` in the shared default store). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
 
 # Instructions
 
 1. Read `proposal.md` and `explore.md` from the OpenSpec change folder (required — do not proceed without both)
 2. Resolve the change name (see above) and get the resolved output path for this artifact:
    ```bash
-   openspec instructions spec --change "<project>-<change-name>" --json --store specter
+   openspec instructions spec --change "<change>" --json --store <store-id>
    ```
-   Parse `resolvedOutputPath` from the JSON response — the CLI resolves the real spec path as `specs/{project}/{domain}/spec.md` (component domains get a component-name prefix, e.g. `specs/hypr-abysal/lucyna-osd/spec.md`), do not hardcode it yourself.
+   Parse `resolvedOutputPath` from the JSON response; do not hardcode it yourself. Spec depth: see `common-sdd.md` section C. One delta per subproject when the change spans several.
+   Duplicate check: before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with the same domain exists at another path, write a MODIFIED delta against it instead, or return `status: blocked` if unclear. Read living specs with `openspec show <spec-id> --type spec --store <store-id>`.
 3. Write delta specs in OpenSpec delta format (full rules: `common-sdd.md` § Delta spec format):
    - Section headers: `## ADDED Requirements` / `## MODIFIED Requirements` / `## REMOVED Requirements` / `## RENAMED Requirements`
    - `### Requirement: <name>` — body must contain SHALL or MUST
    - `#### Scenario: <name>` (exactly 4 hashes) with `- **WHEN** ...`, `- **THEN** ...`, optional `- **AND** ...` bullets; at least 1 scenario per requirement
    - A new capability delta opens with `## Purpose` (at least 50 chars). MODIFIED repeats the full requirement block under a matching header. REMOVED needs `**Reason**` + `**Migration**`; RENAMED uses `FROM:`/`TO:`
 
-4. Cover: happy path, error cases, edge cases, boundary conditions
+4. Right-size to the change (a change that needs 1 requirement gets 1); cover the happy path, error cases, edge cases, and boundary conditions that apply. No requirements invented for completeness, no restating living specs
 5. If the feature emits domain events: specify the event schema in the spec
 6. Each spec should map 1:1 to a testable behavior
-7. After writing, run `openspec status --change "<project>-<change-name>" --json --store specter` and `openspec validate "<project>-<change-name>" --json --store specter --strict`.
+7. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)
 
-Write the spec content to the `resolvedOutputPath` returned by `openspec instructions spec --change "<name>" --json --store specter` (see Instructions step 2). Do not hardcode or assume the path.
+Write the spec content to the `resolvedOutputPath` returned by `openspec instructions spec --change "<change>" --json --store <store-id>` (see Instructions step 2). Do not hardcode or assume the path.
 
 # Result contract
 

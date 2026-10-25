@@ -41,7 +41,7 @@ Load before work:
 
 Also load when relevant: find-docs, senior-architect, software-design-patterns, event-schema.
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
 
 # Docs lookup (context7)
 
@@ -56,8 +56,7 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
 
 # Change name resolution
 
-`{project}` comes from the delegation CONTEXT — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
-`{change-name}` comes from the delegation CONTEXT. Normalize to `{project}-{change-name}` kebab-case (lowercase, hyphens only), matching the name already used by `sdd-propose` for this change.
+`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix in a product store; `{project}-{change-name}` in the shared default store). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
 
 # Instructions
 
@@ -66,10 +65,10 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
 3. Read relevant codebase to understand current patterns and conventions
 4. Resolve the change name (see above) and get the resolved output path for this artifact:
    ```bash
-   openspec instructions design --change "<project>-<change-name>" --json --store specter
+   openspec instructions design --change "<change>" --json --store <store-id>
    ```
    Parse `resolvedOutputPath` from the JSON response — write design.md there, not to an assumed path.
-5. Create design.md with:
+5. Right-size design.md: keep it short when the scope is already clear and record only decisions that need one. Large, delicate, or foundational work (new project, architecture) gets full depth. Create design.md with the sections that apply:
    - **Approach**: chosen technical approach with justification
    - **Alternatives considered**: what else was evaluated and why not
    - **Architecture decisions**: each decision with rationale (ADR-lite format)
@@ -77,11 +76,11 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
    - **Sequence diagram**: for multi-service or complex flows (mermaid or text)
    - **Conventions**: which existing patterns to follow, reference files
    - **Dependencies**: external libs, services, APIs needed
-6. After writing, run `openspec status --change "<project>-<change-name>" --json --store specter` and `openspec validate "<project>-<change-name>" --json --store specter --strict`.
+6. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)
 
-Write the design content to the `resolvedOutputPath` returned by `openspec instructions design --change "<name>" --json --store specter` (see Instructions step 4). Do not hardcode or assume the path.
+Write the design content to the `resolvedOutputPath` returned by `openspec instructions design --change "<change>" --json --store <store-id>` (see Instructions step 4). Do not hardcode or assume the path.
 
 # Result contract
 

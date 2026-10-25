@@ -19,16 +19,16 @@ SDD is proposed by the orchestrator and runs only after user approval; small fix
 `sdd-archive` (`/home/andrex/.claude/agents/sub-agents/sdd/sdd-archive.md`) closes a change using the real `openspec` CLI instead of moving folders by hand:
 
 ```bash
-openspec archive "<project>-<change-name>" -y --store specter
+openspec archive "<change>" --yes --store <store-id>
 ```
 
-Before archiving, the agent requires `{change-folder}/verify-report.md` and refuses to proceed if it is missing or has CRITICAL findings.
+Before archiving, the agent requires `{change-folder}/verify-report.md` and every task in `tasks.md` complete, and refuses to proceed if the report is missing, has CRITICAL findings, or tasks are open (`--yes` would bypass the CLI's own check).
 
 If the CLI archive command is unavailable or fails, archive blocks. `sdd-archive` reports the command and failure to the orchestrator; it never creates directories or moves change folders manually.
 
-Change-name convention (`{project}-{change-name}`, kebab-case, hyphens only) is defined once at `/home/andrex/dev/specter/openspec/AGENTS.md` and validated by `sdd-propose` before a change is created — this README does not duplicate that rule.
+Change-name convention (kebab-case, hyphens only; `{project}-{change-name}` only in the shared default store, no project prefix in a product store) is defined once at `/home/andrex/dev/specter/openspec/AGENTS.md` and validated by `sdd-propose` before a change is created — this README does not duplicate that rule.
 
-SDD commands use registered store `specter` from any working directory: `openspec <subcommand> ... --store specter`. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store specter`.
+SDD commands use a registered store from any working directory: `openspec <subcommand> ... --store <store-id>`. The orchestrator resolves the id from the repo's `openspec/config.yaml` `store:` (default `specter`) and passes `STORE: <store-id>` in every delegation. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store <store-id>`. Creating or registering stores is never an SDD agent task: the orchestrator asks the user and delegates to `builder`. After an SDD block that wrote artifacts, `git-ops` commits inside the store root.
 
 <br>
 
@@ -93,7 +93,7 @@ Claude Code has no per-agent command allow-list built into agent frontmatter bey
 
 `/home/andrex/.claude/hooks/infra-agent-bash-guard.py` is the reference implementation of this pattern. It intercepts `Bash` calls, keyed on `agent_type`. SDD agents are limited to documented `openspec` and read-only Git commands; prompt scope limits each artifact writer to its own file. Reviewers and judges can run tests, linters, and read-only Git without gaining open shell access.
 
-Each agent's allow-list is composed from named roles (plain lists in the guard): `ROLE_READ_FS` (`ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg`), `ROLE_GIT_READ`, `ROLE_GH_READ`, `ROLE_VALIDATE`, `ROLE_LOGS`, and the `ROLE_OPENSPEC_*` groups. `explorer` = fs + git read; `sdd-explore` = openspec read + git read + fs read; `debugger` = validate + git/gh read + fs read + logs. `rg --pre`/`--pre-glob` (arbitrary program execution) is denied for every guarded agent, as are `tree` write options (`--output`, `-o`, `-R`) and git `--output`, `--ext-diff`, `--textconv`, plus secret files (`.env*` except `.env.example`/`.sample`/`.template`, `*.pem`, `*.key`, `.ssh/`, `.aws/`, ...), recursive `grep`, and `rg` with `--hidden`/`--no-ignore*`/`-u`/`-.`.
+Each agent's allow-list is composed from named roles (plain lists in the guard): `ROLE_READ_FS` (`ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg`), `ROLE_GIT_READ`, `ROLE_GH_READ`, `ROLE_VALIDATE`, `ROLE_LOGS`, and the `ROLE_OPENSPEC_*` groups. `explorer` = fs + git read + openspec read; `sdd-explore` = openspec read + git read + fs read; `debugger` = validate + git/gh read + fs read + logs. `rg --pre`/`--pre-glob` (arbitrary program execution) is denied for every guarded agent, as are `tree` write options (`--output`, `-o`, `-R`) and git `--output`, `--ext-diff`, `--textconv`, plus secret files (`.env*` except `.env.example`/`.sample`/`.template`, `*.pem`, `*.key`, `.ssh/`, `.aws/`, ...), recursive `grep`, and `rg` with `--hidden`/`--no-ignore*`/`-u`/`-.`.
 
 Commit-creating and staging git is denied for every agent except git-ops; push is denied for all but git-ops, and only when the user asked; force push prompts through native `permissions.ask`. Worktree mutations (`add`, `remove`, `prune`, `move`, `lock`, `unlock`, `repair`) are denied for all but git-ops, and worktree/branch deletes prompt through native `permissions.ask`; `git worktree list` stays read-only. The hook never returns `ask` (a hook `ask` in a background subagent never reaches the user): discards and `git stash` prompt through native `permissions.ask`, and odd invocation forms (`git -C`, absolute path, `env git`, chained) are denied, so use the plain `git <sub>` form. Read-only agents may not discard at all. The Ask column lists commands the hook passes through to native `permissions.ask`.
 
@@ -106,10 +106,10 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 | engram-maintainer | `engram context/search/stats/projects list/doctor/timeline/export`, soft `engram delete` | `engram delete *--hard*` (only on an explicit user request for that hard delete) | all unrelated shell commands |
 | code-reviewer | Scoped Node, Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git; read-only `gh` (`pr view`/`diff`/`checks`/`list`, `run view`, `issue view`) | none | package install/update/sync/add/remove/publish, running arbitrary scripts directly (project code runs only through test/lint/build targets), shell chaining, other shell commands |
 | judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | none | none |
-| sdd-explore | `openspec context`/`doctor`/`list` with `--store specter`, `openspec store list`, read-only Git, read-only fs commands (ROLE_READ_FS); native `Write`/`Edit` for prompt-scoped `explore.md` | none | all other shell commands |
-| sdd-propose, sdd-spec, sdd-design, sdd-tasks | `openspec status`/`validate`/`show`/`new`/`instructions` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
-| sdd-verify | `openspec status`/`validate` with `--store specter`, `openspec store list`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | none | all other shell commands |
-| sdd-archive | `openspec status`/`validate`/`show`/`instructions`/`archive` with `--store specter`, `openspec store list`, read-only Git | none | all other shell commands |
+| sdd-explore | ROLE_OPENSPEC_READ (`openspec list`/`show`/`status`/`validate`/`instructions`/`context`/`doctor`/`store list`) with `--store <store-id>`, read-only Git, read-only fs commands (ROLE_READ_FS); native `Write`/`Edit` for prompt-scoped `explore.md` | none | all other shell commands, including `openspec store setup|register|unregister|remove`, `init`, `update`, `workset` |
+| sdd-propose, sdd-spec, sdd-design, sdd-tasks | ROLE_OPENSPEC_READ plus `openspec new` with `--store <store-id>`, read-only Git | none | all other shell commands |
+| sdd-verify | ROLE_OPENSPEC_READ with `--store <store-id>`, reviewer test/lint, read-only Git; native `Write`/`Edit` for prompt-scoped `verify-report.md` | none | all other shell commands |
+| sdd-archive | ROLE_OPENSPEC_READ plus `openspec archive` with `--store <store-id>`, read-only Git | none | all other shell commands |
 
 Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging and worktree mutations denied except for git-ops, push denied except for git-ops in plain form (force push goes to native ask), discards and stash passed to native ask in plain form (denied in odd forms), and git-ops may not run `rebase -i`.
 

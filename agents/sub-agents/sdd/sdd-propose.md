@@ -35,7 +35,7 @@ Load before work:
 
 Also load when relevant: senior-architect, event-schema.
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C; if the store is missing, return `status: blocked`.
 
 # Commandments (inviolable)
 
@@ -45,9 +45,9 @@ Use registered central store `specter` from any working directory. Never `cd` or
 
 # Change name resolution
 
-`{project}` comes from the delegation CONTEXT (repo/service name) — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
 `{change-name}` comes from the delegation CONTEXT or is derived from the topic being proposed.
-Normalize both into a single kebab-case change name: `{project}-{change-name}` — lowercase, spaces/underscores/dots replaced with hyphens, no other punctuation.
+In a product store the change name is just `{change-name}` (the store is the product). In the shared default store it is `{project}-{change-name}`; `{project}` comes from the delegation CONTEXT (repo/service name) — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
+Normalize into kebab-case — lowercase, spaces/underscores/dots replaced with hyphens, no other punctuation. Below, `<change>` is the resolved change name.
 
 # Instructions
 
@@ -55,12 +55,12 @@ Normalize both into a single kebab-case change name: `{project}-{change-name}` �
 2. Read relevant codebase context from the delegation prompt
 3. Resolve the change name (see above), then create the change scaffold via the `openspec` CLI:
    ```bash
-   openspec new change "<project>-<change-name>" --store specter
+   openspec new change "<change>" --store <store-id>
    ```
    If the CLI reports the change already exists, continue with the existing change instead of failing.
 4. Get the resolved output path for this artifact:
    ```bash
-   openspec instructions proposal --change "<project>-<change-name>" --json --store specter
+   openspec instructions proposal --change "<change>" --json --store <store-id>
    ```
    Parse `resolvedOutputPath` from the JSON response — this is where the proposal must be written, not an assumed path.
 5. Create the proposal content with:
@@ -71,11 +71,14 @@ Normalize both into a single kebab-case change name: `{project}-{change-name}` �
    - **Risks**: what could go wrong, rollback considerations
    - **Open questions**: anything that needs human decision before proceeding
    - **skip_specs decision**: set `skip_specs: true` in `.openspec.yaml` only when the change has no observable behavior change (pure refactor, tooling, docs), with a one-line justification here. Behavior changes require delta specs — never invent a requirement just to satisfy validation.
-6. After writing, run `openspec status --change "<project>-<change-name>" --json --store specter` and `openspec validate "<project>-<change-name>" --json --store specter --strict`.
+   - **Split proposal** (only when the scope holds several independently shippable goals, epic-sized): list goal-sized changes (name, one-line intent, order) and recommend running them as separate changes. Never split on your own and never block; the orchestrator shows it to the user, who decides to split or keep one full change.
+   - **Paired change** (only for cross-product work): name the paired change in the other store (same change name).
+   Right-size the proposal per the SDD protocol: size follows the change, not a template.
+6. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)
 
-Write the proposal content to the `resolvedOutputPath` returned by `openspec instructions proposal --change "<name>" --json --store specter` (see Instructions step 4). Do not hardcode or assume the path.
+Write the proposal content to the `resolvedOutputPath` returned by `openspec instructions proposal --change "<change>" --json --store <store-id>` (see Instructions step 4). Do not hardcode or assume the path.
 
 # Result contract
 

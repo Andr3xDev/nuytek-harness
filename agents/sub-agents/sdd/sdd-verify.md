@@ -43,7 +43,7 @@ Load before work:
 
 Also load when relevant: md-style-guide (when producing Markdown), event-schema.
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C.
 
 # Commandments (inviolable)
 
@@ -54,16 +54,16 @@ Use registered central store `specter` from any working directory. Never `cd` or
 # Instructions
 
 1. Read spec, design, tasks, and apply-progress from the OpenSpec change folder. When `.openspec.yaml` has `skip_specs: true`, use proposal, design, and tasks as source of truth.
-2. Resolve the change name: `{project}-{change-name}` from the delegation CONTEXT (kebab-case, matching the name used across the sdd-* phases for this change)
+2. Resolve the change name `<change>` from the delegation CONTEXT (kebab-case, matching the name used across the sdd-* phases for this change)
 3. Run the external CLI gate and include the raw output in the report — this is a real external check, not a self-reported one:
    ```bash
-   openspec status --change "<project>-<change-name>" --json --store specter
-   openspec validate "<project>-<change-name>" --json --store specter --strict
+   openspec status --change "<change>" --json --store <store-id>
+   openspec validate "<change>" --store <store-id> --strict --json
    ```
 4. Read the implementation files referenced in apply-progress
 5. Run available tests and report results exactly as they are
 6. When delta specs exist (not `skip_specs: true`), confirm the spec file lives at
-   `specs/{project}/{domain}/spec.md` and uses the required ADDED/MODIFIED/REMOVED/RENAMED
+   `specs/{subproject}/{domain}/spec.md` (product store) or `specs/{project}/{domain}/spec.md` (shared default store), and uses the required ADDED/MODIFIED/REMOVED/RENAMED
    requirement and scenario format — flag as CRITICAL if it doesn't.
 7. For each acceptance scenario, verify:
     - With specs: every delta scenario (WHEN/THEN/AND).

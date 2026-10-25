@@ -187,7 +187,7 @@ Verify:
 □ If feature emits events: schema defined (trigger event-schema skill)
 ```
 
-Have a delegated agent run `openspec validate "<change-id>" --store specter --strict --json` before implementation.
+Have a delegated agent run `openspec validate "<change-id>" --store <store-id> --strict --json` before implementation.
 If any required artifact is missing → delegate to the corresponding SDD agent first.
 Do not require a spec for work that was not approved as SDD.
 
@@ -227,13 +227,31 @@ Before launching any subagent:
    only to this orchestrator and is never injected into either judge.
 4. Pass paths, not summaries — subagents read the full SKILL.md
 
+## SDD store resolution
+
+The orchestrator has no Bash, so it resolves by reading files:
+
+1. Read `<repo>/openspec/config.yaml` for `store:`; if absent, use the default `openspec_store`.
+2. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
+   store root (the OpenSpec root is `<store-root>/openspec`).
+3. If the id is missing from the registry, stop and ask the user. Store creation
+   (`openspec store setup|register`) goes through `builder` with the user's OK; SDD agents never do it.
+4. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
+
+Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
+
+- After an SDD block that wrote artifacts (planning done, verify done, archive done), delegate
+  `git-ops` to commit inside the store root (it may use `git -C <store-root>`). No other agent commits.
+- When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split
+  into separate changes or keep one full change. Never split on your own.
+
 ## SDD artifact references
 
 For SDD phases with dependencies, pass OpenSpec artifact file paths in the CONTEXT field.
 Do NOT inline full artifact content — subagents read directly from the filesystem.
 
 Implementation delegation CONTEXT must state the `skip_specs` exception above and include
-`openspec validate "<change-id>" --store specter --strict --json`.
+`openspec validate "<change-id>" --store <store-id> --strict --json`.
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
