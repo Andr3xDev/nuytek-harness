@@ -66,6 +66,7 @@ VALIDATION_DENY = [
     "poetry run ruff format*", "poetry run ruff check *--fix*",
     "rubocop *-A*", "rubocop *-a*", "rubocop *--autocorrect*",
     "bundle exec rubocop *-A*", "bundle exec rubocop *-a*", "bundle exec rubocop *--autocorrect*",
+    "openspec context*--code-workspace*",  # writes a VS Code workspace file
 ]
 
 ROLE_VALIDATE = [
@@ -109,19 +110,16 @@ SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
 RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
 GREP_RECURSIVE_FLAG = re.compile(r"--recursive|-[a-zA-Z]*[rR][a-zA-Z]*")
 
-ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
-
-ROLE_OPENSPEC_AUTHOR = [
-    "openspec status*", "openspec validate*", "openspec show*", "openspec new*",
-    "openspec instructions*", "openspec store list*",
+ROLE_OPENSPEC_READ = [
+    "openspec list*", "openspec show*", "openspec status*", "openspec validate*",
+    "openspec instructions*", "openspec context*", "openspec doctor*", "openspec store list*",
 ]
 
-ROLE_OPENSPEC_ARCHIVE = [
-    "openspec status*", "openspec validate*", "openspec archive*", "openspec show*",
-    "openspec instructions*", "openspec store list*",
-]
+ROLE_OPENSPEC_AUTHOR = ROLE_OPENSPEC_READ + ["openspec new*"]
 
-ROLE_OPENSPEC_VERIFY = ["openspec status*", "openspec validate*", "openspec store list*"]
+ROLE_OPENSPEC_ARCHIVE = ROLE_OPENSPEC_READ + ["openspec archive*"]
+
+ROLE_OPENSPEC_VERIFY = ROLE_OPENSPEC_READ
 
 ROLE_LOGS = [
     "zcat *",
@@ -135,7 +133,7 @@ SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
 RULES = {
     "explorer": {
-        "allow": ROLE_READ_FS + ROLE_GIT_READ,
+        "allow": ROLE_READ_FS + ROLE_GIT_READ + ROLE_OPENSPEC_READ,
     },
     "sdd-explore": {
         "allow": ROLE_OPENSPEC_READ + ROLE_GIT_READ + ROLE_READ_FS,
@@ -561,13 +559,22 @@ def _selftest() -> int:
         ("sdd-explore", "openspec list --json", "allow"),
         ("sdd-explore", "openspec store list", "allow"),
         ("sdd-explore", "cd /home/andrex/dev/specter/openspec", "deny"),
-        ("sdd-propose", "openspec new change demo-change --store specter", "allow"),
-        ("sdd-spec", "openspec instructions spec --change demo-change --json --store specter", "allow"),
-        ("sdd-design", "openspec status --change demo-change --json --store specter", "allow"),
-        ("sdd-tasks", "openspec validate demo-change --json --store specter", "allow"),
+        ("sdd-propose", "openspec new change demo-change --store demo-store", "allow"),
+        ("sdd-spec", "openspec instructions spec --change demo-change --json --store demo-store", "allow"),
+        ("sdd-design", "openspec status --change demo-change --json --store demo-store", "allow"),
+        ("sdd-tasks", "openspec validate demo-change --json --store demo-store", "allow"),
         ("sdd-propose", "npm test", "deny"),
-        ("sdd-verify", "openspec validate change --json --store specter", "allow"),
-        ("sdd-archive", "openspec archive demo-change -y --store specter", "allow"),
+        ("sdd-verify", "openspec validate change --json --store demo-store", "allow"),
+        ("sdd-archive", "openspec archive demo-change -y --store demo-store", "allow"),
+        ("explorer", "openspec list --specs --json --store nuydeck", "allow"),
+        ("explorer", "openspec show lucyna/border --type spec --store nuydeck", "allow"),
+        ("explorer", "openspec new change x --store nuydeck", "deny"),
+        ("sdd-explore", "openspec validate x --strict --json --store nuydeck", "allow"),
+        ("sdd-verify", "openspec archive x --yes --store nuydeck", "deny"),
+        ("sdd-archive", "openspec archive x --yes --store nuydeck", "allow"),
+        ("sdd-propose", "openspec store register /tmp/x --id x", "deny"),
+        ("sdd-archive", "openspec store setup x --path /tmp/x", "deny"),
+        ("sdd-explore", "openspec context --store x --code-workspace /tmp/x.code-workspace", "deny"),
         ("code-reviewer", "npm test && git push origin main", "deny"),
         ("debugger", "pytest", "allow"),
         ("debugger", "journalctl -u app --since today", "allow"),
