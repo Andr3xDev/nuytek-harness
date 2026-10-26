@@ -11,11 +11,17 @@ interactive rebase or `git restore`. Worktree mutations are denied for everyone
 but git-ops; git-ops deletions (`git worktree remove|prune`, `git branch
 -d|-D|--delete`) pass only in plain form, for native `permissions.ask`.
 
-The hook never returns `ask`: a hook `ask` inside a background subagent never
-reaches the user. Confirmations live in native `permissions.ask`. Discards and
-stash pass through to those rules in plain `git <sub>` form; any other form
-is denied because the native prefix rules cannot see it. `native_ask` commands
-also pass through to native rules.
+Confirmations live in native `permissions.ask`. Discards and stash pass through
+to those rules in plain `git <sub>` form; any other form is denied because the
+native prefix rules cannot see it. `native_ask` commands also pass through to
+native rules.
+
+The one hook `ask`: for every agent_type (main thread and unlisted agents
+included), any file-deleting command (`rm`, `rmdir`, `unlink`, `shred`,
+`find -delete`, `find -exec rm`) anywhere in the command, chains and subshells
+included, returns `ask` naming the command, so the user sees every deletion.
+Deny wins over ask: read-only roles keep denying such commands. Limits: like
+git detection, `sh -c "rm x"`, `eval` and variable-built commands evade it.
 """
 import fnmatch
 import json
@@ -32,6 +38,13 @@ BRANCH_DELETE_FLAG = re.compile(r"--delete|-[a-zA-Z]*[dD][a-zA-Z]*")
 PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
+DELETE_PROGRAMS = {"rm", "rmdir", "unlink", "shred"}
+FIND_EXEC_FLAGS = {"-exec", "-execdir", "-ok", "-okdir"}
+COMMAND_WRAPPERS = {"env", "sudo", "xargs", "command", "nohup", "time", "exec", "timeout", "nice", "setsid"}
+SHELL_KEYWORDS = {"then", "do", "else", "elif", "if", "while", "until", "!"}
+SEGMENT_PUNCTUATION = re.compile(r"[;&|()]")
+LOOKUP_FLAGS = {"-v", "-V"}  # `command -v rm` looks a program up, it does not run it
+ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 # Permission roles: plain allow-lists, concatenated per agent in RULES.
 ROLE_READ_FS = [
@@ -67,8 +80,28 @@ VALIDATION_DENY = [
     "rubocop *-A*", "rubocop *-a*", "rubocop *--autocorrect*",
     "bundle exec rubocop *-A*", "bundle exec rubocop *-a*", "bundle exec rubocop *--autocorrect*",
     "openspec context*--code-workspace*",  # writes a VS Code workspace file
+    "*qmltestrunner *-o *",  # writes a results file
+    "jest *--updateSnapshot*", "jest *-u", "jest *-u *", "jest *--outputFile*",
+    "vitest *--update*", "vitest *-u", "vitest *-u *", "vitest *--outputFile*",
+    "node *--test-update-snapshots*", "node *--test-reporter-destination*",
+    "tflint *--init*", "tflint *--fix*",  # --init downloads plugins; --fix rewrites files
+    "jest *--init*", "jest *--watch*",  # --init writes a config file; --watch never exits
+    "qmllint *--fix*", "qmllint *--write-defaults*", "qmllint *--json*", "qmllint *--qmljsdebugger*",
+    "*gradle* *publish*", "*gradlew* *publish*", "*mvn* *deploy*", "*mvnw* *deploy*",
+    "*gradle* *upload*", "*gradlew* *upload*", "*mvn* *upload*", "*mvnw* *upload*",
+    "*gradle* *release*", "*gradlew* *release*", "*mvn* *release*", "*mvnw* *release*",  # chained publish/deploy tasks
 ]
 
+# Only these two Qt variables may prefix a QML runner; any other VAR=value (LD_PRELOAD...) would run arbitrary code.
+QML_ENV_PREFIXES = [
+    "", "QT_QPA_PLATFORM=offscreen ", "QT_FORCE_STDERR_LOGGING=1 ",
+    "QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1 ",
+    "QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen ",
+]
+QML_RUNNERS = ["qml6", "qmlscene", "qmltestrunner"]
+
+# Test/validate runners execute project code (same trust class as `npm test`);
+# terragrunt hcl validate also evaluates `run_cmd()` in configs.
 ROLE_VALIDATE = [
     # Node.js
     "npm test*", "npm run test*", "npm run lint*", "npm run typecheck*", "npm run format-check*", "npm run format:check*", "npm run build*",
@@ -76,18 +109,26 @@ ROLE_VALIDATE = [
     "yarn test*", "yarn run test*", "yarn run lint*", "yarn run typecheck*", "yarn run format-check*", "yarn run format:check*", "yarn run build*",
     "bun test*", "bun run test*", "bun run lint*", "bun run typecheck*", "bun run format-check*", "bun run format:check*", "bun run build*",
     "tsc", "tsc *", "prettier --check*", "eslint*",
+    "vitest run*", "jest", "jest *", "node --test*",
+    # QML
+    "qmllint *",
+    *[f"{prefix}{runner}{suffix}" for prefix in QML_ENV_PREFIXES for runner in QML_RUNNERS for suffix in ("", " *")],
     # Python
-    "uv run pytest*", "uv run ruff check*", "uv run mypy*", "uv run pyright*",
-    "pytest*", "python -m pytest*", "ruff check*", "mypy*", "pyright*", "flake8*", "pip check*",
+    "uv run pytest*", "uv run python -m pytest*", "uv run ruff check*", "uv run mypy*", "uv run pyright*",
+    "pytest*", "python -m pytest*", "python3 -m pytest*", "ruff check*", "mypy*", "pyright*", "flake8*", "pip check*",
     "poetry run pytest*", "poetry run ruff check*", "poetry run mypy*", "poetry run pyright*", "poetry run flake8*", "poetry run python -m compileall*",
     "python -m compileall*",
     # Java / Kotlin
     "mvn test*", "mvn verify*", "mvn compile*", "mvn checkstyle*",
     "gradle test*", "gradle check*", "gradle compile*", "gradle lint*",
+    "./gradlew test*", "./gradlew check*", "./gradlew build*", "./mvnw test*", "./mvnw verify*",
     # Go
     "go test*", "go vet*", "go build*", "gofmt -d*", "staticcheck*",
     # Rust
     "cargo test*", "cargo check*", "cargo clippy*", "cargo fmt --check*", "cargo build*",
+    # Terraform / Terragrunt (never init, plan, apply, import, state; terragrunt validate may auto-init)
+    "terraform fmt -check*", "terraform validate*", "tflint", "tflint *",
+    "terragrunt hcl fmt --check*", "terragrunt hclfmt --check*", "terragrunt hcl validate*", "terragrunt hclvalidate*",
     # .NET
     "dotnet test*", "dotnet build*", "dotnet format --verify-no-changes*",
     # Ruby
@@ -151,7 +192,7 @@ RULES = {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-archive": {
-        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ,
+        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ + ROLE_READ_FS,
     },
     "aws": {
         "allow": [
@@ -372,7 +413,83 @@ def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
 
+def _command_segments(command: str):
+    """Yield token lists per simple command; separators inside quotes do not split."""
+    for line in command.split("\n"):
+        lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            yield from (part.split() for part in SEGMENT_SEPARATORS.split(line))
+            continue
+        segment = []
+        for token in tokens:
+            if SEGMENT_PUNCTUATION.search(token):
+                yield segment
+                segment = []
+            else:
+                segment.append(token)
+        yield segment
+
+
+def deleting_command(command: str):
+    """Return the name of the first file-deleting command in `command`, else None.
+
+    The program is the first token after env assignments, shell keywords and
+    wrappers (`sudo`, `xargs`, ...), so a filename like `rm-notes.txt` or an
+    argument `rm` never matches. After a wrapper any later token that is a delete
+    program asks, because wrapper option values (`sudo -u root`, `timeout 5`)
+    cannot be told from the program; `sudo grep rm f` is a false positive.
+
+    Limits: `sh -c "rm x"`, `eval` and variable-built commands evade it.
+    """
+    for tokens in _command_segments(command):
+        tokens = [t.lstrip("({`") for t in tokens]
+        index, after_wrapper, is_lookup = 0, False, False
+        while index < len(tokens) and (
+            not tokens[index]
+            or ENV_ASSIGNMENT.fullmatch(tokens[index])
+            or tokens[index] in SHELL_KEYWORDS
+            or os.path.basename(tokens[index]) in COMMAND_WRAPPERS
+            or (after_wrapper and tokens[index].startswith("-"))
+        ):
+            if tokens[index] == "command" and tokens[index + 1:index + 2] and tokens[index + 1] in LOOKUP_FLAGS:
+                is_lookup = True
+            after_wrapper = after_wrapper or os.path.basename(tokens[index]) in COMMAND_WRAPPERS
+            index += 1
+        if index == len(tokens) or is_lookup:
+            continue
+        if after_wrapper:
+            wrapped = next((os.path.basename(t) for t in tokens[index:] if os.path.basename(t) in DELETE_PROGRAMS), None)
+            if wrapped:
+                return wrapped
+        program, args = os.path.basename(tokens[index]), tokens[index + 1:]
+        if program in DELETE_PROGRAMS:
+            return program
+        if program == "find":
+            if "-delete" in args:
+                return "find -delete"
+            if any(
+                flag in FIND_EXEC_FLAGS and os.path.basename(target) in DELETE_PROGRAMS
+                for flag, target in zip(args, args[1:])
+            ):
+                return "find -exec rm"
+    return None
+
+
 def decide(agent_type: str, command: str):
+    verdict = _decide(agent_type, command)
+    if verdict is None and (deleting := deleting_command(command)):
+        return "ask", (
+            f"infra-agent-bash-guard: `{deleting}` deletes files; "
+            f"native user confirmation is required."
+        )
+    return verdict
+
+
+def _decide(agent_type: str, command: str):
     calls = git_invocations(command)
     if agent_type != COMMIT_AGENT and uses_git_dash_c(command):
         return "deny", (
@@ -560,7 +677,7 @@ def _selftest() -> int:
         ("sdd-explore", "openspec store list", "allow"),
         ("sdd-explore", "cd /home/andrex/dev/specter/openspec", "deny"),
         ("sdd-propose", "openspec new change demo-change --store demo-store", "allow"),
-        ("sdd-spec", "openspec instructions spec --change demo-change --json --store demo-store", "allow"),
+        ("sdd-spec", "openspec instructions specs --change demo-change --json --store demo-store", "allow"),
         ("sdd-design", "openspec status --change demo-change --json --store demo-store", "allow"),
         ("sdd-tasks", "openspec validate demo-change --json --store demo-store", "allow"),
         ("sdd-propose", "npm test", "deny"),
@@ -766,6 +883,78 @@ def _selftest() -> int:
         ("explorer", "ls -la", "allow"),
         ("debugger", "cat .env", "deny"),
         ("builder", "cat .env", None),
+        ("builder", "rm x", "ask"),
+        (None, "rm -rf build", "ask"),
+        ("builder", "make && rm -f a", "ask"),
+        ("builder", "find . -name '*.tmp' -delete", "ask"),
+        ("builder", "find . -type f -exec rm {} +", "ask"),
+        ("builder", "ls $(rmdir d)", "ask"),
+        ("git-ops", "git push origin main; rm x", "ask"),
+        ("explorer", "rm x", "deny"),
+        ("builder", "ls rm-notes.txt", None),
+        ("builder", "git rm x", "deny"),
+        ("builder", "for f in *; do rm \"$f\"; done", "ask"),
+        ("builder", "if true; then rm y; fi", "ask"),
+        ("builder", "sudo -u root rm x", "ask"),
+        ("builder", "xargs -n 1 rm", "ask"),
+        ("builder", "env -u V rm x", "ask"),
+        ("builder", "timeout 5 rm x", "ask"),
+        ("builder", "xargs -0 rm", "ask"),
+        ("builder", "\\rm x", "ask"),
+        ("builder", "/bin/rm x", "ask"),
+        ("git-ops", "git commit -m \"fix; rm old\"", None),
+        ("builder", "grep \"a|rm x\" f", None),
+        ("builder", "command -v rm", None),
+        ("builder", "npm rm left-pad", None),
+        ("builder", "docker rm c1", None),
+        ("code-reviewer", "./gradlew build publish", "deny"),
+        ("code-reviewer", "./mvnw verify deploy", "deny"),
+        ("code-reviewer", "mvn test", "allow"),
+        ("code-reviewer", "jest --init", "deny"),
+        ("code-reviewer", "jest --watch", "deny"),
+        ("code-reviewer", "qmllint --fix main.qml", "deny"),
+        ("sdd-archive", "ls changes/archive", "allow"),
+        ("code-reviewer", "vitest run", "allow"),
+        ("code-reviewer", "jest src", "allow"),
+        ("code-reviewer", "node --test", "allow"),
+        ("code-reviewer", "vitest run -u", "deny"),
+        ("code-reviewer", "jest --updateSnapshot", "deny"),
+        ("code-reviewer", "node --test --test-update-snapshots", "deny"),
+        ("code-reviewer", "vitest", "deny"),
+        ("code-reviewer", "npx vitest run", "deny"),
+        ("code-reviewer", "qmllint main.qml", "allow"),
+        ("code-reviewer", "qml6 a.qml", "allow"),
+        ("code-reviewer", "qmlscene a.qml", "allow"),
+        ("code-reviewer", "qmltestrunner -input tests", "allow"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen qml6 a.qml", "allow"),
+        ("code-reviewer", "QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen qmltestrunner", "allow"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1 qmlscene a.qml", "allow"),
+        ("code-reviewer", "qmltestrunner -o out.xml,xml", "deny"),
+        ("code-reviewer", "LD_PRELOAD=x qml6 a.qml", "deny"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen rm -rf x", "deny"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen LD_PRELOAD=x qml6 a.qml", "deny"),
+        ("code-reviewer", "./gradlew test", "allow"),
+        ("code-reviewer", "./gradlew check", "allow"),
+        ("code-reviewer", "./gradlew build", "allow"),
+        ("code-reviewer", "./mvnw verify", "allow"),
+        ("code-reviewer", "./mvnw test", "allow"),
+        ("code-reviewer", "./gradlew publish", "deny"),
+        ("code-reviewer", "uv run python -m pytest", "allow"),
+        ("code-reviewer", "python3 -m pytest", "allow"),
+        ("code-reviewer", "terraform fmt -check -recursive", "allow"),
+        ("code-reviewer", "terraform validate", "allow"),
+        ("code-reviewer", "tflint", "allow"),
+        ("code-reviewer", "tflint --init", "deny"),
+        ("code-reviewer", "terraform fmt", "deny"),
+        ("code-reviewer", "terraform init", "deny"),
+        ("code-reviewer", "terraform plan", "deny"),
+        ("code-reviewer", "terraform apply", "deny"),
+        ("code-reviewer", "terraform state list", "deny"),
+        ("code-reviewer", "terragrunt hcl fmt --check", "allow"),
+        ("code-reviewer", "terragrunt hcl validate --inputs", "allow"),
+        ("code-reviewer", "terragrunt validate", "deny"),
+        ("code-reviewer", "terragrunt plan", "deny"),
+        ("code-reviewer", "terragrunt hcl fmt", "deny"),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)
