@@ -50,12 +50,13 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 # Instructions
 
 1. Read `proposal.md` and `explore.md` from the OpenSpec change folder (required — do not proceed without both)
-2. Resolve the change name (see above) and get the resolved output path for this artifact:
+2. Resolve the change name (see above) and get the guidance for this artifact:
    ```bash
-   openspec instructions spec --change "<change>" --json --store <store-id>
+   openspec instructions specs --change "<change>" --json --store <store-id>
    ```
-   Parse `resolvedOutputPath` from the JSON response; do not hardcode it yourself. Spec depth: see `common-sdd.md` section C. One delta per subproject when the change spans several.
+   The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path. Write each delta at `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` per `common-sdd.md` section D (depth rules there). One delta per subproject when the change spans several.
    Duplicate check: before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with the same domain exists at another path, write a MODIFIED delta against it instead, or return `status: blocked` if unclear. Read living specs with `openspec show <spec-id> --type spec --store <store-id>`.
+   Conflict check: before any MODIFIED/REMOVED/RENAMED delta, follow "Conflicting active changes" in `common-sdd.md` section D and report any conflict under `risks` and in `proposal.md` under `## Spec conflicts` (mark it resolved when you re-sync after the partner archived).
 3. Write delta specs in OpenSpec delta format (full rules: `common-sdd.md` § Delta spec format):
    - Section headers: `## ADDED Requirements` / `## MODIFIED Requirements` / `## REMOVED Requirements` / `## RENAMED Requirements`
    - `### Requirement: <name>` — body must contain SHALL or MUST
@@ -69,7 +70,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 
 # File output (mandatory)
 
-Write the spec content to the `resolvedOutputPath` returned by `openspec instructions spec --change "<change>" --json --store <store-id>` (see Instructions step 2). Do not hardcode or assume the path.
+Write each delta spec to `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` (see Instructions step 2). Never a flat `specs/spec.md`.
 
 # Result contract
 

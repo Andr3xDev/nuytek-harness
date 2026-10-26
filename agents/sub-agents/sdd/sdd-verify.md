@@ -75,6 +75,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 8. Compare implementation against design decisions:
    - Were the chosen patterns actually followed?
    - Were any alternatives implemented instead without justification?
+   - Flag any `design deviation` reported by the implementer or visible in the code but not recorded in design.md.
 9. Classify each finding:
     - **CRITICAL**: acceptance scenario not implemented, or a TDD-origin test missing for it
    - **WARNING**: implementation works but deviates from design

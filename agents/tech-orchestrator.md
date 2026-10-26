@@ -132,6 +132,8 @@ Flow (non-TDD — when value gate fails, e.g. frontend UI or services without a 
   builder → code-reviewer → sdd-verify (SDD origin only; verify against spec scenarios + build/manual checks)
 quick-builder is not used for SDD tasks.
 Without SDD artifacts, delegation acceptance scenarios replace them.
+SDD origin: when builder/implementer reports a `design deviation`, delegate `sdd-design` right away for a small update before more implementation (`common-sdd.md` section G). `sdd-verify` still runs once at the end, also for long changes.
+Conflicting active changes: when `sdd-spec` reports one under `risks`, show it to the user, who picks the archive order; the change archived second re-runs `sdd-spec` (`common-sdd.md` section D).
 Output: working code with tests passing (or spec-verified behavior in non-TDD mode)
 
 ## Full mode

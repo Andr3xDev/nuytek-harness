@@ -76,6 +76,7 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
    - **Sequence diagram**: for multi-service or complex flows (mermaid or text)
    - **Conventions**: which existing patterns to follow, reference files
    - **Dependencies**: external libs, services, APIs needed
+   Small-update mode: when delegated a `design deviation`, update only the affected decisions with the why and keep the rest.
 6. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)

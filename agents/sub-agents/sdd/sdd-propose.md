@@ -74,7 +74,7 @@ Normalize into kebab-case — lowercase, spaces/underscores/dots replaced with h
    - **Split proposal** (only when the scope holds several independently shippable goals, epic-sized): list goal-sized changes (name, one-line intent, order) and recommend running them as separate changes. Never split on your own and never block; the orchestrator shows it to the user, who decides to split or keep one full change.
    - **Paired change** (only for cross-product work): name the paired change in the other store (same change name).
    Right-size the proposal per the SDD protocol: size follows the change, not a template.
-6. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
+6. After writing, run `openspec status --change "<change>" --json --store <store-id>`. Run `openspec validate "<change>" --store <store-id> --strict --json` only when `skip_specs: true`; with specs still to come it always fails ("Change must have at least one delta").
 
 # File output (mandatory)
 

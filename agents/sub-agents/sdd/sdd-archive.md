@@ -8,6 +8,7 @@ model: claude-haiku-5-5
 tools:
   - Read
   - Write
+  - Edit
   - Glob
   - Grep
   - Bash
@@ -50,8 +51,9 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    ```
    If artifacts are incomplete or the strict validate fails: STOP and report blocker to orchestrator.
    Confirm every task in `tasks.md` is complete (`- [x]`). If any is open, return `status: blocked` listing the open tasks. `--yes` bypasses the CLI's own incomplete-task check, so this check is yours.
-5. Write the final report to `{change-folder}/archive-report.md` before archiving.
-6. Archive the change ONLY via the supported `openspec` CLI, after the strict validate above passes:
+5. Conflict check (`common-sdd.md` section D, "Conflicting active changes"): for every change in `changes/archive/` dated on or after this change's `created` date that touched a spec id this change also touches, require it listed as `resolved` under `## Spec conflicts` in `proposal.md`; otherwise return `status: blocked` ("re-run sdd-spec against the updated living spec").
+6. Write the final report to `{change-folder}/archive-report.md` before archiving.
+7. Archive the change ONLY via the supported `openspec` CLI, after the strict validate above passes:
    ```bash
    openspec archive "<change>" --yes --store <store-id>
    ```

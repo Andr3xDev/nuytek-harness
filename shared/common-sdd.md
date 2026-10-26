@@ -113,6 +113,28 @@ the change; bare `validate` exits 1 in non-TTY.
 - MODIFIED repeats the full requirement block under a header matching the existing one
 - REMOVED needs `**Reason**` + `**Migration**`; RENAMED uses `FROM:` / `TO:`
 
+`openspec status` `isComplete` only means the artifacts exist. Tasks are done only when every task in
+`tasks.md` is `- [x]`. Never use status as proof of completion.
+
+### Conflicting active changes
+
+Before writing a MODIFIED/REMOVED/RENAMED delta, `sdd-spec` lists active changes
+(`openspec list --json --store <store-id>`) and Globs their `specs/` folders. If another active change
+carries a delta for the same spec id and requirement, report it under `risks` with the change names
+and record it in this change's `proposal.md` under `## Spec conflicts`, one line per partner:
+`- <change-name>: <spec-id> (open)`. For paired multi-product changes, do the same in each referenced
+store (`--store <other>`).
+
+The orchestrator shows the conflict to the user, who picks the archive order. The change archived second
+re-runs `sdd-spec` after the partner is archived, rewrites its delta against the updated living spec, and
+marks the line `(resolved: synced after <change-name> archived)`.
+
+`sdd-archive` enforces this: for every change in `changes/archive/` whose folder date is on or after this
+change's `created` date and whose specs touch a spec id this change also touches, that partner must be
+listed as `resolved` under `## Spec conflicts`; otherwise it returns `status: blocked` ("re-run sdd-spec
+against the updated living spec"). An `(open)` line whose partner is still active does not block: this
+change archives first and the partner must re-sync.
+
 ---
 
 ## E. Return envelope
@@ -149,7 +171,16 @@ architecture) still gets the full depth.
 
 ---
 
-## G. Persistence
+## G. Living design
+
+`design.md` stays current during implementation. When implementation proves a design decision wrong,
+the implementing agent (builder/implementer) reports it as `design deviation` in its report; the
+orchestrator delegates `sdd-design` right away for a small update before more implementation.
+`sdd-verify` still runs once at the end, also for long changes, and flags any unrecorded deviation.
+
+---
+
+## H. Persistence
 
 SDD always reads and writes OpenSpec filesystem artifacts under
 `{store-root}/openspec/changes/{change-name}/`. Git history provides the audit trail.
