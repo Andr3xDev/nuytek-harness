@@ -5,18 +5,21 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, non-hard reset) are denied for every agent_type
-but git-ops. Push is denied for everyone but git-ops (plain form only; force
-push is confirmed by native `permissions.ask`); git-ops also may not run an
-interactive rebase or `git restore`. Worktree mutations are denied for everyone
-but git-ops; git-ops deletions (`git worktree remove|prune`, `git branch
--d|-D|--delete`) pass only in plain form, for native `permissions.ask`.
+but git-ops. Push is denied for everyone but git-ops (whole command, plain or
+`git -C <absolute path>` form); git-ops also may not run an interactive rebase
+or `git restore`. Worktree mutations are denied for everyone but git-ops.
+Every agent may use `git -C <absolute path>` to reach another repo; a relative
+`-C` path is denied, and read-only roles match their allow-list with `-C`
+stripped.
 
-Confirmations live in native `permissions.ask`. Discards and stash pass through
-to those rules in plain `git <sub>` form; any other form is denied because the
-native prefix rules cannot see it. `native_ask` commands also pass through to
+Confirmations live in native `permissions.ask`. Discards, stash, force/delete
+push and git-ops deletions (`git worktree remove|prune`, `git branch
+-d|-D|--delete`) pass through to those rules in plain `git <sub>` form; the
+native prefix rules cannot see `git -C ...`, so that form returns the hook's own
+`ask`. Any other form is denied. `native_ask` commands also pass through to
 native rules.
 
-The one hook `ask`: for every agent_type (main thread and unlisted agents
+The other hook `ask`: for every agent_type (main thread and unlisted agents
 included), any file-deleting command (`rm`, `rmdir`, `unlink`, `shred`,
 `find -delete`, `find -exec rm`) anywhere in the command, chains and subshells
 included, returns `ask` naming the command, so the user sees every deletion.
@@ -37,6 +40,10 @@ WORKTREE_DELETIONS = {"remove", "prune"}
 BRANCH_DELETE_FLAG = re.compile(r"--delete|-[a-zA-Z]*[dD][a-zA-Z]*")
 PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+DASH_C_PREFIX = r"(?:\s+-C\s+/\S+)+"
+PUSH_NATIVE_ASK_FLAGS = ("--force", "--delete", "--mirror", "--prune")  # mirrors the native push ask globs
+PUSH_RISKY_LONG_FLAGS = ("--force", "--force-with-lease", "--force-if-includes", "--delete", "--mirror", "--prune")
+MIN_ABBREVIATED_FLAG_LENGTH = 3  # excludes the bare `--` end-of-options marker
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
 DELETE_PROGRAMS = {"rm", "rmdir", "unlink", "shred"}
 FIND_EXEC_FLAGS = {"-exec", "-execdir", "-ok", "-okdir"}
@@ -280,8 +287,7 @@ def _git_calls(command: str):
             global_options = []
             for option in rest:
                 if option in GIT_OPTIONS_WITH_VALUE:
-                    global_options.append(option)
-                    next(rest, None)
+                    global_options.extend([option, next(rest, "")])
                 elif not option.startswith("-"):
                     yield global_options, option, list(rest)
                     break
@@ -305,9 +311,18 @@ def git_invocations(command: str):
     return [(subcommand, args) for _, subcommand, args in _git_calls(command)]
 
 
-def uses_git_dash_c(command: str) -> bool:
-    """True if a git call passes `-C`; same evasion limits as `git_invocations`."""
-    return any("-C" in options for options, _, _ in _git_calls(command))
+def has_relative_git_dash_c(command: str) -> bool:
+    """True if a git call passes a non-absolute `-C` path; same evasion limits as `git_invocations`."""
+    return any(
+        option == "-C" and not path.startswith("/")
+        for options, _, _ in _git_calls(command)
+        for option, path in zip(options, options[1:])
+    )
+
+
+def strip_git_dash_c(command: str) -> str:
+    """Drop leading `-C <abs>` so a `-C` read matches the same allow-list entry as its plain form."""
+    return re.sub(rf"^(\s*git){DASH_C_PREFIX}", r"\1", command)
 
 
 def is_staging_git(subcommand: str, args) -> bool:
@@ -316,6 +331,25 @@ def is_staging_git(subcommand: str, args) -> bool:
 
 def is_plain_git_start(command: str, subcommand: str) -> bool:
     return re.match(rf"git\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
+
+
+def is_dash_c_git_start(command: str, subcommand: str) -> bool:
+    return re.match(rf"git{DASH_C_PREFIX}\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
+
+
+def is_native_ask_push(push_args) -> bool:
+    return any(a in ("-f", "-d") or a.startswith(PUSH_NATIVE_ASK_FLAGS + ("+",)) for a in push_args)
+
+
+def is_abbreviated_risky_push(push_args) -> bool:
+    """True for unambiguous long-option prefixes like `--forc`, which git accepts but no native glob matches."""
+    return any(
+        a.startswith("--")
+        and len(name := a.split("=")[0]) >= MIN_ABBREVIATED_FLAG_LENGTH
+        and not a.startswith(PUSH_NATIVE_ASK_FLAGS)
+        and any(flag.startswith(name) for flag in PUSH_RISKY_LONG_FLAGS)
+        for a in push_args
+    )
 
 
 def is_deleting_git(subcommand: str, args) -> bool:
@@ -337,7 +371,7 @@ def has_delete_refspec(push_args) -> bool:
     return any(a.startswith(":") for a in push_args)
 
 
-def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
+def discard_verdict(command: str, is_first_call: bool, is_only_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' must not run "
@@ -349,14 +383,22 @@ def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
         or (subcommand == "reset" and "--hard" in args)
         or (subcommand == "checkout" and "--" in args)
         or subcommand == "restore"
+        or is_deleting_git(subcommand, args)
     )
-    if needs_native_confirmation and not (is_first_call and is_plain_git_start(command, subcommand)):
-        return "deny", (
-            f"Blocked by infra-agent-bash-guard: `git {subcommand}` needs native user "
-            f"confirmation, which only triggers for the plain `git {subcommand} ...` form "
-            f"as the whole command; rerun it that way."
+    if not needs_native_confirmation:
+        return None
+    if is_first_call and is_plain_git_start(command, subcommand):
+        return None
+    if is_only_call and is_dash_c_git_start(command, subcommand):
+        return "ask", (
+            f"infra-agent-bash-guard: `git -C ... {subcommand}` is risky; "
+            f"native user confirmation is required."
         )
-    return None
+    return "deny", (
+        f"Blocked by infra-agent-bash-guard: `git {subcommand}` needs native user "
+        f"confirmation, which only triggers for the plain `git {subcommand} ...` form "
+        f"or `git -C <absolute path> {subcommand} ...` as the whole command; rerun it that way."
+    )
 
 
 def matches_any(command: str, patterns) -> bool:
@@ -491,21 +533,24 @@ def decide(agent_type: str, command: str):
 
 def _decide(agent_type: str, command: str):
     calls = git_invocations(command)
-    if agent_type != COMMIT_AGENT and uses_git_dash_c(command):
+    if has_relative_git_dash_c(command):
         return "deny", (
-            "Blocked by infra-agent-bash-guard: git `-C` is reserved for "
-            f"'{COMMIT_AGENT}'; use the plain `git <sub>` form from the working directory."
+            "Blocked by infra-agent-bash-guard: git `-C` needs an absolute path "
+            "so the target repo is explicit."
         )
     if any(subcommand == "push" for subcommand, _ in calls):
         if agent_type != COMMIT_AGENT:
             return "deny", (
                 f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run `git push`."
             )
-        if not (len(calls) == 1 and is_plain_git_start(command, "push")):
+        if not (
+            len(calls) == 1
+            and (is_plain_git_start(command, "push") or is_dash_c_git_start(command, "push"))
+        ):
             return "deny", (
                 "Blocked by infra-agent-bash-guard: `git push` must be the plain "
-                "`git push ...` form as the whole command, so native force-push "
-                "confirmation can match it."
+                "`git push ...` or `git -C <absolute path> push ...` form as the whole "
+                "command, so force-push confirmation can match it."
             )
         push_args = next(args for sub, args in calls if sub == "push")
         if has_force_or_delete_cluster(push_args):
@@ -518,15 +563,17 @@ def _decide(agent_type: str, command: str):
                 "Blocked by infra-agent-bash-guard: use `git push <remote> --delete <branch>` "
                 "so native confirmation fires."
             )
-        return None
-    if agent_type == COMMIT_AGENT:
-        deleting = [sub for sub, args in calls if is_deleting_git(sub, args)]
-        if deleting and not (len(calls) == 1 and is_plain_git_start(command, deleting[0])):
-            return "deny", (
-                "Blocked by infra-agent-bash-guard: worktree/branch deletion must be the plain "
-                "`git worktree remove|prune ...` or `git branch -d|-D ...` form as the whole "
-                "command, so native confirmation can match it."
+        if is_abbreviated_risky_push(push_args):
+            return "ask", (
+                "infra-agent-bash-guard: abbreviated push flag may force, delete, mirror or prune; "
+                "native user confirmation is required."
             )
+        if is_dash_c_git_start(command, "push") and is_native_ask_push(push_args):
+            return "ask", (
+                "infra-agent-bash-guard: `git -C ... push` forces, deletes or mirrors; "
+                "native user confirmation is required."
+            )
+        return None
     if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
@@ -548,7 +595,7 @@ def _decide(agent_type: str, command: str):
     rules = RULES.get(agent_type)
     if rules is None:
         for index, (subcommand, args) in enumerate(calls):
-            verdict = discard_verdict(command, index == 0, subcommand, args)
+            verdict = discard_verdict(command, index == 0, len(calls) == 1, subcommand, args)
             if verdict:
                 return verdict
         return None
@@ -577,6 +624,7 @@ def _decide(agent_type: str, command: str):
             f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
             f"searching recursively/with hidden files is not permitted."
         )
+    command = strip_git_dash_c(command)
     if matches_any(command, rules.get("native_ask", [])):
         return None
     if matches_any(command, rules["allow"]):
@@ -743,8 +791,8 @@ def _selftest() -> int:
         ("builder", "git status", None),
         ("builder", "git log", None),
         ("builder", "git -C x status", "deny"),
-        ("quick-builder", "git -C /abs diff --stat", "deny"),
-        (None, "git -C /abs diff --stat", "deny"),
+        ("quick-builder", "git -C /abs diff --stat", None),
+        (None, "git -C /abs diff --stat", None),
         ("builder", "git -c core.pager=cat diff", None),
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
@@ -821,10 +869,48 @@ def _selftest() -> int:
         ("git-ops", "git branch --delete x", None),
         ("git-ops", "git worktree prune", None),
         ("git-ops", "git branch -vv", None),
-        ("git-ops", "git -C . branch -vv", None),
-        ("git-ops", "git -C . branch --sort=-committerdate", None),
+        ("git-ops", "git -C /abs branch -vv", None),
+        ("git-ops", "git -C /abs branch --sort=-committerdate", None),
         ("builder", "git branch -D x", None),
         ("builder", "git -C . worktree list", "deny"),
+        ("git-ops", "git -C /abs add a.py", None),
+        ("git-ops", "git -C /abs commit -m x", None),
+        ("git-ops", "git -C /abs worktree add -b b /abs2 main", None),
+        ("git-ops", "git -C /abs push -u origin x", None),
+        ("code-reviewer", "git -C /abs diff --stat", "allow"),
+        ("explorer", "git -C /abs log --oneline", "allow"),
+        ("builder", "git -C /abs status", None),
+        ("git-ops", "git -C /abs push -f origin x", "ask"),
+        ("git-ops", "git -C /abs reset --hard", "ask"),
+        ("git-ops", "git -C /abs clean -f", "ask"),
+        ("git-ops", "git -C /abs stash", "ask"),
+        ("git-ops", "git -C /abs worktree prune", "ask"),
+        ("git-ops", "git -C /abs branch -D x", "ask"),
+        ("code-reviewer", "git -C rel status", "deny"),
+        ("builder", "git -C /abs commit -m x", "deny"),
+        ("builder", "git -C /abs worktree add -b b /abs2 main", "deny"),
+        ("builder", "git -C /abs push", "deny"),
+        ("git-ops", "git -C /abs commit -m x && git push", "deny"),
+        ("git-ops", "git -C /abs push -uf origin x", "deny"),
+        ("git-ops", "git -C /abs push origin :x", "deny"),
+        ("git-ops", "git -C /abs restore f", "deny"),
+        ("code-reviewer", "git -C /abs status; rm x", "deny"),
+        ("code-reviewer", "git -C /a -C /b status", "allow"),
+        ("code-reviewer", "git -C \"/abs\" status", "deny"),
+        ("code-reviewer", "git -C /abs -c k=v status", "deny"),
+        ("code-reviewer", "git -C /abs diff --output=x", "deny"),
+        ("builder", "git -C /abs reset --hard", "ask"),
+        ("builder", "git -C /abs branch -D x", "ask"),
+        ("builder", "git -C /abs stash && git status", "deny"),
+        ("builder", "git status && git -C /abs stash", "deny"),
+        ("git-ops", "git -C /abs push --force-with-lease origin x", "ask"),
+        ("git-ops", "git -C /abs push --mirror", "ask"),
+        ("git-ops", "git -C /abs push origin +x", "ask"),
+        ("git-ops", "git push --forc origin x", "ask"),
+        ("git-ops", "git -C /abs push --del origin x", "ask"),
+        ("git-ops", "git push --set-upstream origin x", None),
+        ("git-ops", "git -C /abs push --tags", None),
+        ("git-ops", "git branch -D x && git status", None),
         ("explorer", "ls src", "allow"),
         ("explorer", "rg needle src", "allow"),
         ("explorer", "git log -n 5", "allow"),
