@@ -88,7 +88,7 @@ Reference: [agents/README.md](agents/README.md).
 | Investigation | `debugger`, `explorer` |
 | SDD phases | `sdd-propose`, `sdd-explore`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive` |
 | Git | `git-ops` |
-| Maintenance / infra | `codegraph-maintainer`, `engram-maintainer`, `aws` |
+| Maintenance / infra | `codegraph-ops`, `engram-ops`, `aws` |
 
 ### Skills
 

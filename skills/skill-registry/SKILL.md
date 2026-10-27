@@ -56,7 +56,7 @@ not a runtime plugin.
 | judge-b | karpathy-guidelines |
 | sdd-explore, sdd-verify | karpathy-guidelines, SDD protocol |
 | sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
-| aws, codegraph-maintainer, engram-maintainer | none |
+| aws, codegraph-ops, engram-ops | none |
 
 ## Conditional Role Skills
 

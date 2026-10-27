@@ -6,7 +6,7 @@
 
 ## What is this directory
 
-This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-maintainer`, `engram-maintainer`).
+This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-ops`, `engram-ops`).
 
 TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. `test-writer` runs a mandatory Phase 0 test inventory before RED. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
 
@@ -61,7 +61,7 @@ The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its man
 | orchestrator, strategist | caveman, karpathy-guidelines |
 | sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-verify, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
 | debugger, explorer, code-reviewer, judge-a, judge-b | karpathy-guidelines |
-| aws, codegraph-maintainer, engram-maintainer | none — infrastructure |
+| aws, codegraph-ops, engram-ops | none — infrastructure |
 
 `caveman` is only injected into user-facing primaries (`orchestrator`, `strategist`).
 `ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`). `quick-builder` is a code writer that receives no skills.
@@ -101,9 +101,9 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 |---|---|---|---|
 | explorer | `ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg` (ROLE_READ_FS); read-only git (ROLE_GIT_READ) | none | `rg --pre`/`--pre-glob`, `tree` write options, secret-file reads, recursive `grep`, `rg` with `--hidden`/`--no-ignore*`/`-u`/`-.`, other shell commands |
 | aws | `aws logs describe-*`, `aws dynamodb` `describe-*`/`list-*`/`get-item`/`query`/`scan`, `aws lambda get-*`/`list-*`, `aws ecs describe-*`/`list-*`, `aws ec2 describe-*`, read-only git (ROLE_GIT_READ) | none | none |
-| codegraph-maintainer | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, read-only git (ROLE_GIT_READ) | `codegraph unlock/init/sync/index/uninit*`, `codegraph-health*` | none |
+| codegraph-ops | `codegraph status/query/explore/files/node/callers/callees/impact/affected`, read-only git (ROLE_GIT_READ) | `codegraph unlock/init/sync/index/uninit*`, `codegraph-health*` | none |
 | debugger | Same test/lint/build commands as code-reviewer; read-only Git; read-only `gh` (`run view`/`list`, `pr view`/`diff`/`checks`/`list`, `issue view`, `workflow view`); `rg`, `wc`, `du`, `ls`, `cat`, `head`, `tail`, `zcat`, `gzip -cd`, `journalctl`, `docker logs`, `kubectl logs` | none | package install/update/sync/add/remove/publish, running arbitrary scripts directly (project code runs only through test/lint/build targets), shell chaining, other shell commands |
-| engram-maintainer | `engram context/search/stats/projects list/doctor/timeline/export`, soft `engram delete` | `engram delete *--hard*` (only on an explicit user request for that hard delete) | all unrelated shell commands |
+| engram-ops | `engram context/search/stats/projects list/doctor/timeline/export`, soft `engram delete` | `engram delete *--hard*` (only on an explicit user request for that hard delete) | all unrelated shell commands |
 | code-reviewer | Scoped Node (incl. Vitest/Jest/`node --test`), QML (`qmllint` and the `qml6`/`qmlscene`/`qmltestrunner` runners), Python, Java/Kotlin, Go, Rust, .NET, Ruby, PHP, Terraform/Terragrunt (`fmt -check`/`validate`/`tflint`/`hcl validate`), and `make` test/lint/format-check/typecheck/compile/build/static-analysis commands; read-only Git; read-only `gh` (`pr view`/`diff`/`checks`/`list`, `run view`, `issue view`) | none | package install/update/sync/add/remove/publish, running arbitrary scripts directly (project code runs only through test/lint/build targets), shell chaining, other shell commands |
 | judge-a, judge-b | Same test/lint and read-only Git commands as `code-reviewer` | none | none |
 | sdd-explore | ROLE_OPENSPEC_READ (`openspec list`/`show`/`status`/`validate`/`instructions`/`context`/`doctor`/`store list`) with `--store <store-id>`, read-only Git, read-only fs commands (ROLE_READ_FS); native `Write`/`Edit` for prompt-scoped `explore.md` | none | all other shell commands, including `openspec store setup|register|unregister|remove`, `init`, `update`, `workset` |

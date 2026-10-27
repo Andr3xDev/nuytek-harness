@@ -220,7 +220,7 @@ RULES = {
             "aws ec2 describe-*",
         ] + ROLE_GIT_READ,
     },
-    "codegraph-maintainer": {
+    "codegraph-ops": {
         "native_ask": [
             "codegraph unlock*",
             "codegraph init*",
@@ -243,7 +243,7 @@ RULES = {
             "codegraph affected*",
         ] + ROLE_GIT_READ,
     },
-    "engram-maintainer": {
+    "engram-ops": {
         "native_ask": ["engram delete *--hard*"],
         "allow": [
             "engram context*",
@@ -671,14 +671,14 @@ def main() -> int:
 def _selftest() -> int:
     cases = [
         ("aws", "aws logs describe-log-groups && git push origin main", "deny"),
-        ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
-        ("engram-maintainer", "engram context", "allow"),
-        ("engram-maintainer", "engram delete 42", "allow"),
-        ("engram-maintainer", "engram delete project demo --hard", None),
-        ("engram-maintainer", "engram delete 42 --hard", None),
-        ("engram-maintainer", "engram export backup.json", "allow"),
-        ("codegraph-maintainer", "codegraph sync", None),
-        ("engram-maintainer", "engram save title text", "deny"),
+        ("codegraph-ops", "codegraph status && git commit -m pwned", "deny"),
+        ("engram-ops", "engram context", "allow"),
+        ("engram-ops", "engram delete 42", "allow"),
+        ("engram-ops", "engram delete project demo --hard", None),
+        ("engram-ops", "engram delete 42 --hard", None),
+        ("engram-ops", "engram export backup.json", "allow"),
+        ("codegraph-ops", "codegraph sync", None),
+        ("engram-ops", "engram save title text", "deny"),
         ("aws", "aws logs describe-log-groups", "allow"),
         ("code-reviewer", "npm test", "allow"),
         ("code-reviewer", "uv run pytest", "allow"),

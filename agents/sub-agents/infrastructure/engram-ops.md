@@ -1,5 +1,5 @@
 ---
-name: engram-maintainer
+name: engram-ops
 description: |
   Keeps Engram project memory clean: removes irrelevant entries, resolves conflicts, merges duplicates, and also purges, exports, and diagnoses through its CLI and MCP tools.
   Only agent allowed to use mem_delete and mem_merge_projects.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""PreToolUse guard that reserves destructive Engram MCP tools for engram-maintainer.
+"""PreToolUse guard that reserves destructive Engram MCP tools for engram-ops.
 
-Denies the guarded tools for every agent_type except engram-maintainer,
+Denies the guarded tools for every agent_type except engram-ops,
 including the main thread (agent_type absent). Any other tool passes through.
 The hook never returns `ask`: a hook `ask` inside a background subagent never
 reaches the user.
@@ -9,7 +9,7 @@ reaches the user.
 import json
 import sys
 
-MAINTAINER_AGENT = "engram-maintainer"
+MAINTAINER_AGENT = "engram-ops"
 ENGRAM_MCP_PREFIXES = ("mcp__engram__", "mcp__plugin_engram_engram__")
 DESTRUCTIVE_TOOL_NAMES = ("mem_delete", "mem_merge_projects")
 GUARDED_TOOLS = frozenset(
