@@ -235,11 +235,11 @@ The orchestrator has no Bash, so it resolves by reading files:
 
 1. Read the nearest `openspec/config.yaml` with `store:`, walking up from the working directory (official OpenSpec pointer; local only, globally git-ignored).
 2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` and match `remote`, or match `path` by longest prefix of the working directory.
-3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`builder` writes, `git-ops` commits specter). There is no default store.
+3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes, `git-ops` commits specter). There is no default store.
 4. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
    store root (the OpenSpec root is `<store-root>/openspec`).
 5. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
-   `~/dev/specter/<store-id>/`. Store creation (`openspec store setup|register`) goes through `builder`
+   `~/dev/specter/<store-id>/`. Store creation (`openspec store setup|register`) goes through `specter-ops`
    with the user's OK; SDD agents never do it.
 6. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
 

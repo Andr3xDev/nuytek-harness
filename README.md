@@ -88,7 +88,7 @@ Reference: [agents/README.md](agents/README.md).
 | Investigation | `debugger`, `explorer` |
 | SDD phases | `sdd-propose`, `sdd-explore`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive` |
 | Git | `git-ops` |
-| Maintenance / infra | `codegraph-ops`, `engram-ops`, `aws` |
+| Maintenance / infra | `codegraph-ops`, `engram-ops`, `specter-ops`, `aws` |
 
 ### Skills
 
@@ -128,6 +128,7 @@ Custom slash commands.
 | `/clear-tests` | Audit low-value or overlapping tests |
 | `/codegraph` | Check or maintain CodeGraph indexes |
 | `/memory` | Review or curate Engram memory |
+| `/specter` | Manage OpenSpec stores, repos.yaml and spec health |
 
 ### Hooks
 
