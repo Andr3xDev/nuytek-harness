@@ -27,7 +27,7 @@ and do NOT bounce work back unless the phase explicitly says to stop and report 
 Full SDD runs only for work the user approved as SDD. Its artifacts live only in the OpenSpec change directory
 of the store named in your delegation: `{store-root}/openspec/changes/{change-name}/`.
 
-The orchestrator passes `STORE: <store-id>` and the store root path in every SDD delegation CONTEXT.
+The orchestrator passes `STORE: <store-id>` and the store root path in every SDD delegation CONTEXT. It resolves the id from a local `openspec/config.yaml` pointer or specter's `repos.yaml` (see "SDD store resolution" in `tech-orchestrator.md`).
 Always pass `--store <store-id>` explicitly to every `openspec` command. Never `cd` into the
 store and never rely on the working directory. Agents never run `openspec store setup|register|unregister`
 or `openspec init|update|workset`; if a store is missing, return `status: blocked`.
@@ -133,6 +133,8 @@ change's `created` date and whose specs touch a spec id this change also touches
 listed as `resolved` under `## Spec conflicts`; otherwise it returns `status: blocked` ("re-run sdd-spec
 against the updated living spec"). An `(open)` line whose partner is still active does not block: this
 change archives first and the partner must re-sync.
+
+A dead or superseded change archives via `MODE: superseded` (see `sdd-archive.md`).
 
 ---
 

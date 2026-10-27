@@ -162,7 +162,7 @@ tracker_mcp: mcp__linear-server      # MCP server for tracker operations
 tracker_secondary: github            # PR linking and review context; none if unused
 ```
 
-Every repo declares its store with `store: <id>` in `<repo>/openspec/config.yaml`; there is no default store. Stores live as folders inside the specs repo `~/dev/specter/<store-id>/`; pass `--store <id>` from any directory. SDD artifacts live under `<store-root>/openspec/changes/<change-name>/`. Layout and rules: `common-sdd.md`. Use `tracker_mcp` for issue and epic management.
+The repo-to-store map is `~/dev/specter/repos.yaml`; a local `openspec/config.yaml` with `store: <id>` is an optional pointer, globally git-ignored and never committed; there is no default store. Stores live as folders inside the specs repo `~/dev/specter/<store-id>/`; pass `--store <id>` from any directory. SDD artifacts live under `<store-root>/openspec/changes/<change-name>/`. Layout and rules: `common-sdd.md`. Use `tracker_mcp` for issue and epic management.
 
 <!-- CODEGRAPH_START -->
 ## CodeGraph

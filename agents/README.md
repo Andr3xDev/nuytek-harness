@@ -26,9 +26,9 @@ Before archiving, the agent requires `{change-folder}/verify-report.md` and ever
 
 If the CLI archive command is unavailable or fails, archive blocks. `sdd-archive` reports the command and failure to the orchestrator; it never creates directories or moves change folders manually.
 
-Change-name convention (kebab-case, hyphens only; no project prefix, the store is the product) is defined once at `/home/andrex/dev/specter/openspec/AGENTS.md` and validated by `sdd-propose` before a change is created — this README does not duplicate that rule.
+Change-name convention (kebab-case, hyphens only; no project prefix, the store is the product) is defined once at `~/dev/specter/README.md` and validated by `sdd-propose` before a change is created — this README does not duplicate that rule.
 
-SDD commands use a registered store from any working directory: `openspec <subcommand> ... --store <store-id>`. The orchestrator resolves the id from the repo's `openspec/config.yaml` `store:` (no default; a repo without one stops for store creation) and passes `STORE: <store-id>` in every delegation. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store <store-id>`. Creating or registering stores is never an SDD agent task: the orchestrator asks the user and delegates to `builder`. After an SDD block that wrote artifacts, `git-ops` commits inside the store root.
+SDD commands use a registered store from any working directory: `openspec <subcommand> ... --store <store-id>`. The orchestrator resolves the id from a local `openspec/config.yaml` `store:` pointer or specter's `repos.yaml` (no default; an unmapped repo stops for store proposal) and passes `STORE: <store-id>` in every delegation. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store <store-id>`. Creating or registering stores is never an SDD agent task: the orchestrator asks the user and delegates to `builder`. After an SDD block that wrote artifacts, `git-ops` commits inside the store root.
 
 <br>
 

@@ -156,4 +156,4 @@ Installed from marketplaces by the installer.
 ### Memory
 
 - **Engram**: persistent cross-session memory shared by the orchestrator and most subagents (decisions, bug fixes, conventions).
-- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (every repo declares `store:` in `openspec/config.yaml`; stores are folders in the specs repo `~/dev/specter/`).
+- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (repo-to-store map in `~/dev/specter/repos.yaml`, optional local git-ignored `openspec/config.yaml` pointer; stores are folders in the specs repo `~/dev/specter/`).

@@ -233,18 +233,21 @@ Before launching any subagent:
 
 The orchestrator has no Bash, so it resolves by reading files:
 
-1. Read `<repo>/openspec/config.yaml` for `store:`; if absent, stop and propose creating the product's store (via `builder`, with the user's OK), then add the `store:` pointer to the repo. There is no default store.
-2. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
+1. Read the nearest `openspec/config.yaml` with `store:`, walking up from the working directory (official OpenSpec pointer; local only, globally git-ignored).
+2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` and match `remote`, or match `path` by longest prefix of the working directory.
+3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`builder` writes, `git-ops` commits specter). There is no default store.
+4. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
    store root (the OpenSpec root is `<store-root>/openspec`).
-3. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
+5. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
    `~/dev/specter/<store-id>/`. Store creation (`openspec store setup|register`) goes through `builder`
    with the user's OK; SDD agents never do it.
-4. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
+6. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
 
 Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
 
 - After an SDD block that wrote artifacts (planning done, verify done, archive done), delegate
   `git-ops` to commit inside the store root (`TARGET REPO: <store-root>`). No other agent commits.
+- Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a dead or superseded change; state the user's decision in the delegation.
 - When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split
   into separate changes or keep one full change. Never split on your own.
 
