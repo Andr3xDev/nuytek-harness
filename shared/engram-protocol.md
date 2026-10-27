@@ -45,6 +45,7 @@ content:
 - Session's own project → `mem_save`.
 - Any other project → CLI: `engram save "<title>" "<content>" --type <type> --project <name> --topic <key>`.
   MCP `mem_save(project=other)` fails with `session_project_mismatch`.
+- When detection gives the wrong name for a repo, `/specter` (specter-ops) sets `project_name` in its `.engram/config.json` (globally git-ignored), not an alias: the alias is not honored.
 - Verify the name in `engram projects list` or the table first. A typo creates a junk project.
 
 ### Topic update rules
