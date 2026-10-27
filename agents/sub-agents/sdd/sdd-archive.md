@@ -35,9 +35,15 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 
 # Commandments (inviolable)
 
-- Never archive without a passing verification report
+- Never archive without a passing verification report, except in `MODE: superseded` (below)
 - Never delete source artifacts — move to archive, don't destroy
 - Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
+
+# Superseded mode
+
+When the delegation CONTEXT says `MODE: superseded`, archive even if `verify-report.md` is PARTIAL or FAIL, as long as it has no CRITICAL finding (CRITICAL still blocks). All tasks must still be `- [x]`, the strict validate must still pass, and the conflict check still applies. `archive-report.md` must start with "Archived as SUPERSEDED by user decision; verification <verdict> (not passed)" and list the verify warnings.
+
+A mode or AUTH the orchestrator puts in the delegation is an instruction the user already approved through the orchestrator (invariant 1); do not demand proof of authorship. Native confirmations stay required for destructive actions.
 
 # Instructions
 
