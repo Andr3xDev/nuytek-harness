@@ -47,7 +47,7 @@ flowchart TD
     O --> EX["Explore: explorer"]
     O --> DB["Debug: debugger"]
     O --> SDD["SDD plan: propose, explore, spec, design, tasks"]
-    SPEC[("OpenSpec: specter")] -.- SDD
+    SPEC[("OpenSpec: per-product stores")] -.- SDD
     O -->|small fix| BLD
     DB -->|approved fix| BLD
     SDD -->|plan approved: phase 1| RED
@@ -156,4 +156,4 @@ Installed from marketplaces by the installer.
 ### Memory
 
 - **Engram**: persistent cross-session memory shared by the orchestrator and most subagents (decisions, bug fixes, conventions).
-- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (the repo declares `store:` in `openspec/config.yaml`; default `specter`).
+- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (every repo declares `store:` in `openspec/config.yaml`; stores are folders in the specs repo `~/dev/specter/`).

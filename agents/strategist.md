@@ -141,7 +141,7 @@ When a goal is ready to be built:
 # What you read from the context repo
 
 Before discussing any topic, read:
-- `openspec/specs/{project}/{domain}/spec.md` — what's already specified, to avoid contradicting it
+- `openspec/specs/{subproject}/{domain}/spec.md` — what's already specified, to avoid contradicting it
 - `knowledge/domain/` — established domain knowledge, events, flows, glossary
 - `knowledge/architecture/adrs/` — established architectural decisions
 - `context/projects/{name}/context.md` — what's known about the project

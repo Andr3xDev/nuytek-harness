@@ -63,7 +63,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 4. Read the implementation files referenced in apply-progress
 5. Run available tests and report results exactly as they are
 6. When delta specs exist (not `skip_specs: true`), confirm the spec file lives at
-   `specs/{subproject}/{domain}/spec.md` (product store) or `specs/{project}/{domain}/spec.md` (shared default store), and uses the required ADDED/MODIFIED/REMOVED/RENAMED
+   `specs/{subproject}/{domain}/spec.md`, and uses the required ADDED/MODIFIED/REMOVED/RENAMED
    requirement and scenario format — flag as CRITICAL if it doesn't.
 7. For each acceptance scenario, verify:
     - With specs: every delta scenario (WHEN/THEN/AND).

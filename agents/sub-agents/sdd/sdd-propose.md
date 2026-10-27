@@ -46,7 +46,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 # Change name resolution
 
 `{change-name}` comes from the delegation CONTEXT or is derived from the topic being proposed.
-In a product store the change name is just `{change-name}` (the store is the product). In the shared default store it is `{project}-{change-name}`; `{project}` comes from the delegation CONTEXT (repo/service name) — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
+The change name is just `{change-name}` (the store is the product); no project prefix.
 Normalize into kebab-case — lowercase, spaces/underscores/dots replaced with hyphens, no other punctuation. Below, `<change>` is the resolved change name.
 
 # Instructions

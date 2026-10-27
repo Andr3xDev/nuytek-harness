@@ -45,7 +45,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 
 # Change name resolution
 
-`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix in a product store; `{project}-{change-name}` in the shared default store). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
+`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
 
 # Instructions
 
@@ -54,7 +54,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    ```bash
    openspec instructions specs --change "<change>" --json --store <store-id>
    ```
-   The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path. Write each delta at `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` per `common-sdd.md` section D (depth rules there). One delta per subproject when the change spans several.
+   The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path. Write each delta at `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` per `common-sdd.md` section D (depth rules there). One delta per subproject when the change spans several; a spec serving several subprojects goes in `specs/shared/{domain}/`.
    Duplicate check: before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with the same domain exists at another path, write a MODIFIED delta against it instead, or return `status: blocked` if unclear. Read living specs with `openspec show <spec-id> --type spec --store <store-id>`.
    Conflict check: before any MODIFIED/REMOVED/RENAMED delta, follow "Conflicting active changes" in `common-sdd.md` section D and report any conflict under `risks` and in `proposal.md` under `## Spec conflicts` (mark it resolved when you re-sync after the partner archived).
 3. Write delta specs in OpenSpec delta format (full rules: `common-sdd.md` § Delta spec format):

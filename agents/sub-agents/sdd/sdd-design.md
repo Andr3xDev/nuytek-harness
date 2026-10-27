@@ -56,7 +56,7 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
 
 # Change name resolution
 
-`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix in a product store; `{project}-{change-name}` in the shared default store). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
+`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
 
 # Instructions
 

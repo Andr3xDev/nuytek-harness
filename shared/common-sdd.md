@@ -32,8 +32,7 @@ Always pass `--store <store-id>` explicitly to every `openspec` command. Never `
 store and never rely on the working directory. Agents never run `openspec store setup|register|unregister`
 or `openspec init|update|workset`; if a store is missing, return `status: blocked`.
 
-Change naming: in a product store (the store is the product) the change name has no project prefix.
-Only the shared default store (`openspec_store`) keeps `{project}-{change-name}`. Changes are flat
+Change naming: the store is the product, so the change name has no project prefix. Changes are flat
 under `changes/`; nested change folders are not supported. A change may start with a temporary name
 and be renamed later by moving its folder (no CLI rename). Never rename a store id: repo `store:`
 pointers and `references:` depend on it.
@@ -68,7 +67,7 @@ Write the complete artifact to its OpenSpec file under
 |----------|---------------|-------------|
 | proposal | `proposal.md` | sdd-propose |
 | explore | `explore.md` | sdd-explore |
-| spec | `specs/{subproject}/{domain}/spec.md` (product store) or `specs/{project}/{domain}/spec.md` (default store) | sdd-spec |
+| spec | `specs/{subproject}/{domain}/spec.md` | sdd-spec |
 | design | `design.md` | sdd-design |
 | tasks | `tasks.md` | sdd-tasks |
 | apply-progress | `apply-progress.md` | implementer |
@@ -81,9 +80,9 @@ Write the complete artifact to its OpenSpec file under
 Delta specs live at `{store-root}/openspec/changes/{change-name}/specs/{a}/{b}/spec.md`
 — never a flat `specs/spec.md` (validate rejects it and it never merges). Depth rule:
 
-- Product store: exactly `specs/{subproject}/{domain}/spec.md`. The store is the product; never repeat the product name.
-- Default shared store: `specs/{project}/{domain}/spec.md`, where `{project}` is the repo name; for a
-  component inside a repo, prefix the domain with the component name, e.g. `specs/hypr-abysal/lucyna-osd/spec.md`.
+- Exactly `specs/{subproject}/{domain}/spec.md`. The store is the product; never repeat the product name.
+- A spec that serves several subprojects of the same product lives in the `shared/` subproject:
+  `specs/shared/{domain}/spec.md`. A change touching several subprojects still carries one delta per subproject.
 
 Reuse an existing first-level folder from `openspec list --specs --json --store <store-id>` before
 creating a new one. Spec ids are `a/b`; read one with `openspec show <a/b> --type spec --store <store-id>`.

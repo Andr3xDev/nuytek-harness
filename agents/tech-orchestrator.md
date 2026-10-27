@@ -233,11 +233,12 @@ Before launching any subagent:
 
 The orchestrator has no Bash, so it resolves by reading files:
 
-1. Read `<repo>/openspec/config.yaml` for `store:`; if absent, use the default `openspec_store`.
+1. Read `<repo>/openspec/config.yaml` for `store:`; if absent, stop and propose creating the product's store (via `builder`, with the user's OK), then add the `store:` pointer to the repo. There is no default store.
 2. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
    store root (the OpenSpec root is `<store-root>/openspec`).
-3. If the id is missing from the registry, stop and ask the user. Store creation
-   (`openspec store setup|register`) goes through `builder` with the user's OK; SDD agents never do it.
+3. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
+   `~/dev/specter/<store-id>/`. Store creation (`openspec store setup|register`) goes through `builder`
+   with the user's OK; SDD agents never do it.
 4. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
 
 Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
