@@ -16,8 +16,8 @@ Confirmations live in native `permissions.ask`. Discards, stash, force/delete
 push and git-ops deletions (`git worktree remove|prune`, `git branch
 -d|-D|--delete`) pass through to those rules in plain `git <sub>` form; the
 native prefix rules cannot see `git -C ...`, so that form returns the hook's own
-`ask`. Any other form is denied. `native_ask` commands also pass through to
-native rules.
+`ask`. Any other form is denied. `native_ask` commands return the hook's own
+`ask` too, because a background subagent otherwise ran them without a prompt.
 
 The other hook `ask`: for every agent_type (main thread and unlisted agents
 included), any file-deleting command (`rm`, `rmdir`, `unlink`, `shred`,
@@ -156,7 +156,14 @@ SECRET_FILE_PATTERNS = [
 SECRET_FILE_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
 SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
 RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
-GREP_RECURSIVE_FLAG = re.compile(r"--recursive|-[a-zA-Z]*[rR][a-zA-Z]*")
+GREP_RECURSIVE_FLAG = re.compile(
+    r"--recursive|--dereference-recursive|--directories=recurse|-[a-zA-Z]*[rR][a-zA-Z]*"
+)
+GREP_RECURSIVE_LONG_FLAGS = ("--recursive", "--dereference-recursive")
+GREP_DIRECTORIES_FLAG = re.compile(r"--directories|-[a-zA-Z]*d")  # value `recurse` arrives as the next token
+GREP_CONFINED_SHORT_FLAGS = re.compile(r"-[rnilHhcws]+")
+GREP_CONFINED_LONG_FLAGS = {"--recursive", "--line-number", "--ignore-case", "--files-with-matches"}
+SAFE_PATH_TOKEN = re.compile(r"[A-Za-z0-9._/~-]+")  # excludes shell expansion characters: { } * ? [ ] $
 
 ROLE_OPENSPEC_READ = [
     "openspec list*", "openspec show*", "openspec status*", "openspec validate*",
@@ -263,6 +270,7 @@ RULES = {
             "engram search*",
             "engram stats*",
             "engram projects list*",
+            "engram projects alias resolve *",
             "engram doctor*",
             "engram timeline*",
             "engram delete *",
@@ -441,8 +449,10 @@ def has_git_write_flag(calls) -> bool:
     )
 
 
-def reads_secret(command: str) -> bool:
-    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default)."""
+def reads_secret(command: str, agent_type=None) -> bool:
+    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default).
+
+    specter-ops may grep recursively when every path stays under ~/dev/specter."""
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -450,8 +460,9 @@ def reads_secret(command: str) -> bool:
     if not tokens:
         return False
     program, args = os.path.basename(tokens[0]), tokens[1:]
+    is_confined_grep = agent_type == "specter-ops" and is_grep_confined_to_specter(command)
     if (program == "rg" and any(RG_SHOW_ALL_FLAG.fullmatch(a) for a in args)) or (
-        program == "grep" and any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args)
+        program == "grep" and not is_confined_grep and is_recursive_grep(args)
     ):
         return True
     return any(
@@ -461,6 +472,26 @@ def reads_secret(command: str) -> bool:
             and matches_any(os.path.basename(t), SECRET_FILE_PATTERNS)
         )
         for t in args
+    )
+
+
+def is_recursive_grep(args) -> bool:
+    """GNU grep accepts unambiguous long-option prefixes (`--rec`, `--dir=recurse`), so match by prefix."""
+    if any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args):
+        return True
+    for index, arg in enumerate(args):
+        name, has_value, inline_value = arg.partition("=")
+        if not arg.startswith("--") or len(name) < MIN_ABBREVIATED_FLAG_LENGTH:
+            continue
+        if any(flag.startswith(name) for flag in GREP_RECURSIVE_LONG_FLAGS):
+            return True
+        if "--directories".startswith(name):
+            value = inline_value if has_value else (args[index + 1] if index + 1 < len(args) else "")
+            if value == "recurse":
+                return True
+    return any(
+        GREP_DIRECTORIES_FLAG.fullmatch(flag) and value == "recurse"
+        for flag, value in zip(args, args[1:])
     )
 
 
@@ -492,14 +523,37 @@ def store_path_outside_specter(command: str) -> bool:
         paths = positionals[:1]
     if not paths:
         return True
+    return not all(is_under_specter(value) for value in paths)
+
+
+def is_under_specter(value: str) -> bool:
+    """Relative paths are not under specter: the guard does not know the cwd.
+
+    Tokens the shell would expand (braces, globs, variables) or containing `..` are rejected."""
+    if not (value == "~" or value.startswith(("/", "~/"))) or not SAFE_PATH_TOKEN.fullmatch(value) or ".." in value.split("/"):
+        return False
     root = os.path.realpath(os.path.expanduser(SPECTER_ROOT))
-    for value in paths:
-        if not value.startswith(("/", "~")):
-            return True
-        resolved = os.path.realpath(os.path.expanduser(value))
-        if resolved != root and not resolved.startswith(root + os.sep):
-            return True
-    return False
+    resolved = os.path.realpath(os.path.expanduser(value))
+    return resolved == root or resolved.startswith(root + os.sep)
+
+
+def is_grep_confined_to_specter(command: str) -> bool:
+    """True for `grep` with one pattern positional and only path positionals under ~/dev/specter.
+
+    Only value-less whitelisted flags pass: `-e`/`-f`/`-A 2` style flags would confuse positional
+    counting, and `-R` follows symlinks inside the tree.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if not tokens or os.path.basename(tokens[0]) != "grep":
+        return False
+    flags = [t for t in tokens[1:] if t.startswith("-")]
+    if not all(GREP_CONFINED_SHORT_FLAGS.fullmatch(f) or f in GREP_CONFINED_LONG_FLAGS for f in flags):
+        return False
+    positionals = [t for t in tokens[1:] if not t.startswith("-")]
+    return len(positionals) >= 2 and all(is_under_specter(p) for p in positionals[1:])
 
 
 def has_shell_metacharacters(command: str) -> bool:
@@ -672,7 +726,7 @@ def _decide(agent_type: str, command: str):
             f"read-only; this command is on its explicit deny list "
             f"(an auto-fix/format command)."
         )
-    if reads_secret(command):
+    if reads_secret(command, agent_type):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
@@ -690,7 +744,11 @@ def _decide(agent_type: str, command: str):
                 "infra-agent-bash-guard: irregular whitespace evades the native confirmation "
                 "rule; native user confirmation is required."
             )
-        return None
+        # An explicit ask is needed: background subagents ran these without a prompt when the hook returned None.
+        return "ask", (
+            "infra-agent-bash-guard: destructive or state-changing command; "
+            "native user confirmation is required."
+        )
     if matches_any(command, rules["allow"]):
         return "allow", (
             f"infra-agent-bash-guard: command matches '{agent_type}' "
@@ -738,18 +796,41 @@ def _selftest() -> int:
         ("codegraph-ops", "codegraph status && git commit -m pwned", "deny"),
         ("engram-ops", "engram context", "allow"),
         ("engram-ops", "engram delete 42", "allow"),
-        ("engram-ops", "engram delete project demo --hard", None),
-        ("engram-ops", "engram delete 42 --hard", None),
+        ("engram-ops", "engram delete project demo --hard", "ask"),
+        ("engram-ops", "engram delete 42 --hard", "ask"),
+        ("engram-ops", "engram projects alias resolve abysal.nvim", "allow"),
+        ("engram-ops", "engram projects alias set a b", "deny"),
+        ("specter-ops", "grep -rn foo ~/dev/specter", "allow"),
+        ("specter-ops", "grep -rli foo ~/dev/specter/nuydeck/openspec", "allow"),
+        ("specter-ops", "grep -r foo /etc", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter ../x", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/../x", "deny"),
+        ("specter-ops", "grep -r foo", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/.env", "deny"),
+        ("explorer", "grep -r foo ~/dev/specter", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/{x,../../.ssh}", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/*", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/$HOME", "deny"),
+        ("specter-ops", "grep -r -f /etc/shadow ~/dev/specter", "deny"),
+        ("specter-ops", "grep -rf x ~/dev/specter", "deny"),
+        ("specter-ops", "grep -R foo ~/dev/specter", "deny"),
+        ("specter-ops", "grep -r -e foo ~/dev/specter", "deny"),
+        ("specter-ops", "grep -r foo ~+/x", "deny"),
+        ("specter-ops", "grep -r foo ~root/dev/specter", "deny"),
+        ("specter-ops", "grep -r foo - ~/dev/specter", "deny"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/{a,../../x}", "deny"),
+        ("explorer", "grep -d recurse foo .", "deny"),
+        ("explorer", "grep --directories=recurse foo .", "deny"),
         ("engram-ops", "engram export backup.json", "allow"),
-        ("codegraph-ops", "codegraph sync", None),
+        ("codegraph-ops", "codegraph sync", "ask"),
         ("engram-ops", "engram save title text", "deny"),
         ("engram-ops", "engram --help", "allow"),
         ("engram-ops", "engram search --help", "allow"),
         ("engram-ops", "engram projects list", "allow"),
-        ("engram-ops", "engram projects prune", None),
-        ("engram-ops", "engram projects prune --dry-run", None),
+        ("engram-ops", "engram projects prune", "ask"),
+        ("engram-ops", "engram projects prune --dry-run", "ask"),
         ("engram-ops", "engram projects list; engram projects prune", "deny"),
-        ("engram-ops", "engram projects prune --yes --help", None),
+        ("engram-ops", "engram projects prune --yes --help", "ask"),
         ("engram-ops", "engram projects  prune", "ask"),
         ("engram-ops", "engram delete  42 --hard", "ask"),
         ("engram-ops", "engram  delete 42 --hard", "ask"),
@@ -1067,6 +1148,10 @@ def _selftest() -> int:
         ("explorer", "rg --no-ignore foo", "deny"),
         ("explorer", "rg -. foo", "deny"),
         ("explorer", "grep -rn foo .", "deny"),
+        ("explorer", "grep --rec foo .", "deny"),
+        ("explorer", "grep --dir=recurse foo .", "deny"),
+        ("explorer", "grep --dir recurse foo .", "deny"),
+        ("explorer", "grep --dereference-recursive foo .", "deny"),
         ("explorer", "grep -R foo src", "deny"),
         ("explorer", "cat .env.example", "allow"),
         ("explorer", "cat README.md", "allow"),
