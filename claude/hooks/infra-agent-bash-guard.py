@@ -169,6 +169,13 @@ ROLE_OPENSPEC_ARCHIVE = ROLE_OPENSPEC_READ + ["openspec archive*"]
 
 ROLE_OPENSPEC_VERIFY = ROLE_OPENSPEC_READ
 
+ROLE_OPENSPEC_STORE_ADMIN = ROLE_OPENSPEC_READ + [
+    "openspec store setup *", "openspec store register *", "openspec store unregister *",
+]
+STORE_ADMIN_SUBCOMMANDS = {"setup", "register", "unregister"}
+STORE_VALUE_FLAGS = {"--path", "--id", "--remote"}
+SPECTER_ROOT = "~/dev/specter"
+
 ROLE_LOGS = [
     "zcat *",
     "gzip -cd *",
@@ -220,6 +227,9 @@ RULES = {
             "aws ec2 describe-*",
         ] + ROLE_GIT_READ,
     },
+    "specter-ops": {
+        "allow": ROLE_OPENSPEC_STORE_ADMIN + ROLE_GIT_READ + ROLE_READ_FS,
+    },
     "codegraph-ops": {
         "native_ask": [
             "codegraph unlock*",
@@ -244,8 +254,11 @@ RULES = {
         ] + ROLE_GIT_READ,
     },
     "engram-ops": {
-        "native_ask": ["engram delete *--hard*"],
+        "native_ask": ["engram delete *--hard*", "engram projects prune*"],
         "allow": [
+            "engram --help",
+            "engram help*",
+            "engram save * --project *",  # cross-project save; --help or a missing --project does not match
             "engram context*",
             "engram search*",
             "engram stats*",
@@ -451,6 +464,44 @@ def reads_secret(command: str) -> bool:
     )
 
 
+def store_path_outside_specter(command: str) -> bool:
+    """True when `openspec store setup|register` lacks an explicit path under ~/dev/specter.
+
+    `setup` writes outside specter by default, so `--path` is required; `register` takes the path
+    positionally. Relative paths are denied (the guard does not know the cwd). `unregister` takes an id only.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if tokens[:2] != ["openspec", "store"] or tokens[2:3] == [] or tokens[2] not in STORE_ADMIN_SUBCOMMANDS:
+        return False
+    subcommand = tokens[2]
+    if subcommand == "unregister":
+        return False
+    paths, positionals, args = [], [], iter(tokens[3:])
+    for token in args:
+        flag, has_value, inline_value = token.partition("=")
+        if flag in STORE_VALUE_FLAGS:
+            value = inline_value if has_value else next(args, "")
+            if flag == "--path":
+                paths.append(value)
+        elif not token.startswith("--"):
+            positionals.append(token)
+    if subcommand == "register":
+        paths = positionals[:1]
+    if not paths:
+        return True
+    root = os.path.realpath(os.path.expanduser(SPECTER_ROOT))
+    for value in paths:
+        if not value.startswith(("/", "~")):
+            return True
+        resolved = os.path.realpath(os.path.expanduser(value))
+        if resolved != root and not resolved.startswith(root + os.sep):
+            return True
+    return False
+
+
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
@@ -608,6 +659,9 @@ def _decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
+    original_command = command
+    command = " ".join(command.split())  # native globs match literal spaces, so extra whitespace must not hide a command
+
     if (
         matches_any(command, VALIDATION_DENY + READ_FS_DENY)
         or is_tree_write(command)
@@ -624,8 +678,18 @@ def _decide(agent_type: str, command: str):
             f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
             f"searching recursively/with hidden files is not permitted."
         )
+    if store_path_outside_specter(command):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{agent_type}' may only give store "
+            f"commands paths under {SPECTER_ROOT}."
+        )
     command = strip_git_dash_c(command)
     if matches_any(command, rules.get("native_ask", [])):
+        if command != strip_git_dash_c(original_command):
+            return "ask", (
+                "infra-agent-bash-guard: irregular whitespace evades the native confirmation "
+                "rule; native user confirmation is required."
+            )
         return None
     if matches_any(command, rules["allow"]):
         return "allow", (
@@ -679,6 +743,48 @@ def _selftest() -> int:
         ("engram-ops", "engram export backup.json", "allow"),
         ("codegraph-ops", "codegraph sync", None),
         ("engram-ops", "engram save title text", "deny"),
+        ("engram-ops", "engram --help", "allow"),
+        ("engram-ops", "engram search --help", "allow"),
+        ("engram-ops", "engram projects list", "allow"),
+        ("engram-ops", "engram projects prune", None),
+        ("engram-ops", "engram projects prune --dry-run", None),
+        ("engram-ops", "engram projects list; engram projects prune", "deny"),
+        ("engram-ops", "engram projects prune --yes --help", None),
+        ("engram-ops", "engram projects  prune", "ask"),
+        ("engram-ops", "engram delete  42 --hard", "ask"),
+        ("engram-ops", "engram  delete 42 --hard", "ask"),
+        ("explorer", "engram projects prune", "deny"),
+        ("code-reviewer", "engram projects prune --yes", "deny"),
+        ("engram-ops", "engram save t c --help", "deny"),
+        ("engram-ops", "engram save t c --type decision --topic a/b", "deny"),
+        ("engram-ops", "engram search --help", "allow"),
+        ("engram-ops", "engram help save", "allow"),
+        ("engram-ops", "engram save \"t\" \"c\" --type decision --project nuydeck --topic a/b", "allow"),
+        ("engram-ops", "engram save t c --project x && rm y", "deny"),
+        ("specter-ops", "openspec store setup x --path /etc/x", "deny"),
+        ("specter-ops", "openspec store setup x --path=/etc/x", "deny"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/x", "allow"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/../x", "deny"),
+        ("specter-ops", "openspec store register elsewhere --id x", "deny"),
+        ("specter-ops", "openspec store setup x --path foo", "deny"),
+        ("specter-ops", "openspec store setup x --path=foo", "deny"),
+        ("specter-ops", "openspec store setup foo", "deny"),
+        ("specter-ops", "openspec store register --id demo elsewhere", "deny"),
+        ("specter-ops", "openspec store register --id demo /etc/x", "deny"),
+        ("specter-ops", "openspec store register --id demo ~/dev/specter/demo", "allow"),
+        ("specter-ops", "openspec store register ~/dev/specter/demo --id demo", "allow"),
+        ("specter-ops", "openspec store setup demo --path ~/dev/specter/demo", "allow"),
+        ("specter-ops", "openspec store unregister demo", "allow"),
+        ("specter-ops", "openspec store list", "allow"),
+        ("specter-ops", "openspec validate --store demo --strict --json", "allow"),
+        ("specter-ops", "openspec list --specs --json --store demo", "allow"),
+        ("specter-ops", "cat /home/u/dev/specter/repos.yaml", "allow"),
+        ("specter-ops", "git log --oneline", "allow"),
+        ("specter-ops", "openspec archive x --yes --store demo", "deny"),
+        ("specter-ops", "openspec new change x --store demo", "deny"),
+        ("specter-ops", "git commit -m x", "deny"),
+        ("specter-ops", "openspec store list && rm -rf x", "deny"),
+        ("specter-ops", "cat ~/.ssh/id_rsa", "deny"),
         ("aws", "aws logs describe-log-groups", "allow"),
         ("code-reviewer", "npm test", "allow"),
         ("code-reviewer", "uv run pytest", "allow"),
