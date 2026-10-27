@@ -38,6 +38,15 @@ content:
   Learned: gotchas, edge cases, things that surprised you (omit if none)
 ```
 
+### Target project
+
+- A memory belongs to the Engram project of the repo or folder it is about. The session project is not the default.
+- Project names come from `~/dev/specter/repos.yaml` (`stores.<id>.engram`).
+- Session's own project → `mem_save`.
+- Any other project → CLI: `engram save "<title>" "<content>" --type <type> --project <name> --topic <key>`.
+  MCP `mem_save(project=other)` fails with `session_project_mismatch`.
+- Verify the name in `engram projects list` or the table first. A typo creates a junk project.
+
 ### Topic update rules
 
 - Different topics MUST NOT overwrite each other
