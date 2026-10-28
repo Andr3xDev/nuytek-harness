@@ -5,24 +5,17 @@ This protocol is MANDATORY and ALWAYS ACTIVE — not something you activate on d
 
 ---
 
-## Proactive save triggers (mandatory — do NOT wait for user to ask)
+## Save triggers (selective — do NOT wait for user to ask)
 
-Call `mem_save` IMMEDIATELY and WITHOUT BEING ASKED after any of these:
+Save only verified, durable knowledge, without being asked:
 
-- Architecture or design decision made
-- Convention documented or established
-- Workflow change agreed upon
-- Tool or library choice made with tradeoffs
-- Bug fix completed (include root cause)
-- Feature implemented with non-obvious approach
-- Issue tracker artifact created or updated (Linear/GitHub)
-- Configuration change or environment setup done
-- Non-obvious discovery about the codebase
-- Gotcha, edge case, or unexpected behavior found
-- Pattern established (naming, structure, convention)
-- User preference or constraint learned
+- Decision with its rationale (architecture, design, tool or library choice with tradeoffs)
+- Root-cause bug fix
+- Non-obvious discovery, gotcha, or real constraint
+- User preference or workflow agreement
+- Reusable pattern or convention
 
-**Self-check after EVERY task:** "Did I make a decision, fix a bug, learn something non-obvious, or establish a convention? If yes → call `mem_save` NOW."
+Search the topic first and update the same topic (`topic_key` / `mem_update`) instead of duplicating. Do not save after every task, and do not save routine work, tracker updates, or anything the code or git history already shows.
 
 ### Format for `mem_save`
 
@@ -40,13 +33,10 @@ content:
 
 ### Target project
 
-- A memory belongs to the Engram project of the repo or folder it is about. The session project is not the default.
-- Project names come from `~/dev/specter/repos.yaml` (`stores.<id>.engram`).
-- Session's own project → `mem_save`.
-- Any other project → CLI: `engram save "<title>" "<content>" --type <type> --project <name> --topic <key>`.
-  MCP `mem_save(project=other)` fails with `session_project_mismatch`.
+- Always save with MCP `mem_save` into the session project.
+- When the memory is about another repo, name that repo in the title and content.
+- To recall another repo's memories, use `mem_search` with `all_projects: true`.
 - When detection gives the wrong name for a repo, `/specter` (specter-ops) sets `project_name` in its `.engram/config.json` (globally git-ignored), not an alias: the alias is not honored.
-- Verify the name in `engram projects list` or the table first. A typo creates a junk project.
 
 ### Topic update rules
 
@@ -83,9 +73,9 @@ Search PROACTIVELY when:
 
 ---
 
-## Session close protocol (mandatory)
+## Session close protocol
 
-Before ending a session or saying "done", call `mem_session_summary`:
+At explicit session closure or handoff, call `mem_session_summary` (not before every "done"):
 
 ```
 ## Goal
@@ -104,13 +94,13 @@ Before ending a session or saying "done", call `mem_session_summary`:
 - path/to/file — [what it does or what changed]
 ```
 
-This is NOT optional. If you skip this, the next session starts blind.
+Skipping it at a real closure leaves the next session blind.
 
 ---
 
 ## After compaction
 
-If you see a compaction message or context reset:
+Compaction counts as a handoff, so the summary below fits "closure or handoff". If you see a compaction message or context reset:
 
 1. IMMEDIATELY call `mem_session_summary` with the compacted summary content —
    this persists what was done before compaction

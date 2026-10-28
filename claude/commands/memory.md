@@ -13,6 +13,6 @@ Modes:
 3. `merge <keep-id> <id...>`: fold the other observations into `keep-id`, then delete them. No further confirmation: this request is the approval.
 4. `merge-projects <from> <to>`: resolve both projects and counts first, then merge `from` into `to`. No further confirmation: this request is the approval.
 5. `delete <observation-id>`: inspect the observation first, then delete only that ID. No further confirmation: this request is the approval.
-6. `purge <project>`: resolve scope and count first, then hard-delete without further confirmation. This is irreversible.
+6. `purge <project>`: resolve scope and count first, then hard-delete. This is irreversible and always triggers a native confirmation, as does any `--hard` delete.
 7. `export [project]`: state export file and scope first, then create it without further confirmation.
 8. `doctor [project]`: read-only health diagnostic.
