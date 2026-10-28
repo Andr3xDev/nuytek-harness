@@ -34,7 +34,7 @@ or `openspec init|update|workset`; if a store is missing, return `status: blocke
 
 Change naming: the store is the product, so the change name has no project prefix. Changes are flat
 under `changes/`; nested change folders are not supported. A change may start with a temporary name
-and be renamed later by moving its folder (no CLI rename). Never rename a store id: repo `store:`
+and be renamed later by moving its folder (no CLI rename); SDD agents never move folders, so the orchestrator delegates the single `mv` to `quick-builder`. Never rename a store id: repo `store:`
 pointers and `references:` depend on it.
 
 Spec depth and duplicate check: section D.
@@ -131,7 +131,7 @@ marks the line `(resolved: synced after <change-name> archived)`.
 `sdd-archive` enforces this: for every change in `changes/archive/` whose folder date is on or after this
 change's `created` date and whose specs touch a spec id this change also touches, that partner must be
 listed as `resolved` under `## Spec conflicts`; otherwise it returns `status: blocked` ("re-run sdd-spec
-against the updated living spec"). An `(open)` line whose partner is still active does not block: this
+against the updated living spec"). A partner archived without applying deltas (`--skip-specs` or `skip_specs: true`) does not change the living spec and needs no `resolved` line. An `(open)` line whose partner is still active does not block: this
 change archives first and the partner must re-sync.
 
 A dead or superseded change archives via `MODE: superseded` (see `sdd-archive.md`).

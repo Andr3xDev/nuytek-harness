@@ -247,6 +247,7 @@ Naming, spec depth, duplicate check and paired changes across products: `common-
 
 - After an SDD block that wrote artifacts (planning done, verify done, archive done), delegate
   `git-ops` to commit inside the store root (`TARGET REPO: <store-root>`). No other agent commits.
+- To rename a change folder (for example a temporary name), delegate the single `mv` to `quick-builder`; SDD agents never move folders.
 - Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a dead or superseded change; state the user's decision in the delegation.
 - When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split
   into separate changes or keep one full change. Never split on your own.
