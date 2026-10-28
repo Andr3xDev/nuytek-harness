@@ -66,6 +66,7 @@ ROLE_GIT_READ = [
     "git branch --list*",
     "git worktree list*",
     "git blame*",
+    "git check-ignore*",
 ]
 
 ROLE_GH_READ = [
@@ -965,6 +966,9 @@ def _selftest() -> int:
         ("debugger", "git show HEAD~1", "allow"),
         ("debugger", "git show HEAD~1:src/app.py", "allow"),
         ("debugger", "git blame -L 10,20 src/app.py", "allow"),
+        ("explorer", "git check-ignore -v --no-index foo/openspec/config.yaml", "allow"),
+        ("specter-ops", "git -C /home/andrex/dev/specter check-ignore -v nuytek/openspec/config.yaml", "allow"),
+        ("explorer", "git check-ignore -v foo && rm x", "deny"),
         ("debugger", "git diff main...HEAD", "allow"),
         ("debugger", "git add .", "deny"),
         ("debugger", "tail app.log", "allow"),
