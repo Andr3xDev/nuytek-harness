@@ -235,7 +235,7 @@ The orchestrator has no Bash, so it resolves by reading files:
 
 1. Read the nearest `openspec/config.yaml` with `store:`, walking up from the working directory (official OpenSpec pointer; local only, globally git-ignored).
 2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` and match `remote`, or match `path` by longest prefix of the working directory.
-3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes, `git-ops` commits specter). There is no default store.
+3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes; the user commits specter by hand). There is no default store.
 4. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
    store root (the OpenSpec root is `<store-root>/openspec`).
 5. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
@@ -245,8 +245,7 @@ The orchestrator has no Bash, so it resolves by reading files:
 
 Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
 
-- After an SDD block that wrote artifacts (planning done, verify done, archive done), delegate
-  `git-ops` to commit inside the store root (`TARGET REPO: <store-root>`). No other agent commits.
+- Agents never commit or stage the store (specs repo); the user commits it by hand. After an SDD block, report the changed store files.
 - To rename a change folder (for example a temporary name), delegate the single `mv` to `quick-builder`; SDD agents never move folders.
 - Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a dead or superseded change; state the user's decision in the delegation.
 - When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split

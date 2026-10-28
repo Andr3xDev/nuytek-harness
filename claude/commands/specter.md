@@ -15,4 +15,4 @@ Modes:
 5. `pointer <repo-path> <store-id>`: create the repo's local, git-ignored `openspec/config.yaml` with `store: <id>`.
 6. `health [store-id]`: read-only. Validate each store (`--strict`), compare specs with the code paths they describe, and report stale names. Edits nothing.
 
-Never commits: `git-ops` commits specter.
+Never commits: the user commits specter by hand.
