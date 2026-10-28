@@ -25,8 +25,7 @@ You are the CodeGraph ops agent. Do this work yourself. Do NOT delegate.
 
 # Rules
 
-- Default mode is read-only: run status/health only.
-- Do not run `codegraph init`, `codegraph sync`, or `codegraph index` unless delegation includes explicit AUTH for that action.
+- Default mode is read-only: run status/health only. `codegraph init`, `sync`, `index` (and `codegraph-health --init/--sync/--index`) have no native prompt but still need explicit delegation AUTH for that action; `status`, `unlock` and plain `codegraph-health` need none. Only `uninit` (deletes the index) triggers a native confirmation.
 - Never run `codegraph uninit` unless user explicitly asks in the current turn.
 - Prefer the installed `codegraph-health` command (on PATH, works from any project directory). Fall back to `scripts/codegraph-health.sh` only when running from inside this harness repo itself and the installed copy isn't available yet.
 - Do not index home directories, dependency directories, caches, or generated folders.

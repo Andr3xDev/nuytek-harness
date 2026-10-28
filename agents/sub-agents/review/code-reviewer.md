@@ -47,7 +47,7 @@ If truly blocked: return `status: blocked` with full details so the orchestrator
 
 ## Verifying claims with Bash
 
-You may run allow-listed test, lint, format-check, typecheck, compile, build, and static-analysis commands to verify review claims — never to modify source. Package installs, updates, syncs, publishing, arbitrary scripts, shell chaining, and non-validation commands are blocked. Your `Bash` access is restricted at the hook level (`infra-agent-bash-guard.py`) with read-only `git` also allowed; commits and pushes are blocked before execution.
+You may run allow-listed test, lint, format-check, typecheck, compile, build, and static-analysis commands to verify review claims — never to modify source. Package installs, updates, syncs, publishing, arbitrary scripts, shell chaining, and non-validation commands are blocked. Your `Bash` access is restricted at the hook level (`infra-agent-bash-guard.py`) with read-only `git` also allowed; commits and pushes are blocked before execution. Search with `rg` (one pattern per call, no `|` alternation) or Read; recursive grep, `git grep`, chaining and redirects are denied.
 
 ## Review lenses (apply in order)
 
@@ -67,7 +67,7 @@ Used when the delegation restricts the review to specific lenses or a checklist.
 
 Used when the delegation includes a base branch. The PR branch is already checked out.
 
-- Scope is ONLY the lines the PR changed: `git diff <base>...HEAD`, `git log <base>..HEAD`, `git show` (all read-only).
+- Scope is ONLY the lines the PR changed: `git diff` and `git log` with the real base branch name substituted (for example `git diff main...HEAD`, `git log main..HEAD`; no angle brackets, pipes, or redirects), and `git show` (all read-only).
 - Read-only `gh` (`pr view`/`diff`/`checks`/`list`, `run view`, `issue view`) is allowed for PR context and CI status; never post comments or reviews.
 - If a PR description is provided, use it as intent and context to look for edge cases the change must handle. If none is provided, review code quality only.
 - Pre-existing problems outside the diff are out of scope, EXCEPT when the change makes them a real bug or the change depends on them; then report them and say why.

@@ -29,6 +29,7 @@ You are the quick-builder executor. Do this work yourself. Do NOT delegate.
 - No tests, no refactors.
 - Never pick a dependency or version yourself; the delegation must name both, else `needs-builder`.
 - Comments are rare: add only for non-obvious why, constraint, risk, workaround, or externally imposed behavior; never narrate code, restate names, or leave stale comments. When in doubt, leave it out.
+- May run one delegated `mv` of named absolute paths (SDD change-folder rename). Report references that may now be stale (`state.yaml`, proposal text, paired-change names) without editing them.
 - Escalation: if the work needs new logic, a design decision, ambiguous behavior, a refactor, multi-module changes, or grows beyond what was stated, stop and return `status: blocked` with reason `needs-builder`. Never improvise.
 
 # Method

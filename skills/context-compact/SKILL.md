@@ -1,62 +1,30 @@
 ---
 name: context-compact
-description: "Trigger: compact, clear, context reset, save state. Preserve active session state to Engram before losing context."
+description: "Trigger: compact, clear, context reset, save state. Save a session summary to Engram only when durable knowledge or pending work exists, before losing context."
 license: MIT
 metadata:
   author: custom
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## Activation Contract
 
 Use this skill BEFORE any context loss event: /compact, /clear, session ending,
-or when the agent detects context window pressure. Automatically triggered by
-the pre-compact hook if configured.
+or when the agent detects context window pressure. Compaction counts as a handoff
+(`engram-protocol.md`).
 
 ## Hard Rules
 
-- Always persist to Engram before the context reset happens — after is too late.
-- Save the full state, not just a summary — include file paths, decisions, blockers.
-- If an SDD change is in progress, save the DAG state with current phase and progress.
-- Never skip this because "there's nothing important" — let Engram decide relevance via decay.
-
-## Decision Gates
-
-| Situation | Action |
-|---|---|
-| SDD change active | Save DAG state + current phase + task progress |
-| Debug in progress | Save root cause analysis so far + files investigated |
-| General work | Save decisions made, files modified, current intent |
-| Nothing meaningful happened | Save a minimal session note — still not optional |
+- Save before the reset happens — after is too late.
+- Save only durable knowledge or pending work. Nothing durable: skip the save.
+- Never save SDD artifacts or state to Engram. They live in OpenSpec; the change folder's `state.yaml` carries phase and progress.
 
 ## Execution Steps
 
-1. Identify what's active: SDD change? Debug? General task?
-2. Collect state:
-   - Current intent (what the user asked for)
-   - Decisions made this session
-   - Files read or modified
-   - Blockers or open questions
-   - If SDD: current phase, task progress, artifact keys written
-3. Call `mem_save`:
-   ```
-   title: "Session state before compact"
-   topic_key: "session/pre-compact"
-   type: "architecture"
-   content: {collected state as structured markdown}
-   ```
-4. If SDD change active, also save DAG state:
-   ```
-   title: "sdd/{change-name}/state"
-   topic_key: "sdd/{change-name}/state"
-   type: "architecture"
-   content: {phase, progress, pending tasks}
-   ```
-5. Confirm to the user that state was preserved before proceeding with compact/clear.
+1. Decide: did the session produce decisions, root-cause fixes, discoveries, preferences, or unfinished work? No: skip to step 3.
+2. Call `mem_session_summary` with Goal / Instructions / Discoveries / Accomplished / Next Steps / Relevant Files (file paths, decisions, blockers). For an active SDD change, point to its change folder in Next Steps; do not copy its state.
+3. Run the compact/clear. Afterwards call `mem_context` and continue from it.
 
 ## Output Contract
 
-Return confirmation with:
-- What was saved (topic keys)
-- What can be recovered next session
-- Any state that could NOT be preserved (e.g. unsaved file edits)
+Return one line: summary saved (what can be recovered) or skipped (nothing durable). Name any state that could not be preserved (e.g. unsaved file edits).

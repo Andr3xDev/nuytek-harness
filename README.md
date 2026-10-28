@@ -135,13 +135,14 @@ Custom slash commands.
 | Hook | Purpose |
 |---|---|
 | Bash guard | Per-agent Bash allow-list; only `git-ops` may stage, commit, push (push only when the user asks) or manage worktrees |
+| `engram-tool-guard` | `PreToolUse` on `mem_delete` and `mem_merge_projects` (both Engram MCP prefixes): denies them for every agent except `engram-ops`, main thread included |
 | Irreversible-action prompt hook | Flags destructive database and disk operations |
 | Stop verify | On Stop, warns if tests or lint fail (never blocks) |
 | `herdr` state | Reports session state to `herdr` |
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-Native `permissions` ask before deletes, git discards, stash, force push, worktree and branch deletes and CodeGraph maintenance.
+Native `permissions` ask before deletes, git discards, stash, force push, worktree and branch deletes and `codegraph uninit`.
 
 ### Plugins
 

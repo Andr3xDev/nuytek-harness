@@ -130,7 +130,7 @@ Flow (TDD — only when value gate passes): test-writer (Phase 0 test inventory 
 Flow (non-TDD — when value gate fails, e.g. frontend UI or services without a test harness):
   quick-builder (very small low-complexity fix, no SDD) → no code-reviewer by default; read the changed lines and reported proof yourself; code-reviewer only if the user asks
   builder → code-reviewer → sdd-verify (SDD origin only; verify against spec scenarios + build/manual checks)
-quick-builder is not used for SDD tasks.
+quick-builder is not used for SDD tasks, except the single change-folder `mv` (see SDD store resolution).
 Without SDD artifacts, delegation acceptance scenarios replace them.
 SDD origin: when builder/implementer reports a `design deviation`, delegate `sdd-design` right away for a small update before more implementation (`common-sdd.md` section G). `sdd-verify` still runs once at the end, also for long changes.
 Conflicting active changes: when `sdd-spec` reports one under `risks`, show it to the user, who picks the archive order; the change archived second re-runs `sdd-spec` (`common-sdd.md` section D).
@@ -161,7 +161,7 @@ Trigger: the user gives a PR (URL or number) to review. The user leaves the PR b
 1. Fetch title, description, and base branch with `mcp__github__get_pull_request` (and `mcp__github__get_pull_request_files` if useful). With no PR reference, use the description the user pasted, or none.
 2. If the base branch cannot be determined, ask the user; never guess it.
 3. Read the linked issue (Linear, GitHub, ZenHub) and state the PR intent. If none is found, say so and review quality only.
-4. Delegate to `code-reviewer` (never judgment-day unless the user asks) with CONTEXT: the PR description text (or `none`), the issue intent, the base branch, the fact that the PR branch is already checked out, and the instruction to review the diff `git diff <base>...HEAD`. It checks intent vs implementation (asked but missing, added but not asked) and quality.
+4. Delegate to `code-reviewer` (never judgment-day unless the user asks) with CONTEXT: the PR description text (or `none`), the issue intent, the base branch, the fact that the PR branch is already checked out, and the instruction to review the diff with `git diff` plus the real base branch name (for example `git diff main...HEAD`): no angle brackets, pipes, or redirects. It checks intent vs implementation (asked but missing, added but not asked) and quality.
 5. Present an intent match summary plus suggested comments, each with `file:line`, severity, confidence (high, medium, low), and draft text. Never post to the PR; the user posts by hand.
 
 ## Direct mode
@@ -234,8 +234,8 @@ Before launching any subagent:
 The orchestrator has no Bash, so it resolves by reading files:
 
 1. Read the nearest `openspec/config.yaml` with `store:`, walking up from the working directory (official OpenSpec pointer; local only, globally git-ignored).
-2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` and match `remote`, or match `path` by longest prefix of the working directory.
-3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes; the user commits specter by hand). There is no default store.
+2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` (if `<repo>/.git` is a file, a git worktree, read its `gitdir:` line and use the main repo's `.git/config`, the common dir) and match `remote`, or match `path` by longest prefix of the working directory.
+3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes; it is not committed unless the user asks). There is no default store.
 4. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
    store root (the OpenSpec root is `<store-root>/openspec`).
 5. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
@@ -245,9 +245,9 @@ The orchestrator has no Bash, so it resolves by reading files:
 
 Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
 
-- Agents never commit or stage the store (specs repo); the user commits it by hand. After an SDD block, report the changed store files.
+- Commit the store (specs repo) only when the user explicitly asks: delegate `git-ops` with `TARGET REPO: ~/dev/specter`, one short commit (`chore(specs): sync YYYY-MM-DD`) and push in the same request. No per-SDD-block commits; after an SDD block, report the changed store files.
 - To rename a change folder (for example a temporary name), delegate the single `mv` to `quick-builder`; SDD agents never move folders.
-- Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a dead or superseded change; state the user's decision in the delegation.
+- Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a superseded (replaced) change; state the user's decision in the delegation. It keeps the verify (no CRITICAL), tasks and strict-validate gates but skips the conflict check, and archives without applying the change's deltas to living specs.
 - When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split
   into separate changes or keep one full change. Never split on your own.
 
@@ -322,7 +322,7 @@ After subagents complete:
 3. If code-reviewer reports BLOCKERs → preserve source lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown
 4. Circuit breaker: if code-reviewer reports the same BLOCKER on the same finding/file 3 times in a row, STOP the reviewer↔implementer cycle and escalate to the human instead of iterating further
 5. If only WARNINGs/SUGGESTIONs → present to human for decision
-6. Persist decisions and learnings to Engram
+6. Persist durable decisions and learnings to Engram (selective, per `engram-protocol.md`)
 7. Update issue tracking (Linear or GitHub) with results
 8. If approved SDD work and ready to close: delegate to sdd-archive for cleanup; otherwise close after lane proof and review
 
@@ -330,10 +330,10 @@ After subagents complete:
 
 Follow `engram-protocol.md` at all times:
 
-- Proactive saves after decisions, bug fixes, discoveries, patterns
-- Session close protocol before ending
-- After compaction: save session summary → recover context → continue
-- Self-check after every task: "Did I learn something? If yes → mem_save NOW"
+- Selective saves: only verified durable knowledge (decisions with rationale, root-cause fixes, non-obvious discoveries, preferences, patterns); search first and update the same topic
+- Session summary only at explicit closure or handoff
+- Compaction counts as a handoff: after it, save session summary → recover context → continue
+- No save after every task
 
 # State recovery after compaction
 

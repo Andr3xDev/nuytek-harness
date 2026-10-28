@@ -12,7 +12,7 @@ Modes:
 2. `setup <store-id>`: create the store in `~/dev/specter/<store-id>/` and add its `stores:` entry and README.
 3. `unregister <store-id>`: unregister the store after checking that nothing still references it.
 4. `references <store-id> <id...>`: set the store's `references:` in its `openspec/config.yaml`.
-5. `pointer <repo-path> <store-id>`: create the repo's local, git-ignored `openspec/config.yaml` with `store: <id>`.
+5. `pointer <repo-path> <store-id>`: create the repo's local, git-ignored `openspec/config.yaml` with `store: <id>`. When the request gives a project name, also set `project_name` in the repo's git-ignored `.engram/config.json`.
 6. `health [store-id]`: read-only. Validate each store (`--strict`), compare specs with the code paths they describe, and report stale names. Edits nothing.
 
-Never commits: the user commits specter by hand.
+Never commits; report changed files (specter is committed only on explicit user request, via `git-ops`).

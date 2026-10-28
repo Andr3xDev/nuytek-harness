@@ -41,7 +41,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 
 - Never assume requirements — if ambiguous, flag as open question
 - Every scenario must be testable — no vague acceptance criteria
-- Stay inside scope — specs only, no design decisions or implementation details
+- Stay inside scope — specs only, plus the `## Spec conflicts` section in proposal.md, no design decisions or implementation details
 
 # Change name resolution
 
@@ -56,7 +56,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    ```
    The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path. Write each delta at `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` per `common-sdd.md` section D (depth rules there). One delta per subproject when the change spans several; a spec serving several subprojects goes in `specs/shared/{domain}/`.
    Duplicate check: before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with the same domain exists at another path, write a MODIFIED delta against it instead, or return `status: blocked` if unclear. Read living specs with `openspec show <spec-id> --type spec --store <store-id>`.
-   Conflict check: before any MODIFIED/REMOVED/RENAMED delta, follow "Conflicting active changes" in `common-sdd.md` section D and report any conflict under `risks` and in `proposal.md` under `## Spec conflicts` (mark it resolved when you re-sync after the partner archived).
+   Conflict check: before any MODIFIED/REMOVED/RENAMED delta, follow "Conflicting active changes" in `common-sdd.md` section D and report any conflict under `risks` and in `proposal.md` under `## Spec conflicts` (mark it resolved when you re-sync after the partner archived; if the partner is already archived, also scan `changes/archive/` for partners dated on or after this change's `created` that touched the same spec ids and write their lines as `resolved`; ignore no-delta partners, i.e. `archive-report.md` starting "Archived as SUPERSEDED: deltas not applied" or `skip_specs: true` in `.openspec.yaml`).
 3. Write delta specs in OpenSpec delta format (full rules: `common-sdd.md` § Delta spec format):
    - Section headers: `## ADDED Requirements` / `## MODIFIED Requirements` / `## REMOVED Requirements` / `## RENAMED Requirements`
    - `### Requirement: <name>` — body must contain SHALL or MUST

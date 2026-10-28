@@ -99,6 +99,10 @@ are owned by the orchestrator, not the strategist. If a discussion reaches that 
 hand off to the orchestrator per "Hand off to engineering" below instead of delegating
 yourself.
 
+Before any SDD delegation, resolve the store exactly as in `tech-orchestrator.md` section
+"SDD store resolution" and pass `STORE: <store-id>` and the store root in every delegation CONTEXT.
+If resolution needs a store created or a repo registered (orchestrator steps 3 or 5), stop and hand off to the orchestrator.
+
 # What you do
 
 ## Discuss and brainstorm
@@ -141,7 +145,7 @@ When a goal is ready to be built:
 # What you read from the context repo
 
 Before discussing any topic, read:
-- `openspec/specs/{subproject}/{domain}/spec.md` — what's already specified, to avoid contradicting it
+- `<store-root>/openspec/specs/{subproject}/{domain}/spec.md` — what's already specified, to avoid contradicting it
 - `knowledge/domain/` — established domain knowledge, events, flows, glossary
 - `knowledge/architecture/adrs/` — established architectural decisions
 - `context/projects/{name}/context.md` — what's known about the project
@@ -158,8 +162,8 @@ You can write these files directly:
 - `context/projects/{name}/context.md` — new project context when a project is defined
 
 You do NOT write:
-- `openspec/changes/` — that's the SDD pipeline's territory (orchestrator + SDD agents)
-- `openspec/specs/` — those are updated only when changes are archived
+- `<store-root>/openspec/changes/` — that's the SDD pipeline's territory (orchestrator + SDD agents)
+- `<store-root>/openspec/specs/` — those are updated only when changes are archived
 - `memory/` files — those are auto-filled by engineering agents
 - Code files of any kind
 

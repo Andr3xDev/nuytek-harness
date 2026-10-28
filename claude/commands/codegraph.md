@@ -7,8 +7,8 @@ context: fork
 Check CodeGraph health for: $ARGUMENTS
 
 Default read-only behavior:
-1. Run `codegraph status` or `codegraph-health` for target repos.
+1. Run `codegraph status` or `codegraph-health` for target repos (no confirmation needed).
 2. Report which repos are indexed, missing `.codegraph/`, stale, or failed.
 3. Do not run `init`, `sync`, or `index` unless explicitly requested.
 
-If user includes `--init`, `--sync`, or `--index`, run the matching CodeGraph command only for target repos.
+If user includes `--init`, `--sync`, or `--index`, run the matching CodeGraph command only for target repos. These run without confirmation; `codegraph uninit` (deletes the index) asks.
