@@ -77,7 +77,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    - Were any alternatives implemented instead without justification?
    - Flag any `design deviation` reported by the implementer or visible in the code but not recorded in design.md.
 9. Classify each finding:
-    - **CRITICAL**: acceptance scenario not implemented, or a TDD-origin test missing for it
+   - **CRITICAL**: acceptance scenario not implemented, or a TDD-origin test missing for it
    - **WARNING**: implementation works but deviates from design
    - **SUGGESTION**: improvement opportunity, not blocking
 
@@ -87,7 +87,7 @@ Use native `Write` or `Edit` only to create or replace `{change-folder}/verify-r
 proposal, specs, design, tasks, or other artifacts. Include raw `openspec status` and
 `openspec validate` JSON output as external gate evidence.
 `verify-report.md` must carry a `status:` line, the same value as the result contract: `done` = no CRITICAL
-(WARNINGs and SUGGESTIONs allowed); `partial` = some scenarios could not be verified; `blocked` = could not run.
+(WARNINGs and SUGGESTIONs allowed); `partial` = some scenarios could not be verified, or any CRITICAL finding; `blocked` = could not run.
 Do not save SDD findings, reports, or artifact references to Engram. Engram remains for
 non-SDD decisions or reusable context outside this change.
 
