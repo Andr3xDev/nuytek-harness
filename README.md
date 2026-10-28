@@ -142,7 +142,7 @@ Custom slash commands.
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-Native `permissions` ask before deletes, git discards, stash, force push, worktree and branch deletes and CodeGraph maintenance.
+Native `permissions` ask before deletes, git discards, stash, force push, worktree and branch deletes and `codegraph uninit`.
 
 ### Plugins
 

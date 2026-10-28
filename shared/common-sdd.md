@@ -71,7 +71,7 @@ Write the complete artifact to its OpenSpec file under
 | design | `design.md` | sdd-design |
 | tasks | `tasks.md` | sdd-tasks |
 | apply-progress | `apply-progress.md` | implementer |
-| verify-report | `verify-report.md` | sdd-verify |
+| verify-report | `verify-report.md` (carries a `status:` line: `done`/`partial`/`blocked`, as defined in `sdd-verify.md`) | sdd-verify |
 | archive-report | `archive-report.md` | sdd-archive |
 | state | `state.yaml` | orchestrator |
 
