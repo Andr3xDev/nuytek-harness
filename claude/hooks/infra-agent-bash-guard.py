@@ -193,6 +193,8 @@ ROLE_LOGS = [
 
 SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
+SPECTER_GREP_ROLES = ("specter-ops", "sdd-explore", "sdd-spec")
+
 RULES = {
     "explorer": {
         "allow": ROLE_READ_FS + ROLE_GIT_READ + ROLE_OPENSPEC_READ,
@@ -204,7 +206,7 @@ RULES = {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-spec": {
-        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ + ["grep *"],
     },
     "sdd-design": {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
@@ -452,7 +454,7 @@ def has_git_write_flag(calls) -> bool:
 def reads_secret(command: str, agent_type=None) -> bool:
     """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default).
 
-    specter-ops may grep recursively when every path stays under ~/dev/specter."""
+    SPECTER_GREP_ROLES may grep recursively when every path stays under ~/dev/specter."""
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -460,7 +462,7 @@ def reads_secret(command: str, agent_type=None) -> bool:
     if not tokens:
         return False
     program, args = os.path.basename(tokens[0]), tokens[1:]
-    is_confined_grep = agent_type == "specter-ops" and is_grep_confined_to_specter(command)
+    is_confined_grep = agent_type in SPECTER_GREP_ROLES and is_grep_confined_to_specter(command)
     if (program == "rg" and any(RG_SHOW_ALL_FLAG.fullmatch(a) for a in args)) or (
         program == "grep" and not is_confined_grep and is_recursive_grep(args)
     ):
@@ -808,6 +810,12 @@ def _selftest() -> int:
         ("specter-ops", "grep -r foo", "deny"),
         ("specter-ops", "grep -r foo ~/dev/specter/.env", "deny"),
         ("explorer", "grep -r foo ~/dev/specter", "deny"),
+        ("sdd-explore", "grep -rn foo ~/dev/specter", "allow"),
+        ("sdd-explore", "grep -r foo /etc", "deny"),
+        ("sdd-explore", "grep -r foo ~/.config", "deny"),
+        ("sdd-spec", "grep -rn foo ~/dev/specter", "allow"),
+        ("sdd-spec", "grep -r foo /etc", "deny"),
+        ("sdd-spec", "grep -r foo ~/.config", "deny"),
         ("specter-ops", "grep -r foo ~/dev/specter/{x,../../.ssh}", "deny"),
         ("specter-ops", "grep -r foo ~/dev/specter/*", "deny"),
         ("specter-ops", "grep -r foo ~/dev/specter/$HOME", "deny"),
