@@ -87,4 +87,4 @@ risks: complex dependencies between tasks
 `next_recommended` is a suggestion, not a binding decision. The orchestrator (or the human)
 decides the actual implementation flow — TDD (`test-writer` → `implementer` → `code-reviewer`)
 or non-TDD (`builder` → `code-reviewer` directly) — per the modes of operation defined in
-tech-orchestrator.md / orchestrator.md.
+tech-orchestrator.md.

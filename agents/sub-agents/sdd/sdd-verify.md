@@ -86,6 +86,8 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 Use native `Write` or `Edit` only to create or replace `{change-folder}/verify-report.md`; never modify implementation,
 proposal, specs, design, tasks, or other artifacts. Include raw `openspec status` and
 `openspec validate` JSON output as external gate evidence.
+`verify-report.md` must carry a `status:` line, the same value as the result contract: `done` = no CRITICAL
+(WARNINGs and SUGGESTIONs allowed); `partial` = some scenarios could not be verified; `blocked` = could not run.
 Do not save SDD findings, reports, or artifact references to Engram. Engram remains for
 non-SDD decisions or reusable context outside this change.
 

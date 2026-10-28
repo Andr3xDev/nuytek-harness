@@ -29,8 +29,8 @@ of the store named in your delegation: `{store-root}/openspec/changes/{change-na
 
 The orchestrator passes `STORE: <store-id>` and the store root path in every SDD delegation CONTEXT. It resolves the id from a local `openspec/config.yaml` pointer or specter's `repos.yaml` (see "SDD store resolution" in `tech-orchestrator.md`).
 Always pass `--store <store-id>` explicitly to every `openspec` command. Never `cd` into the
-store and never rely on the working directory. Agents never run `openspec store setup|register|unregister`
-or `openspec init|update|workset`; if a store is missing, return `status: blocked`.
+store and never rely on the working directory. SDD agents never run `openspec store setup|register|unregister`
+(`specter-ops` owns them) or `openspec init|update|workset`; if a store is missing, return `status: blocked`.
 
 Change naming: the store is the product, so the change name has no project prefix. Changes are flat
 under `changes/`; nested change folders are not supported. A change may start with a temporary name
@@ -126,15 +126,15 @@ store (`--store <other>`).
 
 The orchestrator shows the conflict to the user, who picks the archive order. The change archived second
 re-runs `sdd-spec` after the partner is archived, rewrites its delta against the updated living spec, and
-marks the line `(resolved: synced after <change-name> archived)`.
+marks the line `(resolved: synced after <change-name> archived)`. When the partner is already archived when `sdd-spec` re-runs, it also scans `changes/archive/` for partners dated on or after this change's `created` that touched the same spec ids, and writes each one's line as `resolved` after re-syncing, so the `sdd-archive` check can pass.
 
 `sdd-archive` enforces this: for every change in `changes/archive/` whose folder date is on or after this
 change's `created` date and whose specs touch a spec id this change also touches, that partner must be
 listed as `resolved` under `## Spec conflicts`; otherwise it returns `status: blocked` ("re-run sdd-spec
-against the updated living spec"). A partner archived without applying deltas (`--skip-specs` or `skip_specs: true`) does not change the living spec and needs no `resolved` line. An `(open)` line whose partner is still active does not block: this
+against the updated living spec"). A partner archived without applying deltas (its `archive-report.md` starts with "Archived as SUPERSEDED: deltas not applied", or `.openspec.yaml` has `skip_specs: true`) does not change the living spec and needs no `resolved` line. An `(open)` line whose partner is still active does not block: this
 change archives first and the partner must re-sync.
 
-A dead or superseded change archives via `MODE: superseded` (see `sdd-archive.md`).
+A superseded (replaced) change archives via `MODE: superseded` without applying its deltas, so this conflict check does not apply to it; its other gates stay (see `sdd-archive.md`).
 
 ---
 
