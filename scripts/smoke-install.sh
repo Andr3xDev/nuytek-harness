@@ -11,6 +11,9 @@ CLI="$ROOT/scripts/nuytek-harness"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+python3 "$ROOT/claude/hooks/infra-agent-bash-guard.py" --selftest >/dev/null || fail "infra-agent-bash-guard selftest"
+python3 "$ROOT/claude/hooks/engram-tool-guard.py" --selftest >/dev/null || fail "engram-tool-guard selftest"
+
 mkdir -p "$HOME/.claude"/{agents,commands,skills,hooks,rules}
 printf 'old\n' > "$HOME/.claude/agents/stale.md"
 printf '{"other":{"keep":true},"mcpServers":{"existing":{"command":"keep"}}}\n' > "$HOME/.claude.json"

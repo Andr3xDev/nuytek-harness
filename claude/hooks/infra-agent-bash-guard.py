@@ -152,9 +152,10 @@ TREE_WRITE_SHORT_FLAGS = ("o", "R")  # -o writes a file; -R with -H writes 00Tre
 GIT_WRITE_EXEC_FLAGS = {"--ext-diff", "--textconv"}  # run external programs configured in the repo
 SECRET_FILE_PATTERNS = [
     ".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa*", "id_ed25519*", ".netrc", ".npmrc", ".pypirc",
+    ".git-credentials", ".claude.json", ".credentials.json",
 ]
 SECRET_FILE_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
-SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
+SECRET_DIR_SEGMENTS = (".ssh/", ".aws/", ".config/gh/", ".docker/config.json")
 RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
 GREP_RECURSIVE_FLAG = re.compile(
     r"--recursive|--dereference-recursive|--directories=recurse|-[a-zA-Z]*[rR][a-zA-Z]*"
@@ -240,17 +241,15 @@ RULES = {
         "allow": ROLE_OPENSPEC_STORE_ADMIN + ROLE_GIT_READ + ROLE_READ_FS,
     },
     "codegraph-ops": {
-        "native_ask": [
+        "native_ask": ["codegraph uninit*"],
+        "allow": [
             "codegraph unlock*",
             "codegraph init*",
             "codegraph sync*",
             "codegraph index*",
-            "codegraph uninit*",
             "codegraph-health*",
             "scripts/codegraph-health.sh*",
             "./scripts/codegraph-health.sh*",
-        ],
-        "allow": [
             "codegraph status*",
             "codegraph query*",
             "codegraph explore*",
@@ -280,14 +279,14 @@ RULES = {
         ],
     },
     "code-reviewer": {
-        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ,
+        "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ + ROLE_READ_FS,
     },
     "debugger": {
         "allow": ROLE_VALIDATE + ROLE_GIT_READ + ROLE_GH_READ + ROLE_READ_FS + ROLE_LOGS,
     },
 }
 
-REVIEW_ALLOW = ROLE_VALIDATE + ROLE_GIT_READ
+REVIEW_ALLOW = ROLE_VALIDATE + ROLE_GIT_READ + ROLE_READ_FS
 
 RULES["sdd-verify"] = {
     "allow": REVIEW_ALLOW + ROLE_OPENSPEC_VERIFY,
@@ -522,7 +521,7 @@ def store_path_outside_specter(command: str) -> bool:
         elif not token.startswith("--"):
             positionals.append(token)
     if subcommand == "register":
-        paths = positionals[:1]
+        paths = positionals[:1] + paths
     if not paths:
         return True
     return not all(is_under_specter(value) for value in paths)
@@ -830,7 +829,25 @@ def _selftest() -> int:
         ("explorer", "grep -d recurse foo .", "deny"),
         ("explorer", "grep --directories=recurse foo .", "deny"),
         ("engram-ops", "engram export backup.json", "allow"),
-        ("codegraph-ops", "codegraph sync", "ask"),
+        ("codegraph-ops", "codegraph sync", "allow"),
+        ("codegraph-ops", "codegraph-health --sync", "allow"),
+        ("codegraph-ops", "codegraph uninit", "ask"),
+        ("codegraph-ops", "codegraph-health", "allow"),
+        ("codegraph-ops", "scripts/codegraph-health.sh", "allow"),
+        ("code-reviewer", "git diff main...HEAD", "allow"),
+        ("code-reviewer", "git diff --stat", "allow"),
+        ("code-reviewer", "git -C /abs/repo diff --stat", "allow"),
+        ("judge-a", "git diff <base>...HEAD", "deny"),
+        ("judge-b", "git diff main...HEAD 2>&1", "deny"),
+        ("code-reviewer", "git grep foo", "deny"),
+        ("judge-a", "git -C rel diff", "deny"),
+        ("judge-b", "grep -rn foo .", "deny"),
+        ("judge-b", "ls /abs/repo", "allow"),
+        ("judge-a", "rg foo /abs/repo/src", "allow"),
+        ("code-reviewer", "rg --hidden foo", "deny"),
+        ("code-reviewer", "cat /abs/repo/.env", "deny"),
+        ("code-reviewer", "cat ~/.claude/.credentials.json", "deny"),
+        ("specter-ops", "openspec store register ~/dev/specter/x --path /etc/y", "deny"),
         ("engram-ops", "engram save title text", "deny"),
         ("engram-ops", "engram --help", "allow"),
         ("engram-ops", "engram search --help", "allow"),
@@ -1142,14 +1159,16 @@ def _selftest() -> int:
         ("builder", "git diff --output=x", None),
         ("explorer", "rg --hostname-bin sh x", "deny"),
         ("code-reviewer", "rg --pre sh x", "deny"),
-        ("sdd-verify", "rg foo", "deny"),
-        ("code-reviewer", "cat x", "deny"),
+        ("sdd-verify", "rg foo", "allow"),
+        ("code-reviewer", "cat x", "allow"),
         ("judge-a", "ls", "deny"),
         ("explorer", "cat .env", "deny"),
         ("explorer", "head config/.env.local", "deny"),
         ("explorer", "grep KEY .env.production", "deny"),
         ("explorer", "cat ~/.ssh/id_rsa", "deny"),
         ("explorer", "tail /home/u/.aws/credentials", "deny"),
+        ("code-reviewer", "cat ~/.git-credentials", "deny"),
+        ("code-reviewer", "cat ~/.config/gh/hosts.yml", "deny"),
         ("explorer", "cat certs/server.pem", "deny"),
         ("explorer", "rg --hidden foo", "deny"),
         ("explorer", "rg -uu foo", "deny"),
