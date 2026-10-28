@@ -1,10 +1,10 @@
 ---
 description: Safely review or curate Engram project memory
-agent: engram-maintainer
+agent: engram-ops
 context: fork
 ---
 
-Run `/memory <mode> [argument]` through `engram-maintainer`: $ARGUMENTS
+Run `/memory <mode> [argument]` through `engram-ops`: $ARGUMENTS
 
 Modes:
 

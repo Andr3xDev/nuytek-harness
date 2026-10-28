@@ -1,6 +1,6 @@
 ---
 description: Check or maintain CodeGraph indexes for repos
-agent: codegraph-maintainer
+agent: codegraph-ops
 context: fork
 ---
 

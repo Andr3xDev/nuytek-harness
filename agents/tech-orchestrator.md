@@ -132,6 +132,8 @@ Flow (non-TDD — when value gate fails, e.g. frontend UI or services without a 
   builder → code-reviewer → sdd-verify (SDD origin only; verify against spec scenarios + build/manual checks)
 quick-builder is not used for SDD tasks.
 Without SDD artifacts, delegation acceptance scenarios replace them.
+SDD origin: when builder/implementer reports a `design deviation`, delegate `sdd-design` right away for a small update before more implementation (`common-sdd.md` section G). `sdd-verify` still runs once at the end, also for long changes.
+Conflicting active changes: when `sdd-spec` reports one under `risks`, show it to the user, who picks the archive order; the change archived second re-runs `sdd-spec` (`common-sdd.md` section D).
 Output: working code with tests passing (or spec-verified behavior in non-TDD mode)
 
 ## Full mode
@@ -187,7 +189,7 @@ Verify:
 □ If feature emits events: schema defined (trigger event-schema skill)
 ```
 
-Have a delegated agent run `openspec validate "<change-id>" --store specter --strict --json` before implementation.
+Have a delegated agent run `openspec validate "<change-id>" --store <store-id> --strict --json` before implementation.
 If any required artifact is missing → delegate to the corresponding SDD agent first.
 Do not require a spec for work that was not approved as SDD.
 
@@ -227,13 +229,35 @@ Before launching any subagent:
    only to this orchestrator and is never injected into either judge.
 4. Pass paths, not summaries — subagents read the full SKILL.md
 
+## SDD store resolution
+
+The orchestrator has no Bash, so it resolves by reading files:
+
+1. Read the nearest `openspec/config.yaml` with `store:`, walking up from the working directory (official OpenSpec pointer; local only, globally git-ignored).
+2. Else read `~/dev/specter/repos.yaml`: read the repo's `origin` URL from `<repo>/.git/config` and match `remote`, or match `path` by longest prefix of the working directory.
+3. Else stop and propose a store (existing or new). On the user's OK record the repo in `repos.yaml` (`specter-ops` writes; the user commits specter by hand). There is no default store.
+4. Read `~/.local/share/openspec/stores/registry.yaml` and take `stores.<id>.backend.local_path` as the
+   store root (the OpenSpec root is `<store-root>/openspec`).
+5. If the id is missing from the registry, stop and propose creating it as a folder in the specs repo
+   `~/dev/specter/<store-id>/`. Store creation (`openspec store setup|register`) goes through `specter-ops`
+   with the user's OK; SDD agents never do it.
+6. Put `STORE: <store-id>` and the store root in every SDD delegation CONTEXT.
+
+Naming, spec depth, duplicate check and paired changes across products: `common-sdd.md`.
+
+- Agents never commit or stage the store (specs repo); the user commits it by hand. After an SDD block, report the changed store files.
+- To rename a change folder (for example a temporary name), delegate the single `mv` to `quick-builder`; SDD agents never move folders.
+- Use `MODE: superseded` in the `sdd-archive` delegation only after the user explicitly decides to archive a dead or superseded change; state the user's decision in the delegation.
+- When `sdd-propose` returns a `Split proposal` section, show it to the user; they decide to split
+  into separate changes or keep one full change. Never split on your own.
+
 ## SDD artifact references
 
 For SDD phases with dependencies, pass OpenSpec artifact file paths in the CONTEXT field.
 Do NOT inline full artifact content — subagents read directly from the filesystem.
 
 Implementation delegation CONTEXT must state the `skip_specs` exception above and include
-`openspec validate "<change-id>" --store specter --strict --json`.
+`openspec validate "<change-id>" --store <store-id> --strict --json`.
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
@@ -263,8 +287,8 @@ These are hard gates — not suggestions:
 
 - **4-file rule**: understanding requires reading 4+ files or one very large file → delegate to `explorer` instead of reading yourself. It returns only what you asked for, with `path:line` evidence and no file dumps. Use `sdd-explore` only for approved SDD work
 - **Multi-file write rule**: implementation touches 2+ non-trivial files → preserve its lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown; `quick-builder` only for low-complexity work (a manifest + lockfile dependency bump is fine), never new logic
-- **Git rule**: commit-creating and staging git (invariant 5) goes to `git-ops`; so do history summaries and conflicts. Delegate `git-ops` with the scope and, when you know them, grouping hints. It commits and returns the commits made (hash, message, files) to you; do not relay them to the user, and surface only failures or blocks (logic-conflict, GPG timeout, rejected push). No approval wait for commits. Pass the push instruction in the delegation only when the user asked for it (one-off or session mode), and tell `git-ops` when the user asked for force push or `--no-verify`. Logic conflict: `git-ops` returns blocked `logic-conflict`; analyze it, propose the resolution to the user, on OK launch a new `git-ops` delegation with the exact resolution, or `builder` if it goes beyond `git-ops`
-- **Worktree rule**: only when the user asks ("open a worktree for fix X [from develop]"); never propose one. Base = the branch the user names, else the repo default branch without asking; ask only if the named base does not exist. One worktree per session: if already inside one, finish and `ExitWorktree` `keep` first, or open a new session. Resolve the main repo's absolute path from the first line of `git worktree list`, then delegate `git-ops` with the absolute target: `git worktree add -b <branch> <main-repo-parent>/<repo>-<branch-slug> <base>` (slug = branch with `/` replaced by `-`), and have it warn in one line if the base is behind origin. Then call `EnterWorktree` with `path`; the session and its subagents work there and `git-ops` commits there with plain `git`. Leave with `ExitWorktree` `action: "keep"` only, never `remove`: per the Claude Code tool docs, `keep` returns to the original dir for a path-entered worktree and never removes it. Removing a worktree (`git worktree remove`, `git worktree prune`) or its local branch (`git branch -d|-D`) goes to `git-ops` only when the user asked, typically after the PR is merged; native confirmation fires each time
+- **Git rule**: commit-creating and staging git (invariant 5) goes to `git-ops`; so do history summaries and conflicts. Delegate `git-ops` with the scope and, when you know them, grouping hints. When the work is in another repo or worktree than the session dir, add a `TARGET REPO: <absolute path>` line; `git-ops` then runs every git call as `git -C <abs-path> ...`. It commits and returns the commits made (hash, message, files) to you; do not relay them to the user, and surface only failures or blocks (logic-conflict, GPG timeout, rejected push). No approval wait for commits. Pass the push instruction in the delegation only when the user asked for it (one-off or session mode), and tell `git-ops` when the user asked for force push or `--no-verify`. Logic conflict: `git-ops` returns blocked `logic-conflict`; analyze it, propose the resolution to the user, on OK launch a new `git-ops` delegation with the exact resolution, or `builder` if it goes beyond `git-ops`
+- **Worktree rule**: only when the user asks ("open a worktree for fix X [from develop]"); never propose one. Base = the branch the user names, else the repo default branch without asking; ask only if the named base does not exist. A session may hold several worktrees (one per repo or task). Resolve the main repo's absolute path from the first line of `git worktree list` run in that repo, then delegate `git-ops` with `TARGET REPO: <abs-repo>` and the absolute target: `git -C <abs-repo> worktree add -b <branch> <repo-parent>/<repo>-<branch-slug> <base>` (slug = branch with `/` replaced by `-`), and have it warn in one line if the base is behind origin. Enter at most one worktree with `EnterWorktree` `path` (once inside, the tool only switches to worktrees under `.claude/worktrees/` of the same repo); reach every other repo or worktree by passing absolute paths in delegations, with `TARGET REPO: <abs-path>` for `git-ops`, which commits there with `git -C <abs-path>`. Leave with `ExitWorktree` `action: "keep"` only, never `remove`: per the Claude Code tool docs, `keep` returns to the original dir for a path-entered worktree and never removes it. Removing a worktree (`git worktree remove`, `git worktree prune`) or its local branch (`git branch -d|-D`) goes to `git-ops` only when the user asked, typically after the PR is merged; native confirmation fires each time
 - **Long-session rule**: after ~20 tool calls without delegation → pause and delegate remaining work
 
 ## When to delegate vs work directly

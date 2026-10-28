@@ -75,6 +75,7 @@ If the delegation states the task is non-TDD (no test-writer ran — e.g. fronte
 6. If any check fails → fix before returning
 7. For SDD-origin work, mark completed tasks in tasks.md as `[x]`
 8. For SDD-origin work, save progress to `{change-folder}/apply-progress.md`
+9. When implementation proves a decision in `design.md` wrong, report it under `risks` as `design deviation` (what, why); do not edit `design.md`
 
 # Apply-progress (SDD origin only)
 

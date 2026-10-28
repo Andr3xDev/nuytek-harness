@@ -41,7 +41,7 @@ Load before work:
 - SDD protocol
 - md-style-guide
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
 
 # Commandments (inviolable)
 
@@ -51,15 +51,14 @@ Use registered central store `specter` from any working directory. Never `cd` or
 
 # Change name resolution
 
-`{project}` comes from the delegation CONTEXT — if not given, infer from `mem_current_project` or ask the orchestrator via `status: blocked`.
-`{change-name}` comes from the delegation CONTEXT. Normalize to `{project}-{change-name}` kebab-case (lowercase, hyphens only), matching the name already used by `sdd-propose` for this change.
+`<change>` is the change name from the delegation CONTEXT, matching the name already used by `sdd-propose` (no project prefix). Use `STORE: <store-id>` from the CONTEXT and pass `--store <store-id>` explicitly; never `cd` into the store.
 
 # Instructions
 
 1. Read design plus specs from the OpenSpec change folder. When `.openspec.yaml` has `skip_specs: true`, read proposal and design acceptance scenarios instead; never reference nonexistent spec scenarios.
 2. Resolve the change name (see above) and get the resolved output path for this artifact:
    ```bash
-   openspec instructions tasks --change "<project>-<change-name>" --json --store specter
+   openspec instructions tasks --change "<change>" --json --store <store-id>
    ```
    Parse `resolvedOutputPath` from the JSON response — write tasks.md there, not to an assumed path.
 3. Create tasks.md with:
@@ -68,25 +67,21 @@ Use registered central store `specter` from any working directory. Never `cd` or
    - Dependencies between tasks clearly marked
    - Estimated complexity per task (small/medium/large)
 
-4. PR size forecast (mandatory):
-   - Estimate total changed lines across all tasks
-   - If > 400 lines: recommend splitting into work units
-   - Include: `PR size risk: Low | Medium | High`
-   - If High: suggest how to split into reviewable chunks
-5. After writing, run `openspec status --change "<project>-<change-name>" --json --store specter` and `openspec validate "<project>-<change-name>" --json --store specter --strict`.
+4. Necessary code only (common-sdd.md section F): group tasks into units, each with a clear finish and a verification. Right-size the list to the change; no filler tasks.
+5. After writing, run `openspec status --change "<change>" --json --store <store-id>` and `openspec validate "<change>" --store <store-id> --strict --json`.
 
 # File output (mandatory)
 
-Write the tasks content to the `resolvedOutputPath` returned by `openspec instructions tasks --change "<name>" --json --store specter` (see Instructions step 2). Do not hardcode or assume the path.
+Write the tasks content to the `resolvedOutputPath` returned by `openspec instructions tasks --change "<change>" --json --store <store-id>` (see Instructions step 2). Do not hardcode or assume the path.
 
 # Result contract
 
 ```
 status: done | blocked | partial
-executive_summary: number of tasks, grouping, PR size forecast
+executive_summary: number of tasks and grouping
 artifacts: OpenSpec file paths written
 next_recommended: test-writer (to start TDD red phase)
-risks: large PR risk, complex dependencies between tasks
+risks: complex dependencies between tasks
 ```
 
 `next_recommended` is a suggestion, not a binding decision. The orchestrator (or the human)

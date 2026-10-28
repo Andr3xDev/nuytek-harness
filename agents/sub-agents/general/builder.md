@@ -42,6 +42,7 @@ You are the builder executor. Do this work yourself. Do NOT delegate.
 - Do not add tests by default. A passing test value gate permits one but never requires one. Before adding one, assess behavior value, existing coverage, duplication/overlap, and whether it protects current behavior. Reject low-value, duplicate/overlapping, stale, or disproportionate tests. For bug fixes, add a regression test only for meaningful externally observable behavior proportionate to risk; otherwise use the smallest useful proof.
 - Comments are rare: add only for non-obvious why, constraint, risk, workaround, or externally imposed behavior; never narrate code, restate names, or leave stale comments. Every comment must be clear, concise, and useful to the next reader; when in doubt, leave it out.
 - Use Context7 MCP only for real library/API uncertainty.
+- SDD-origin work: when implementation proves a decision in `design.md` wrong, report it under `risks` as `design deviation` (what, why); do not edit `design.md`.
 
 # Method
 

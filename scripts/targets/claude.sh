@@ -128,26 +128,36 @@ remove_mcp() {
 # --- specter ------------------------------------------------------------
 
 install_specter() {
-  local stores status
+  local stores status marker dir id found=0
 
-  command -v openspec >/dev/null 2>&1 || die "openspec is required to register store 'specter'"
+  command -v openspec >/dev/null 2>&1 || die "openspec is required to register OpenSpec stores"
   [ -d "$SPECTER_ROOT" ] || die "OpenSpec store root does not exist: $SPECTER_ROOT"
-  stores="$(openspec store list --json)" || die "could not inspect registered OpenSpec stores"
 
-  if printf '%s' "$stores" | node -e '
-    const stores = JSON.parse(require("fs").readFileSync(0, "utf8")).stores || [];
-    const store = stores.find(({ id }) => id === "specter");
-    process.exit(store ? (store.root === process.argv[1] ? 0 : 2) : 1);
-  ' "$SPECTER_ROOT"; then
-    return
-  else
-    status=$?
-  fi
-  case "$status" in
-    1) openspec store register "$SPECTER_ROOT" --id specter --yes ;;
-    2) die "OpenSpec store 'specter' is registered to a different root" ;;
-    *) die "could not parse registered OpenSpec stores" ;;
-  esac
+  for marker in "$SPECTER_ROOT"/*/.openspec-store/store.yaml; do
+    [ -f "$marker" ] || continue
+    found=1
+    dir="$(dirname "$(dirname "$marker")")"
+    id="$(sed -n 's/^id:[[:space:]]*//p' "$marker")"
+    [ -n "$id" ] || { echo "skipping $dir: no id in $marker" >&2; continue; }
+    stores="$(openspec store list --json)" || die "could not inspect registered OpenSpec stores"
+
+    if printf '%s' "$stores" | node -e '
+      const stores = JSON.parse(require("fs").readFileSync(0, "utf8")).stores || [];
+      const store = stores.find(({ id }) => id === process.argv[1]);
+      process.exit(store ? (store.root === process.argv[2] ? 0 : 2) : 1);
+    ' "$id" "$dir"; then
+      continue
+    else
+      status=$?
+    fi
+    case "$status" in
+      1) openspec store register "$dir" --id "$id" --yes ;;
+      2) echo "OpenSpec store '$id' is registered to a different root; skipping $dir" >&2 ;;
+      *) die "could not parse registered OpenSpec stores" ;;
+    esac
+  done
+
+  [ "$found" = 1 ] || echo "no OpenSpec stores found in $SPECTER_ROOT"
 }
 
 # --- plugins ------------------------------------------------------------

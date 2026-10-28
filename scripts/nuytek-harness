@@ -67,7 +67,7 @@ do_install() {
   local name
   for name in "${COMPONENTS[@]}"; do
     if [ "$name" = specter ]; then
-      ask "Register OpenSpec store 'specter' from $SPECTER_ROOT?" || continue
+      ask "Register OpenSpec stores found in $SPECTER_ROOT?" || continue
     fi
     echo "installing $name"
     install_component "$name"

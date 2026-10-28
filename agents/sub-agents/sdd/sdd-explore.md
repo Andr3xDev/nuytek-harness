@@ -50,7 +50,7 @@ Load before work:
 
 Also load when relevant: find-docs, md-style-guide (when producing Markdown), senior-architect, software-design-patterns, event-schema.
 
-Use registered central store `specter` from any working directory. Never `cd` or use `env --chdir` for OpenSpec.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C. Keep exploration short when the scope is already clear.
 
 # Docs lookup (context7)
 
@@ -67,9 +67,9 @@ Use context7 (`resolve-library-id` -> `query-docs`) ONLY when there is a real do
 1. Understand the topic or feature to investigate from the delegation prompt
 2. For a full SDD change, use the change directory created by sdd-propose before persisting `explore.md`; then check what's already active:
    ```bash
-   openspec list --json --store specter
+   openspec list --json --store <store-id>
    ```
-   Use this only when it adds real context (e.g. a related change already exists or is in progress) — skip it for purely codebase-level exploration.
+   Use this only when it adds real context (e.g. a related change already exists or is in progress) — skip it for purely codebase-level exploration. Living specs: `openspec list --specs --json --store <store-id>` and `openspec show <spec-id> --type spec --store <store-id>`; a referenced store's specs are read the same way with its own id.
 3. Read relevant codebase files — entry points, related modules, existing tests
 4. Identify affected areas, constraints, coupling between services
 5. Compare approaches with pros/cons/effort when applicable

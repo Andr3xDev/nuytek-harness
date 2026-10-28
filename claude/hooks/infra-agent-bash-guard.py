@@ -5,17 +5,26 @@ Applies a per-agent_type command allow-list to tool_name == "Bash" only.
 Any other agent_type (including the main thread, agent_type absent) is
 passed through untouched, except that commit-creating and staging git
 operations (incl. rm, mv, non-hard reset) are denied for every agent_type
-but git-ops. Push is denied for everyone but git-ops (plain form only; force
-push is confirmed by native `permissions.ask`); git-ops also may not run an
-interactive rebase or `git restore`. Worktree mutations are denied for everyone
-but git-ops; git-ops deletions (`git worktree remove|prune`, `git branch
--d|-D|--delete`) pass only in plain form, for native `permissions.ask`.
+but git-ops. Push is denied for everyone but git-ops (whole command, plain or
+`git -C <absolute path>` form); git-ops also may not run an interactive rebase
+or `git restore`. Worktree mutations are denied for everyone but git-ops.
+Every agent may use `git -C <absolute path>` to reach another repo; a relative
+`-C` path is denied, and read-only roles match their allow-list with `-C`
+stripped.
 
-The hook never returns `ask`: a hook `ask` inside a background subagent never
-reaches the user. Confirmations live in native `permissions.ask`. Discards and
-stash pass through to those rules in plain `git <sub>` form; any other form
-is denied because the native prefix rules cannot see it. `native_ask` commands
-also pass through to native rules.
+Confirmations live in native `permissions.ask`. Discards, stash, force/delete
+push and git-ops deletions (`git worktree remove|prune`, `git branch
+-d|-D|--delete`) pass through to those rules in plain `git <sub>` form; the
+native prefix rules cannot see `git -C ...`, so that form returns the hook's own
+`ask`. Any other form is denied. `native_ask` commands return the hook's own
+`ask` too, because a background subagent otherwise ran them without a prompt.
+
+The other hook `ask`: for every agent_type (main thread and unlisted agents
+included), any file-deleting command (`rm`, `rmdir`, `unlink`, `shred`,
+`find -delete`, `find -exec rm`) anywhere in the command, chains and subshells
+included, returns `ask` naming the command, so the user sees every deletion.
+Deny wins over ask: read-only roles keep denying such commands. Limits: like
+git detection, `sh -c "rm x"`, `eval` and variable-built commands evade it.
 """
 import fnmatch
 import json
@@ -31,7 +40,18 @@ WORKTREE_DELETIONS = {"remove", "prune"}
 BRANCH_DELETE_FLAG = re.compile(r"--delete|-[a-zA-Z]*[dD][a-zA-Z]*")
 PUSH_RISKY_SHORT_CLUSTER = re.compile(r"-[a-zA-Z]{2,}")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+DASH_C_PREFIX = r"(?:\s+-C\s+/\S+)+"
+PUSH_NATIVE_ASK_FLAGS = ("--force", "--delete", "--mirror", "--prune")  # mirrors the native push ask globs
+PUSH_RISKY_LONG_FLAGS = ("--force", "--force-with-lease", "--force-if-includes", "--delete", "--mirror", "--prune")
+MIN_ABBREVIATED_FLAG_LENGTH = 3  # excludes the bare `--` end-of-options marker
 SEGMENT_SEPARATORS = re.compile(r"\$\(|[;&|`\n]")
+DELETE_PROGRAMS = {"rm", "rmdir", "unlink", "shred"}
+FIND_EXEC_FLAGS = {"-exec", "-execdir", "-ok", "-okdir"}
+COMMAND_WRAPPERS = {"env", "sudo", "xargs", "command", "nohup", "time", "exec", "timeout", "nice", "setsid"}
+SHELL_KEYWORDS = {"then", "do", "else", "elif", "if", "while", "until", "!"}
+SEGMENT_PUNCTUATION = re.compile(r"[;&|()]")
+LOOKUP_FLAGS = {"-v", "-V"}  # `command -v rm` looks a program up, it does not run it
+ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=.*")
 
 # Permission roles: plain allow-lists, concatenated per agent in RULES.
 ROLE_READ_FS = [
@@ -66,8 +86,29 @@ VALIDATION_DENY = [
     "poetry run ruff format*", "poetry run ruff check *--fix*",
     "rubocop *-A*", "rubocop *-a*", "rubocop *--autocorrect*",
     "bundle exec rubocop *-A*", "bundle exec rubocop *-a*", "bundle exec rubocop *--autocorrect*",
+    "openspec context*--code-workspace*",  # writes a VS Code workspace file
+    "*qmltestrunner *-o *",  # writes a results file
+    "jest *--updateSnapshot*", "jest *-u", "jest *-u *", "jest *--outputFile*",
+    "vitest *--update*", "vitest *-u", "vitest *-u *", "vitest *--outputFile*",
+    "node *--test-update-snapshots*", "node *--test-reporter-destination*",
+    "tflint *--init*", "tflint *--fix*",  # --init downloads plugins; --fix rewrites files
+    "jest *--init*", "jest *--watch*",  # --init writes a config file; --watch never exits
+    "qmllint *--fix*", "qmllint *--write-defaults*", "qmllint *--json*", "qmllint *--qmljsdebugger*",
+    "*gradle* *publish*", "*gradlew* *publish*", "*mvn* *deploy*", "*mvnw* *deploy*",
+    "*gradle* *upload*", "*gradlew* *upload*", "*mvn* *upload*", "*mvnw* *upload*",
+    "*gradle* *release*", "*gradlew* *release*", "*mvn* *release*", "*mvnw* *release*",  # chained publish/deploy tasks
 ]
 
+# Only these two Qt variables may prefix a QML runner; any other VAR=value (LD_PRELOAD...) would run arbitrary code.
+QML_ENV_PREFIXES = [
+    "", "QT_QPA_PLATFORM=offscreen ", "QT_FORCE_STDERR_LOGGING=1 ",
+    "QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1 ",
+    "QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen ",
+]
+QML_RUNNERS = ["qml6", "qmlscene", "qmltestrunner"]
+
+# Test/validate runners execute project code (same trust class as `npm test`);
+# terragrunt hcl validate also evaluates `run_cmd()` in configs.
 ROLE_VALIDATE = [
     # Node.js
     "npm test*", "npm run test*", "npm run lint*", "npm run typecheck*", "npm run format-check*", "npm run format:check*", "npm run build*",
@@ -75,18 +116,26 @@ ROLE_VALIDATE = [
     "yarn test*", "yarn run test*", "yarn run lint*", "yarn run typecheck*", "yarn run format-check*", "yarn run format:check*", "yarn run build*",
     "bun test*", "bun run test*", "bun run lint*", "bun run typecheck*", "bun run format-check*", "bun run format:check*", "bun run build*",
     "tsc", "tsc *", "prettier --check*", "eslint*",
+    "vitest run*", "jest", "jest *", "node --test*",
+    # QML
+    "qmllint *",
+    *[f"{prefix}{runner}{suffix}" for prefix in QML_ENV_PREFIXES for runner in QML_RUNNERS for suffix in ("", " *")],
     # Python
-    "uv run pytest*", "uv run ruff check*", "uv run mypy*", "uv run pyright*",
-    "pytest*", "python -m pytest*", "ruff check*", "mypy*", "pyright*", "flake8*", "pip check*",
+    "uv run pytest*", "uv run python -m pytest*", "uv run ruff check*", "uv run mypy*", "uv run pyright*",
+    "pytest*", "python -m pytest*", "python3 -m pytest*", "ruff check*", "mypy*", "pyright*", "flake8*", "pip check*",
     "poetry run pytest*", "poetry run ruff check*", "poetry run mypy*", "poetry run pyright*", "poetry run flake8*", "poetry run python -m compileall*",
     "python -m compileall*",
     # Java / Kotlin
     "mvn test*", "mvn verify*", "mvn compile*", "mvn checkstyle*",
     "gradle test*", "gradle check*", "gradle compile*", "gradle lint*",
+    "./gradlew test*", "./gradlew check*", "./gradlew build*", "./mvnw test*", "./mvnw verify*",
     # Go
     "go test*", "go vet*", "go build*", "gofmt -d*", "staticcheck*",
     # Rust
     "cargo test*", "cargo check*", "cargo clippy*", "cargo fmt --check*", "cargo build*",
+    # Terraform / Terragrunt (never init, plan, apply, import, state; terragrunt validate may auto-init)
+    "terraform fmt -check*", "terraform validate*", "tflint", "tflint *",
+    "terragrunt hcl fmt --check*", "terragrunt hclfmt --check*", "terragrunt hcl validate*", "terragrunt hclvalidate*",
     # .NET
     "dotnet test*", "dotnet build*", "dotnet format --verify-no-changes*",
     # Ruby
@@ -107,21 +156,32 @@ SECRET_FILE_PATTERNS = [
 SECRET_FILE_EXAMPLES = {".env.example", ".env.sample", ".env.template"}
 SECRET_DIR_SEGMENTS = (".ssh/", ".aws/")
 RG_SHOW_ALL_FLAG = re.compile(r"--hidden|--no-ignore.*|-[a-zA-Z.]*[u.][a-zA-Z.]*")  # -. is --hidden, -u is --unrestricted
-GREP_RECURSIVE_FLAG = re.compile(r"--recursive|-[a-zA-Z]*[rR][a-zA-Z]*")
+GREP_RECURSIVE_FLAG = re.compile(
+    r"--recursive|--dereference-recursive|--directories=recurse|-[a-zA-Z]*[rR][a-zA-Z]*"
+)
+GREP_RECURSIVE_LONG_FLAGS = ("--recursive", "--dereference-recursive")
+GREP_DIRECTORIES_FLAG = re.compile(r"--directories|-[a-zA-Z]*d")  # value `recurse` arrives as the next token
+GREP_CONFINED_SHORT_FLAGS = re.compile(r"-[rnilHhcws]+")
+GREP_CONFINED_LONG_FLAGS = {"--recursive", "--line-number", "--ignore-case", "--files-with-matches"}
+SAFE_PATH_TOKEN = re.compile(r"[A-Za-z0-9._/~-]+")  # excludes shell expansion characters: { } * ? [ ] $
 
-ROLE_OPENSPEC_READ = ["openspec context*", "openspec doctor*", "openspec list*", "openspec store list*"]
-
-ROLE_OPENSPEC_AUTHOR = [
-    "openspec status*", "openspec validate*", "openspec show*", "openspec new*",
-    "openspec instructions*", "openspec store list*",
+ROLE_OPENSPEC_READ = [
+    "openspec list*", "openspec show*", "openspec status*", "openspec validate*",
+    "openspec instructions*", "openspec context*", "openspec doctor*", "openspec store list*",
 ]
 
-ROLE_OPENSPEC_ARCHIVE = [
-    "openspec status*", "openspec validate*", "openspec archive*", "openspec show*",
-    "openspec instructions*", "openspec store list*",
-]
+ROLE_OPENSPEC_AUTHOR = ROLE_OPENSPEC_READ + ["openspec new*"]
 
-ROLE_OPENSPEC_VERIFY = ["openspec status*", "openspec validate*", "openspec store list*"]
+ROLE_OPENSPEC_ARCHIVE = ROLE_OPENSPEC_READ + ["openspec archive*"]
+
+ROLE_OPENSPEC_VERIFY = ROLE_OPENSPEC_READ
+
+ROLE_OPENSPEC_STORE_ADMIN = ROLE_OPENSPEC_READ + [
+    "openspec store setup *", "openspec store register *", "openspec store unregister *",
+]
+STORE_ADMIN_SUBCOMMANDS = {"setup", "register", "unregister"}
+STORE_VALUE_FLAGS = {"--path", "--id", "--remote"}
+SPECTER_ROOT = "~/dev/specter"
 
 ROLE_LOGS = [
     "zcat *",
@@ -133,9 +193,11 @@ ROLE_LOGS = [
 
 SHELL_METACHARACTERS = ["&", ";", "|", "$(", "`", "\n", ">", "<"]
 
+SPECTER_GREP_ROLES = ("specter-ops", "sdd-explore", "sdd-spec")
+
 RULES = {
     "explorer": {
-        "allow": ROLE_READ_FS + ROLE_GIT_READ,
+        "allow": ROLE_READ_FS + ROLE_GIT_READ + ROLE_OPENSPEC_READ,
     },
     "sdd-explore": {
         "allow": ROLE_OPENSPEC_READ + ROLE_GIT_READ + ROLE_READ_FS,
@@ -144,7 +206,7 @@ RULES = {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-spec": {
-        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
+        "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ + ["grep *"],
     },
     "sdd-design": {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
@@ -153,7 +215,7 @@ RULES = {
         "allow": ROLE_OPENSPEC_AUTHOR + ROLE_GIT_READ,
     },
     "sdd-archive": {
-        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ,
+        "allow": ROLE_OPENSPEC_ARCHIVE + ROLE_GIT_READ + ROLE_READ_FS,
     },
     "aws": {
         "allow": [
@@ -174,7 +236,10 @@ RULES = {
             "aws ec2 describe-*",
         ] + ROLE_GIT_READ,
     },
-    "codegraph-maintainer": {
+    "specter-ops": {
+        "allow": ROLE_OPENSPEC_STORE_ADMIN + ROLE_GIT_READ + ROLE_READ_FS,
+    },
+    "codegraph-ops": {
         "native_ask": [
             "codegraph unlock*",
             "codegraph init*",
@@ -197,13 +262,17 @@ RULES = {
             "codegraph affected*",
         ] + ROLE_GIT_READ,
     },
-    "engram-maintainer": {
-        "native_ask": ["engram delete *--hard*"],
+    "engram-ops": {
+        "native_ask": ["engram delete *--hard*", "engram projects prune*"],
         "allow": [
+            "engram --help",
+            "engram help*",
+            "engram save * --project *",  # cross-project save; --help or a missing --project does not match
             "engram context*",
             "engram search*",
             "engram stats*",
             "engram projects list*",
+            "engram projects alias resolve *",
             "engram doctor*",
             "engram timeline*",
             "engram delete *",
@@ -241,8 +310,7 @@ def _git_calls(command: str):
             global_options = []
             for option in rest:
                 if option in GIT_OPTIONS_WITH_VALUE:
-                    global_options.append(option)
-                    next(rest, None)
+                    global_options.extend([option, next(rest, "")])
                 elif not option.startswith("-"):
                     yield global_options, option, list(rest)
                     break
@@ -266,9 +334,18 @@ def git_invocations(command: str):
     return [(subcommand, args) for _, subcommand, args in _git_calls(command)]
 
 
-def uses_git_dash_c(command: str) -> bool:
-    """True if a git call passes `-C`; same evasion limits as `git_invocations`."""
-    return any("-C" in options for options, _, _ in _git_calls(command))
+def has_relative_git_dash_c(command: str) -> bool:
+    """True if a git call passes a non-absolute `-C` path; same evasion limits as `git_invocations`."""
+    return any(
+        option == "-C" and not path.startswith("/")
+        for options, _, _ in _git_calls(command)
+        for option, path in zip(options, options[1:])
+    )
+
+
+def strip_git_dash_c(command: str) -> str:
+    """Drop leading `-C <abs>` so a `-C` read matches the same allow-list entry as its plain form."""
+    return re.sub(rf"^(\s*git){DASH_C_PREFIX}", r"\1", command)
 
 
 def is_staging_git(subcommand: str, args) -> bool:
@@ -277,6 +354,25 @@ def is_staging_git(subcommand: str, args) -> bool:
 
 def is_plain_git_start(command: str, subcommand: str) -> bool:
     return re.match(rf"git\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
+
+
+def is_dash_c_git_start(command: str, subcommand: str) -> bool:
+    return re.match(rf"git{DASH_C_PREFIX}\s+{re.escape(subcommand)}(\s|$)", command.lstrip()) is not None
+
+
+def is_native_ask_push(push_args) -> bool:
+    return any(a in ("-f", "-d") or a.startswith(PUSH_NATIVE_ASK_FLAGS + ("+",)) for a in push_args)
+
+
+def is_abbreviated_risky_push(push_args) -> bool:
+    """True for unambiguous long-option prefixes like `--forc`, which git accepts but no native glob matches."""
+    return any(
+        a.startswith("--")
+        and len(name := a.split("=")[0]) >= MIN_ABBREVIATED_FLAG_LENGTH
+        and not a.startswith(PUSH_NATIVE_ASK_FLAGS)
+        and any(flag.startswith(name) for flag in PUSH_RISKY_LONG_FLAGS)
+        for a in push_args
+    )
 
 
 def is_deleting_git(subcommand: str, args) -> bool:
@@ -298,7 +394,7 @@ def has_delete_refspec(push_args) -> bool:
     return any(a.startswith(":") for a in push_args)
 
 
-def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
+def discard_verdict(command: str, is_first_call: bool, is_only_call: bool, subcommand: str, args):
     if subcommand == "rebase" and any(a in ("-i", "--interactive") for a in args):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' must not run "
@@ -310,14 +406,22 @@ def discard_verdict(command: str, is_first_call: bool, subcommand: str, args):
         or (subcommand == "reset" and "--hard" in args)
         or (subcommand == "checkout" and "--" in args)
         or subcommand == "restore"
+        or is_deleting_git(subcommand, args)
     )
-    if needs_native_confirmation and not (is_first_call and is_plain_git_start(command, subcommand)):
-        return "deny", (
-            f"Blocked by infra-agent-bash-guard: `git {subcommand}` needs native user "
-            f"confirmation, which only triggers for the plain `git {subcommand} ...` form "
-            f"as the whole command; rerun it that way."
+    if not needs_native_confirmation:
+        return None
+    if is_first_call and is_plain_git_start(command, subcommand):
+        return None
+    if is_only_call and is_dash_c_git_start(command, subcommand):
+        return "ask", (
+            f"infra-agent-bash-guard: `git -C ... {subcommand}` is risky; "
+            f"native user confirmation is required."
         )
-    return None
+    return "deny", (
+        f"Blocked by infra-agent-bash-guard: `git {subcommand}` needs native user "
+        f"confirmation, which only triggers for the plain `git {subcommand} ...` form "
+        f"or `git -C <absolute path> {subcommand} ...` as the whole command; rerun it that way."
+    )
 
 
 def matches_any(command: str, patterns) -> bool:
@@ -347,8 +451,10 @@ def has_git_write_flag(calls) -> bool:
     )
 
 
-def reads_secret(command: str) -> bool:
-    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default)."""
+def reads_secret(command: str, agent_type=None) -> bool:
+    """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default).
+
+    SPECTER_GREP_ROLES may grep recursively when every path stays under ~/dev/specter."""
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -356,8 +462,9 @@ def reads_secret(command: str) -> bool:
     if not tokens:
         return False
     program, args = os.path.basename(tokens[0]), tokens[1:]
+    is_confined_grep = agent_type in SPECTER_GREP_ROLES and is_grep_confined_to_specter(command)
     if (program == "rg" and any(RG_SHOW_ALL_FLAG.fullmatch(a) for a in args)) or (
-        program == "grep" and any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args)
+        program == "grep" and not is_confined_grep and is_recursive_grep(args)
     ):
         return True
     return any(
@@ -370,27 +477,187 @@ def reads_secret(command: str) -> bool:
     )
 
 
+def is_recursive_grep(args) -> bool:
+    """GNU grep accepts unambiguous long-option prefixes (`--rec`, `--dir=recurse`), so match by prefix."""
+    if any(GREP_RECURSIVE_FLAG.fullmatch(a) for a in args):
+        return True
+    for index, arg in enumerate(args):
+        name, has_value, inline_value = arg.partition("=")
+        if not arg.startswith("--") or len(name) < MIN_ABBREVIATED_FLAG_LENGTH:
+            continue
+        if any(flag.startswith(name) for flag in GREP_RECURSIVE_LONG_FLAGS):
+            return True
+        if "--directories".startswith(name):
+            value = inline_value if has_value else (args[index + 1] if index + 1 < len(args) else "")
+            if value == "recurse":
+                return True
+    return any(
+        GREP_DIRECTORIES_FLAG.fullmatch(flag) and value == "recurse"
+        for flag, value in zip(args, args[1:])
+    )
+
+
+def store_path_outside_specter(command: str) -> bool:
+    """True when `openspec store setup|register` lacks an explicit path under ~/dev/specter.
+
+    `setup` writes outside specter by default, so `--path` is required; `register` takes the path
+    positionally. Relative paths are denied (the guard does not know the cwd). `unregister` takes an id only.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    if tokens[:2] != ["openspec", "store"] or tokens[2:3] == [] or tokens[2] not in STORE_ADMIN_SUBCOMMANDS:
+        return False
+    subcommand = tokens[2]
+    if subcommand == "unregister":
+        return False
+    paths, positionals, args = [], [], iter(tokens[3:])
+    for token in args:
+        flag, has_value, inline_value = token.partition("=")
+        if flag in STORE_VALUE_FLAGS:
+            value = inline_value if has_value else next(args, "")
+            if flag == "--path":
+                paths.append(value)
+        elif not token.startswith("--"):
+            positionals.append(token)
+    if subcommand == "register":
+        paths = positionals[:1]
+    if not paths:
+        return True
+    return not all(is_under_specter(value) for value in paths)
+
+
+def is_under_specter(value: str) -> bool:
+    """Relative paths are not under specter: the guard does not know the cwd.
+
+    Tokens the shell would expand (braces, globs, variables) or containing `..` are rejected."""
+    if not (value == "~" or value.startswith(("/", "~/"))) or not SAFE_PATH_TOKEN.fullmatch(value) or ".." in value.split("/"):
+        return False
+    root = os.path.realpath(os.path.expanduser(SPECTER_ROOT))
+    resolved = os.path.realpath(os.path.expanduser(value))
+    return resolved == root or resolved.startswith(root + os.sep)
+
+
+def is_grep_confined_to_specter(command: str) -> bool:
+    """True for `grep` with one pattern positional and only path positionals under ~/dev/specter.
+
+    Only value-less whitelisted flags pass: `-e`/`-f`/`-A 2` style flags would confuse positional
+    counting, and `-R` follows symlinks inside the tree.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+    if not tokens or os.path.basename(tokens[0]) != "grep":
+        return False
+    flags = [t for t in tokens[1:] if t.startswith("-")]
+    if not all(GREP_CONFINED_SHORT_FLAGS.fullmatch(f) or f in GREP_CONFINED_LONG_FLAGS for f in flags):
+        return False
+    positionals = [t for t in tokens[1:] if not t.startswith("-")]
+    return len(positionals) >= 2 and all(is_under_specter(p) for p in positionals[1:])
+
+
 def has_shell_metacharacters(command: str) -> bool:
     return any(token in command for token in SHELL_METACHARACTERS)
 
 
+def _command_segments(command: str):
+    """Yield token lists per simple command; separators inside quotes do not split."""
+    for line in command.split("\n"):
+        lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            yield from (part.split() for part in SEGMENT_SEPARATORS.split(line))
+            continue
+        segment = []
+        for token in tokens:
+            if SEGMENT_PUNCTUATION.search(token):
+                yield segment
+                segment = []
+            else:
+                segment.append(token)
+        yield segment
+
+
+def deleting_command(command: str):
+    """Return the name of the first file-deleting command in `command`, else None.
+
+    The program is the first token after env assignments, shell keywords and
+    wrappers (`sudo`, `xargs`, ...), so a filename like `rm-notes.txt` or an
+    argument `rm` never matches. After a wrapper any later token that is a delete
+    program asks, because wrapper option values (`sudo -u root`, `timeout 5`)
+    cannot be told from the program; `sudo grep rm f` is a false positive.
+
+    Limits: `sh -c "rm x"`, `eval` and variable-built commands evade it.
+    """
+    for tokens in _command_segments(command):
+        tokens = [t.lstrip("({`") for t in tokens]
+        index, after_wrapper, is_lookup = 0, False, False
+        while index < len(tokens) and (
+            not tokens[index]
+            or ENV_ASSIGNMENT.fullmatch(tokens[index])
+            or tokens[index] in SHELL_KEYWORDS
+            or os.path.basename(tokens[index]) in COMMAND_WRAPPERS
+            or (after_wrapper and tokens[index].startswith("-"))
+        ):
+            if tokens[index] == "command" and tokens[index + 1:index + 2] and tokens[index + 1] in LOOKUP_FLAGS:
+                is_lookup = True
+            after_wrapper = after_wrapper or os.path.basename(tokens[index]) in COMMAND_WRAPPERS
+            index += 1
+        if index == len(tokens) or is_lookup:
+            continue
+        if after_wrapper:
+            wrapped = next((os.path.basename(t) for t in tokens[index:] if os.path.basename(t) in DELETE_PROGRAMS), None)
+            if wrapped:
+                return wrapped
+        program, args = os.path.basename(tokens[index]), tokens[index + 1:]
+        if program in DELETE_PROGRAMS:
+            return program
+        if program == "find":
+            if "-delete" in args:
+                return "find -delete"
+            if any(
+                flag in FIND_EXEC_FLAGS and os.path.basename(target) in DELETE_PROGRAMS
+                for flag, target in zip(args, args[1:])
+            ):
+                return "find -exec rm"
+    return None
+
+
 def decide(agent_type: str, command: str):
+    verdict = _decide(agent_type, command)
+    if verdict is None and (deleting := deleting_command(command)):
+        return "ask", (
+            f"infra-agent-bash-guard: `{deleting}` deletes files; "
+            f"native user confirmation is required."
+        )
+    return verdict
+
+
+def _decide(agent_type: str, command: str):
     calls = git_invocations(command)
-    if agent_type != COMMIT_AGENT and uses_git_dash_c(command):
+    if has_relative_git_dash_c(command):
         return "deny", (
-            "Blocked by infra-agent-bash-guard: git `-C` is reserved for "
-            f"'{COMMIT_AGENT}'; use the plain `git <sub>` form from the working directory."
+            "Blocked by infra-agent-bash-guard: git `-C` needs an absolute path "
+            "so the target repo is explicit."
         )
     if any(subcommand == "push" for subcommand, _ in calls):
         if agent_type != COMMIT_AGENT:
             return "deny", (
                 f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may run `git push`."
             )
-        if not (len(calls) == 1 and is_plain_git_start(command, "push")):
+        if not (
+            len(calls) == 1
+            and (is_plain_git_start(command, "push") or is_dash_c_git_start(command, "push"))
+        ):
             return "deny", (
                 "Blocked by infra-agent-bash-guard: `git push` must be the plain "
-                "`git push ...` form as the whole command, so native force-push "
-                "confirmation can match it."
+                "`git push ...` or `git -C <absolute path> push ...` form as the whole "
+                "command, so force-push confirmation can match it."
             )
         push_args = next(args for sub, args in calls if sub == "push")
         if has_force_or_delete_cluster(push_args):
@@ -403,15 +670,17 @@ def decide(agent_type: str, command: str):
                 "Blocked by infra-agent-bash-guard: use `git push <remote> --delete <branch>` "
                 "so native confirmation fires."
             )
-        return None
-    if agent_type == COMMIT_AGENT:
-        deleting = [sub for sub, args in calls if is_deleting_git(sub, args)]
-        if deleting and not (len(calls) == 1 and is_plain_git_start(command, deleting[0])):
-            return "deny", (
-                "Blocked by infra-agent-bash-guard: worktree/branch deletion must be the plain "
-                "`git worktree remove|prune ...` or `git branch -d|-D ...` form as the whole "
-                "command, so native confirmation can match it."
+        if is_abbreviated_risky_push(push_args):
+            return "ask", (
+                "infra-agent-bash-guard: abbreviated push flag may force, delete, mirror or prune; "
+                "native user confirmation is required."
             )
+        if is_dash_c_git_start(command, "push") and is_native_ask_push(push_args):
+            return "ask", (
+                "infra-agent-bash-guard: `git -C ... push` forces, deletes or mirrors; "
+                "native user confirmation is required."
+            )
+        return None
     if agent_type == COMMIT_AGENT and any(subcommand == "restore" for subcommand, _ in calls):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{COMMIT_AGENT}' unstages with "
@@ -433,7 +702,7 @@ def decide(agent_type: str, command: str):
     rules = RULES.get(agent_type)
     if rules is None:
         for index, (subcommand, args) in enumerate(calls):
-            verdict = discard_verdict(command, index == 0, subcommand, args)
+            verdict = discard_verdict(command, index == 0, len(calls) == 1, subcommand, args)
             if verdict:
                 return verdict
         return None
@@ -446,6 +715,9 @@ def decide(agent_type: str, command: str):
             f"permitted, regardless of allow-list matches."
         )
 
+    original_command = command
+    command = " ".join(command.split())  # native globs match literal spaces, so extra whitespace must not hide a command
+
     if (
         matches_any(command, VALIDATION_DENY + READ_FS_DENY)
         or is_tree_write(command)
@@ -456,14 +728,29 @@ def decide(agent_type: str, command: str):
             f"read-only; this command is on its explicit deny list "
             f"(an auto-fix/format command)."
         )
-    if reads_secret(command):
+    if reads_secret(command, agent_type):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
             f"searching recursively/with hidden files is not permitted."
         )
+    if store_path_outside_specter(command):
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{agent_type}' may only give store "
+            f"commands paths under {SPECTER_ROOT}."
+        )
+    command = strip_git_dash_c(command)
     if matches_any(command, rules.get("native_ask", [])):
-        return None
+        if command != strip_git_dash_c(original_command):
+            return "ask", (
+                "infra-agent-bash-guard: irregular whitespace evades the native confirmation "
+                "rule; native user confirmation is required."
+            )
+        # An explicit ask is needed: background subagents ran these without a prompt when the hook returned None.
+        return "ask", (
+            "infra-agent-bash-guard: destructive or state-changing command; "
+            "native user confirmation is required."
+        )
     if matches_any(command, rules["allow"]):
         return "allow", (
             f"infra-agent-bash-guard: command matches '{agent_type}' "
@@ -508,14 +795,85 @@ def main() -> int:
 def _selftest() -> int:
     cases = [
         ("aws", "aws logs describe-log-groups && git push origin main", "deny"),
-        ("codegraph-maintainer", "codegraph status && git commit -m pwned", "deny"),
-        ("engram-maintainer", "engram context", "allow"),
-        ("engram-maintainer", "engram delete 42", "allow"),
-        ("engram-maintainer", "engram delete project demo --hard", None),
-        ("engram-maintainer", "engram delete 42 --hard", None),
-        ("engram-maintainer", "engram export backup.json", "allow"),
-        ("codegraph-maintainer", "codegraph sync", None),
-        ("engram-maintainer", "engram save title text", "deny"),
+        ("codegraph-ops", "codegraph status && git commit -m pwned", "deny"),
+        ("engram-ops", "engram context", "allow"),
+        ("engram-ops", "engram delete 42", "allow"),
+        ("engram-ops", "engram delete project demo --hard", "ask"),
+        ("engram-ops", "engram delete 42 --hard", "ask"),
+        ("engram-ops", "engram projects alias resolve abysal.nvim", "allow"),
+        ("engram-ops", "engram projects alias set a b", "deny"),
+        ("specter-ops", "grep -rn foo ~/dev/specter", "allow"),
+        ("specter-ops", "grep -rli foo ~/dev/specter/nuydeck/openspec", "allow"),
+        ("specter-ops", "grep -r foo /etc", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter ../x", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/../x", "deny"),
+        ("specter-ops", "grep -r foo", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/.env", "deny"),
+        ("explorer", "grep -r foo ~/dev/specter", "deny"),
+        ("sdd-explore", "grep -rn foo ~/dev/specter", "allow"),
+        ("sdd-explore", "grep -r foo /etc", "deny"),
+        ("sdd-explore", "grep -r foo ~/.config", "deny"),
+        ("sdd-spec", "grep -rn foo ~/dev/specter", "allow"),
+        ("sdd-spec", "grep -r foo /etc", "deny"),
+        ("sdd-spec", "grep -r foo ~/.config", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/{x,../../.ssh}", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/*", "deny"),
+        ("specter-ops", "grep -r foo ~/dev/specter/$HOME", "deny"),
+        ("specter-ops", "grep -r -f /etc/shadow ~/dev/specter", "deny"),
+        ("specter-ops", "grep -rf x ~/dev/specter", "deny"),
+        ("specter-ops", "grep -R foo ~/dev/specter", "deny"),
+        ("specter-ops", "grep -r -e foo ~/dev/specter", "deny"),
+        ("specter-ops", "grep -r foo ~+/x", "deny"),
+        ("specter-ops", "grep -r foo ~root/dev/specter", "deny"),
+        ("specter-ops", "grep -r foo - ~/dev/specter", "deny"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/{a,../../x}", "deny"),
+        ("explorer", "grep -d recurse foo .", "deny"),
+        ("explorer", "grep --directories=recurse foo .", "deny"),
+        ("engram-ops", "engram export backup.json", "allow"),
+        ("codegraph-ops", "codegraph sync", "ask"),
+        ("engram-ops", "engram save title text", "deny"),
+        ("engram-ops", "engram --help", "allow"),
+        ("engram-ops", "engram search --help", "allow"),
+        ("engram-ops", "engram projects list", "allow"),
+        ("engram-ops", "engram projects prune", "ask"),
+        ("engram-ops", "engram projects prune --dry-run", "ask"),
+        ("engram-ops", "engram projects list; engram projects prune", "deny"),
+        ("engram-ops", "engram projects prune --yes --help", "ask"),
+        ("engram-ops", "engram projects  prune", "ask"),
+        ("engram-ops", "engram delete  42 --hard", "ask"),
+        ("engram-ops", "engram  delete 42 --hard", "ask"),
+        ("explorer", "engram projects prune", "deny"),
+        ("code-reviewer", "engram projects prune --yes", "deny"),
+        ("engram-ops", "engram save t c --help", "deny"),
+        ("engram-ops", "engram save t c --type decision --topic a/b", "deny"),
+        ("engram-ops", "engram search --help", "allow"),
+        ("engram-ops", "engram help save", "allow"),
+        ("engram-ops", "engram save \"t\" \"c\" --type decision --project nuydeck --topic a/b", "allow"),
+        ("engram-ops", "engram save t c --project x && rm y", "deny"),
+        ("specter-ops", "openspec store setup x --path /etc/x", "deny"),
+        ("specter-ops", "openspec store setup x --path=/etc/x", "deny"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/x", "allow"),
+        ("specter-ops", "openspec store setup x --path ~/dev/specter/../x", "deny"),
+        ("specter-ops", "openspec store register elsewhere --id x", "deny"),
+        ("specter-ops", "openspec store setup x --path foo", "deny"),
+        ("specter-ops", "openspec store setup x --path=foo", "deny"),
+        ("specter-ops", "openspec store setup foo", "deny"),
+        ("specter-ops", "openspec store register --id demo elsewhere", "deny"),
+        ("specter-ops", "openspec store register --id demo /etc/x", "deny"),
+        ("specter-ops", "openspec store register --id demo ~/dev/specter/demo", "allow"),
+        ("specter-ops", "openspec store register ~/dev/specter/demo --id demo", "allow"),
+        ("specter-ops", "openspec store setup demo --path ~/dev/specter/demo", "allow"),
+        ("specter-ops", "openspec store unregister demo", "allow"),
+        ("specter-ops", "openspec store list", "allow"),
+        ("specter-ops", "openspec validate --store demo --strict --json", "allow"),
+        ("specter-ops", "openspec list --specs --json --store demo", "allow"),
+        ("specter-ops", "cat /home/u/dev/specter/repos.yaml", "allow"),
+        ("specter-ops", "git log --oneline", "allow"),
+        ("specter-ops", "openspec archive x --yes --store demo", "deny"),
+        ("specter-ops", "openspec new change x --store demo", "deny"),
+        ("specter-ops", "git commit -m x", "deny"),
+        ("specter-ops", "openspec store list && rm -rf x", "deny"),
+        ("specter-ops", "cat ~/.ssh/id_rsa", "deny"),
         ("aws", "aws logs describe-log-groups", "allow"),
         ("code-reviewer", "npm test", "allow"),
         ("code-reviewer", "uv run pytest", "allow"),
@@ -561,13 +919,22 @@ def _selftest() -> int:
         ("sdd-explore", "openspec list --json", "allow"),
         ("sdd-explore", "openspec store list", "allow"),
         ("sdd-explore", "cd /home/andrex/dev/specter/openspec", "deny"),
-        ("sdd-propose", "openspec new change demo-change --store specter", "allow"),
-        ("sdd-spec", "openspec instructions spec --change demo-change --json --store specter", "allow"),
-        ("sdd-design", "openspec status --change demo-change --json --store specter", "allow"),
-        ("sdd-tasks", "openspec validate demo-change --json --store specter", "allow"),
+        ("sdd-propose", "openspec new change demo-change --store demo-store", "allow"),
+        ("sdd-spec", "openspec instructions specs --change demo-change --json --store demo-store", "allow"),
+        ("sdd-design", "openspec status --change demo-change --json --store demo-store", "allow"),
+        ("sdd-tasks", "openspec validate demo-change --json --store demo-store", "allow"),
         ("sdd-propose", "npm test", "deny"),
-        ("sdd-verify", "openspec validate change --json --store specter", "allow"),
-        ("sdd-archive", "openspec archive demo-change -y --store specter", "allow"),
+        ("sdd-verify", "openspec validate change --json --store demo-store", "allow"),
+        ("sdd-archive", "openspec archive demo-change -y --store demo-store", "allow"),
+        ("explorer", "openspec list --specs --json --store nuydeck", "allow"),
+        ("explorer", "openspec show lucyna/border --type spec --store nuydeck", "allow"),
+        ("explorer", "openspec new change x --store nuydeck", "deny"),
+        ("sdd-explore", "openspec validate x --strict --json --store nuydeck", "allow"),
+        ("sdd-verify", "openspec archive x --yes --store nuydeck", "deny"),
+        ("sdd-archive", "openspec archive x --yes --store nuydeck", "allow"),
+        ("sdd-propose", "openspec store register /tmp/x --id x", "deny"),
+        ("sdd-archive", "openspec store setup x --path /tmp/x", "deny"),
+        ("sdd-explore", "openspec context --store x --code-workspace /tmp/x.code-workspace", "deny"),
         ("code-reviewer", "npm test && git push origin main", "deny"),
         ("debugger", "pytest", "allow"),
         ("debugger", "journalctl -u app --since today", "allow"),
@@ -619,8 +986,8 @@ def _selftest() -> int:
         ("builder", "git status", None),
         ("builder", "git log", None),
         ("builder", "git -C x status", "deny"),
-        ("quick-builder", "git -C /abs diff --stat", "deny"),
-        (None, "git -C /abs diff --stat", "deny"),
+        ("quick-builder", "git -C /abs diff --stat", None),
+        (None, "git -C /abs diff --stat", None),
         ("builder", "git -c core.pager=cat diff", None),
         ("git-ops", "git commit -m x", None),
         ("git-ops", "git -C x push", "deny"),
@@ -697,10 +1064,48 @@ def _selftest() -> int:
         ("git-ops", "git branch --delete x", None),
         ("git-ops", "git worktree prune", None),
         ("git-ops", "git branch -vv", None),
-        ("git-ops", "git -C . branch -vv", None),
-        ("git-ops", "git -C . branch --sort=-committerdate", None),
+        ("git-ops", "git -C /abs branch -vv", None),
+        ("git-ops", "git -C /abs branch --sort=-committerdate", None),
         ("builder", "git branch -D x", None),
         ("builder", "git -C . worktree list", "deny"),
+        ("git-ops", "git -C /abs add a.py", None),
+        ("git-ops", "git -C /abs commit -m x", None),
+        ("git-ops", "git -C /abs worktree add -b b /abs2 main", None),
+        ("git-ops", "git -C /abs push -u origin x", None),
+        ("code-reviewer", "git -C /abs diff --stat", "allow"),
+        ("explorer", "git -C /abs log --oneline", "allow"),
+        ("builder", "git -C /abs status", None),
+        ("git-ops", "git -C /abs push -f origin x", "ask"),
+        ("git-ops", "git -C /abs reset --hard", "ask"),
+        ("git-ops", "git -C /abs clean -f", "ask"),
+        ("git-ops", "git -C /abs stash", "ask"),
+        ("git-ops", "git -C /abs worktree prune", "ask"),
+        ("git-ops", "git -C /abs branch -D x", "ask"),
+        ("code-reviewer", "git -C rel status", "deny"),
+        ("builder", "git -C /abs commit -m x", "deny"),
+        ("builder", "git -C /abs worktree add -b b /abs2 main", "deny"),
+        ("builder", "git -C /abs push", "deny"),
+        ("git-ops", "git -C /abs commit -m x && git push", "deny"),
+        ("git-ops", "git -C /abs push -uf origin x", "deny"),
+        ("git-ops", "git -C /abs push origin :x", "deny"),
+        ("git-ops", "git -C /abs restore f", "deny"),
+        ("code-reviewer", "git -C /abs status; rm x", "deny"),
+        ("code-reviewer", "git -C /a -C /b status", "allow"),
+        ("code-reviewer", "git -C \"/abs\" status", "deny"),
+        ("code-reviewer", "git -C /abs -c k=v status", "deny"),
+        ("code-reviewer", "git -C /abs diff --output=x", "deny"),
+        ("builder", "git -C /abs reset --hard", "ask"),
+        ("builder", "git -C /abs branch -D x", "ask"),
+        ("builder", "git -C /abs stash && git status", "deny"),
+        ("builder", "git status && git -C /abs stash", "deny"),
+        ("git-ops", "git -C /abs push --force-with-lease origin x", "ask"),
+        ("git-ops", "git -C /abs push --mirror", "ask"),
+        ("git-ops", "git -C /abs push origin +x", "ask"),
+        ("git-ops", "git push --forc origin x", "ask"),
+        ("git-ops", "git -C /abs push --del origin x", "ask"),
+        ("git-ops", "git push --set-upstream origin x", None),
+        ("git-ops", "git -C /abs push --tags", None),
+        ("git-ops", "git branch -D x && git status", None),
         ("explorer", "ls src", "allow"),
         ("explorer", "rg needle src", "allow"),
         ("explorer", "git log -n 5", "allow"),
@@ -751,6 +1156,10 @@ def _selftest() -> int:
         ("explorer", "rg --no-ignore foo", "deny"),
         ("explorer", "rg -. foo", "deny"),
         ("explorer", "grep -rn foo .", "deny"),
+        ("explorer", "grep --rec foo .", "deny"),
+        ("explorer", "grep --dir=recurse foo .", "deny"),
+        ("explorer", "grep --dir recurse foo .", "deny"),
+        ("explorer", "grep --dereference-recursive foo .", "deny"),
         ("explorer", "grep -R foo src", "deny"),
         ("explorer", "cat .env.example", "allow"),
         ("explorer", "cat README.md", "allow"),
@@ -759,6 +1168,78 @@ def _selftest() -> int:
         ("explorer", "ls -la", "allow"),
         ("debugger", "cat .env", "deny"),
         ("builder", "cat .env", None),
+        ("builder", "rm x", "ask"),
+        (None, "rm -rf build", "ask"),
+        ("builder", "make && rm -f a", "ask"),
+        ("builder", "find . -name '*.tmp' -delete", "ask"),
+        ("builder", "find . -type f -exec rm {} +", "ask"),
+        ("builder", "ls $(rmdir d)", "ask"),
+        ("git-ops", "git push origin main; rm x", "ask"),
+        ("explorer", "rm x", "deny"),
+        ("builder", "ls rm-notes.txt", None),
+        ("builder", "git rm x", "deny"),
+        ("builder", "for f in *; do rm \"$f\"; done", "ask"),
+        ("builder", "if true; then rm y; fi", "ask"),
+        ("builder", "sudo -u root rm x", "ask"),
+        ("builder", "xargs -n 1 rm", "ask"),
+        ("builder", "env -u V rm x", "ask"),
+        ("builder", "timeout 5 rm x", "ask"),
+        ("builder", "xargs -0 rm", "ask"),
+        ("builder", "\\rm x", "ask"),
+        ("builder", "/bin/rm x", "ask"),
+        ("git-ops", "git commit -m \"fix; rm old\"", None),
+        ("builder", "grep \"a|rm x\" f", None),
+        ("builder", "command -v rm", None),
+        ("builder", "npm rm left-pad", None),
+        ("builder", "docker rm c1", None),
+        ("code-reviewer", "./gradlew build publish", "deny"),
+        ("code-reviewer", "./mvnw verify deploy", "deny"),
+        ("code-reviewer", "mvn test", "allow"),
+        ("code-reviewer", "jest --init", "deny"),
+        ("code-reviewer", "jest --watch", "deny"),
+        ("code-reviewer", "qmllint --fix main.qml", "deny"),
+        ("sdd-archive", "ls changes/archive", "allow"),
+        ("code-reviewer", "vitest run", "allow"),
+        ("code-reviewer", "jest src", "allow"),
+        ("code-reviewer", "node --test", "allow"),
+        ("code-reviewer", "vitest run -u", "deny"),
+        ("code-reviewer", "jest --updateSnapshot", "deny"),
+        ("code-reviewer", "node --test --test-update-snapshots", "deny"),
+        ("code-reviewer", "vitest", "deny"),
+        ("code-reviewer", "npx vitest run", "deny"),
+        ("code-reviewer", "qmllint main.qml", "allow"),
+        ("code-reviewer", "qml6 a.qml", "allow"),
+        ("code-reviewer", "qmlscene a.qml", "allow"),
+        ("code-reviewer", "qmltestrunner -input tests", "allow"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen qml6 a.qml", "allow"),
+        ("code-reviewer", "QT_FORCE_STDERR_LOGGING=1 QT_QPA_PLATFORM=offscreen qmltestrunner", "allow"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen QT_FORCE_STDERR_LOGGING=1 qmlscene a.qml", "allow"),
+        ("code-reviewer", "qmltestrunner -o out.xml,xml", "deny"),
+        ("code-reviewer", "LD_PRELOAD=x qml6 a.qml", "deny"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen rm -rf x", "deny"),
+        ("code-reviewer", "QT_QPA_PLATFORM=offscreen LD_PRELOAD=x qml6 a.qml", "deny"),
+        ("code-reviewer", "./gradlew test", "allow"),
+        ("code-reviewer", "./gradlew check", "allow"),
+        ("code-reviewer", "./gradlew build", "allow"),
+        ("code-reviewer", "./mvnw verify", "allow"),
+        ("code-reviewer", "./mvnw test", "allow"),
+        ("code-reviewer", "./gradlew publish", "deny"),
+        ("code-reviewer", "uv run python -m pytest", "allow"),
+        ("code-reviewer", "python3 -m pytest", "allow"),
+        ("code-reviewer", "terraform fmt -check -recursive", "allow"),
+        ("code-reviewer", "terraform validate", "allow"),
+        ("code-reviewer", "tflint", "allow"),
+        ("code-reviewer", "tflint --init", "deny"),
+        ("code-reviewer", "terraform fmt", "deny"),
+        ("code-reviewer", "terraform init", "deny"),
+        ("code-reviewer", "terraform plan", "deny"),
+        ("code-reviewer", "terraform apply", "deny"),
+        ("code-reviewer", "terraform state list", "deny"),
+        ("code-reviewer", "terragrunt hcl fmt --check", "allow"),
+        ("code-reviewer", "terragrunt hcl validate --inputs", "allow"),
+        ("code-reviewer", "terragrunt validate", "deny"),
+        ("code-reviewer", "terragrunt plan", "deny"),
+        ("code-reviewer", "terragrunt hcl fmt", "deny"),
     ]
     for agent_type, command, expected in cases:
         result = decide(agent_type, command)

@@ -47,7 +47,7 @@ flowchart TD
     O --> EX["Explore: explorer"]
     O --> DB["Debug: debugger"]
     O --> SDD["SDD plan: propose, explore, spec, design, tasks"]
-    SPEC[("OpenSpec: specter")] -.- SDD
+    SPEC[("OpenSpec: per-product stores")] -.- SDD
     O -->|small fix| BLD
     DB -->|approved fix| BLD
     SDD -->|plan approved: phase 1| RED
@@ -88,7 +88,7 @@ Reference: [agents/README.md](agents/README.md).
 | Investigation | `debugger`, `explorer` |
 | SDD phases | `sdd-propose`, `sdd-explore`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive` |
 | Git | `git-ops` |
-| Maintenance / infra | `codegraph-maintainer`, `engram-maintainer`, `aws` |
+| Maintenance / infra | `codegraph-ops`, `engram-ops`, `specter-ops`, `aws` |
 
 ### Skills
 
@@ -128,6 +128,7 @@ Custom slash commands.
 | `/clear-tests` | Audit low-value or overlapping tests |
 | `/codegraph` | Check or maintain CodeGraph indexes |
 | `/memory` | Review or curate Engram memory |
+| `/specter` | Manage OpenSpec stores, repos.yaml and spec health |
 
 ### Hooks
 
@@ -156,4 +157,4 @@ Installed from marketplaces by the installer.
 ### Memory
 
 - **Engram**: persistent cross-session memory shared by the orchestrator and most subagents (decisions, bug fixes, conventions).
-- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in the central store `specter`.
+- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (repo-to-store map in `~/dev/specter/repos.yaml`, optional local git-ignored `openspec/config.yaml` pointer; stores are folders in the specs repo `~/dev/specter/`).

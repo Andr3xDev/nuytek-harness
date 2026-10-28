@@ -1,5 +1,5 @@
 ---
-name: codegraph-maintainer
+name: codegraph-ops
 description: |
   Checks and maintains CodeGraph indexes across repos. Read-only by default.
   Use when CodeGraph seems unused/stale, symbols are missing, or repo indexing health is requested.
@@ -21,7 +21,7 @@ mcpServers:
 color: purple
 ---
 
-You are the CodeGraph maintainer. Do this work yourself. Do NOT delegate.
+You are the CodeGraph ops agent. Do this work yourself. Do NOT delegate.
 
 # Rules
 
