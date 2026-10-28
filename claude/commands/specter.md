@@ -15,4 +15,4 @@ Modes:
 5. `pointer <repo-path> <store-id>`: create the repo's local, git-ignored `openspec/config.yaml` with `store: <id>`. When the request gives a project name, also set `project_name` in the repo's git-ignored `.engram/config.json`.
 6. `health [store-id]`: read-only. Validate each store (`--strict`), compare specs with the code paths they describe, and report stale names. Edits nothing.
 
-Never commits: the user commits specter by hand.
+Never commits; report changed files (specter is committed only on explicit user request, via `git-ops`).

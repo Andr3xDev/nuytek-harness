@@ -31,7 +31,7 @@ Load before work:
 - SDD protocol
 - md-style-guide
 
-Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C. openspec leaves the archive uncommitted; it stays uncommitted and the user commits specter.
+Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C. openspec leaves the archive uncommitted; it stays uncommitted (specter is committed only on explicit user request, via `git-ops`).
 
 # Commandments (inviolable)
 

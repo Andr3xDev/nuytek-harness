@@ -30,7 +30,7 @@ If the CLI archive command is unavailable or fails, archive blocks. `sdd-archive
 
 Change-name convention (kebab-case, hyphens only; no project prefix, the store is the product) is defined once at `~/dev/specter/README.md` and validated by `sdd-propose` before a change is created — this README does not duplicate that rule.
 
-SDD commands use a registered store from any working directory: `openspec <subcommand> ... --store <store-id>`. The orchestrator resolves the id from a local `openspec/config.yaml` `store:` pointer or specter's `repos.yaml` (no default; an unmapped repo stops for store proposal) and passes `STORE: <store-id>` in every delegation. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store <store-id>`. Creating or registering stores is never an SDD agent task: the orchestrator asks the user and delegates to `specter-ops`. Agents never commit the specs repo; the user commits it by hand.
+SDD commands use a registered store from any working directory: `openspec <subcommand> ... --store <store-id>`. The orchestrator resolves the id from a local `openspec/config.yaml` `store:` pointer or specter's `repos.yaml` (no default; an unmapped repo stops for store proposal) and passes `STORE: <store-id>` in every delegation. Check registration with `openspec store list`; global structural validation is `openspec validate --all --strict --store <store-id>`. Creating or registering stores is never an SDD agent task: the orchestrator asks the user and delegates to `specter-ops`. SDD agents and `specter-ops` never commit the specs repo; `git-ops` commits it only on explicit user request.
 
 <br>
 

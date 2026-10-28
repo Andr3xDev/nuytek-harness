@@ -186,5 +186,5 @@ orchestrator delegates `sdd-design` right away for a small update before more im
 SDD always reads and writes OpenSpec filesystem artifacts under
 `{store-root}/openspec/changes/{change-name}/`. Git history provides the audit trail.
 openspec never stages or commits; agents never commit or stage the specs repo
-(`~/dev/specter`): the user commits it by hand and agents only report changed files. No SDD agent commits.
+(`~/dev/specter`): it is committed only when the user explicitly asks, via `git-ops` (invariant 5); agents only report changed files. No SDD agent commits.
 Engram is not an SDD artifact store and has no SDD persistence mode or fallback.
