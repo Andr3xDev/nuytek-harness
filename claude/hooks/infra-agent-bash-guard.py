@@ -184,6 +184,7 @@ ROLE_OPENSPEC_STORE_ADMIN = ROLE_OPENSPEC_READ + [
 STORE_ADMIN_SUBCOMMANDS = {"setup", "register", "unregister"}
 STORE_VALUE_FLAGS = {"--path", "--id", "--remote"}
 SPECTER_ROOT = "~/dev/specter"
+HOME_VAR_PREFIX = "$HOME/"
 
 ROLE_LOGS = [
     "zcat *",
@@ -503,35 +504,49 @@ def store_path_outside_specter(command: str) -> bool:
     `setup` writes outside specter by default, so `--path` is required; `register` takes the path
     positionally. Relative paths are denied (the guard does not know the cwd). `unregister` takes an id only.
     """
-    try:
-        # posix=False keeps quotes and backslashes in tokens: a quoted or escaped `~`/`$HOME` is not expanded by the shell.
-        tokens = shlex.split(command, posix=False)
-    except ValueError:
-        tokens = command.split()
-    if tokens[:2] != ["openspec", "store"] or tokens[2:3] == [] or tokens[2] not in STORE_ADMIN_SUBCOMMANDS:
-        return False
-    subcommand = tokens[2]
-    if subcommand == "unregister":
+    tokens = _store_tokens(command)
+    subcommand = store_admin_subcommand(command)
+    if subcommand in (None, "unregister"):
         return False
     paths, positionals, args = [], [], iter(tokens[3:])
     for token in args:
         flag, has_value, inline_value = token.partition("=")
         if flag in STORE_VALUE_FLAGS:
-            value = inline_value if has_value else next(args, "")
             if flag == "--path":
-                paths.append(_expand_home_prefix(value))
+                # bash/zsh do not tilde-expand after `=` in a non-assignment word, so `--path=~/x` reaches openspec literally.
+                if has_value and inline_value.startswith("~"):
+                    return True
+                paths.append(_expand_home_prefix(inline_value if has_value else next(args, "")))
+            elif not has_value:
+                next(args, None)
         elif not token.startswith("--"):
-            positionals.append(_expand_home_prefix(token))
-    if subcommand == "register":
-        paths = positionals[:1] + paths
+            positionals.append(token)
+    if subcommand == "register" and positionals:
+        paths.insert(0, _expand_home_prefix(positionals[0]))
     if not paths:
         return True
     return not all(is_under_specter(value) for value in paths)
 
 
+def _store_tokens(command: str) -> list:
+    try:
+        # posix=False keeps quotes and backslashes in tokens: a quoted or escaped `~`/`$HOME` is not expanded by the shell.
+        return shlex.split(command, posix=False)
+    except ValueError:
+        return command.split()
+
+
+def store_admin_subcommand(command: str):
+    """The `openspec store` admin subcommand (setup|register|unregister), or None."""
+    tokens = _store_tokens(command)
+    if tokens[:2] == ["openspec", "store"] and tokens[2:3] and tokens[2] in STORE_ADMIN_SUBCOMMANDS:
+        return tokens[2]
+    return None
+
+
 def _expand_home_prefix(value: str) -> str:
     """The shell expands a leading unquoted `$HOME/` like `~/`."""
-    return "~/" + value[len("$HOME/"):] if value.startswith("$HOME/") else value
+    return "~/" + value.removeprefix(HOME_VAR_PREFIX) if value.startswith(HOME_VAR_PREFIX) else value
 
 
 def is_under_specter(value: str) -> bool:
@@ -741,6 +756,11 @@ def _decide(agent_type: str, command: str):
             f"read-only; reading secret files (.env, keys, ~/.ssh, ~/.aws) or "
             f"searching recursively/with hidden files is not permitted."
         )
+    if store_admin_subcommand(command) and agent_type != "specter-ops":
+        return "deny", (
+            f"Blocked by infra-agent-bash-guard: '{agent_type}' may not run store admin "
+            f"commands; store setup/register/unregister is owned by specter-ops."
+        )
     if store_path_outside_specter(command):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' may only give store "
@@ -764,16 +784,10 @@ def _decide(agent_type: str, command: str):
             f"infra-agent-bash-guard: command matches '{agent_type}' "
             f"read-only allow-list."
         )
-    words = command.split()
-    hint = (
-        "; store setup/register/unregister is owned by specter-ops"
-        if words[:2] == ["openspec", "store"] and words[2:3] and words[2] in STORE_ADMIN_SUBCOMMANDS
-        else ""
-    )
     return "deny", (
         f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
         f"restricted to a read-only command allow-list; "
-        f"this command is not on it{hint}."
+        f"this command is not on it."
     )
 
 
@@ -907,6 +921,12 @@ def _selftest() -> int:
         ("specter-ops", "openspec store setup x --path \\$HOME/dev/specter/x", "deny"),
         ("specter-ops", "openspec store setup x --path $HOMEX/dev/specter/x", "deny"),
         ("sdd-propose", "openspec store setup x --path ~/dev/specter/x", "deny"),
+        ("sdd-propose", "openspec store setup x", "deny"),
+        ("specter-ops", "openspec store setup x --path \"~/dev/specter/x\"", "deny"),
+        ("specter-ops", "openspec store setup x --path=\"~/dev/specter/x\"", "deny"),
+        ("specter-ops", "openspec store setup x --path '~/dev/specter/x", "deny"),
+        ("specter-ops", "openspec store register '~/dev/specter/x'", "deny"),
+        ("specter-ops", "openspec store setup x --path=~/dev/specter/x", "deny"),
         ("specter-ops", "openspec store unregister demo", "allow"),
         ("specter-ops", "openspec store list", "allow"),
         ("specter-ops", "openspec validate --store demo --strict --json", "allow"),
@@ -1307,8 +1327,10 @@ def _selftest() -> int:
     assert "specter-ops" in reason, reason
     reason = decide("specter-ops", "cd ~/dev/specter && ls")[1]
     assert "Run the command alone" in reason, reason
+    reason = decide("sdd-propose", "openspec store setup x")[1]
+    assert "specter-ops" in reason and "unquoted" not in reason, reason
     reason = decide("specter-ops", "openspec store setup x")[1]
-    assert "--path" in reason, reason
+    assert "--path" in reason and "unquoted" in reason, reason
     print("PASS: actionable deny reasons")
 
     print("All self-test cases passed.")
