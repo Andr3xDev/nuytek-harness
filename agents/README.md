@@ -77,7 +77,7 @@ harness agents. Caveman and Ponytail are used only as skills, never as agents.
 
 Conditional skills (`find-docs`, `refactoring-techniques`, `senior-architect`,
 `software-design-patterns`, `event-schema`, `context-compact`, `skill-registry`, and the
-tracker skills `github-issue`, `github-pr`, `linear-issue`, `zenhub-issue`, `release-notes`)
+tracker skills `github-issue`, `github-pr`, `linear-issue`, `release-notes`)
 are injected only for roles and tasks listed in the registry. Judgment-day belongs only
 to the orchestrator, only on explicit user request, never the judges. Runtime plugin activation is separate from this
 delegation policy.

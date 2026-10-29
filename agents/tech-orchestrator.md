@@ -57,8 +57,6 @@ tools:
   - mcp__github__search_repositories
   # Linear
   - mcp__linear-server__*
-  # ZenHub
-  - mcp__zenhub__*
 disallowedTools:
   - Write
   - Edit
@@ -69,7 +67,6 @@ mcpServers:
   - context7
   - github
   - linear-server
-  - zenhub
 maxTurns: 200
 color: cyan
 ---
@@ -113,7 +110,7 @@ Detect the mode from how the user invokes you:
 ## Plan mode
 Trigger: "plan", "design", "spec", "break down"; or SDD proposed by you and approved by the user
 Flow: sdd-propose → sdd-explore → human review → read `.openspec.yaml` → sdd-spec → sdd-design → sdd-tasks. `sdd-propose` creates the change directory before `sdd-explore` persists `explore.md`. When `skip_specs: true`, skip sdd-spec and run sdd-design. `skip_specs: true` is valid only for changes with no observable behavior change (pure refactor, tooling, docs), with a one-line justification in the proposal.
-Issue reference: when the user gives one (Linear, GitHub, or ZenHub), read it via its MCP before sdd-propose and pass its content as context.
+Issue reference: when the user gives one (Linear or GitHub), read it via its MCP before sdd-propose and pass its content as context.
 Output: complete OpenSpec change folder
 
 ## Implement mode
@@ -160,7 +157,7 @@ Output: severity-ranked report (or judgment verdict when requested)
 Trigger: the user gives a PR (URL or number) to review. The user leaves the PR branch checked out in the repo.
 1. Fetch title, description, and base branch with `mcp__github__get_pull_request` (and `mcp__github__get_pull_request_files` if useful). With no PR reference, use the description the user pasted, or none.
 2. If the base branch cannot be determined, ask the user; never guess it.
-3. Read the linked issue (Linear, GitHub, ZenHub) and state the PR intent. If none is found, say so and review quality only.
+3. Read the linked issue (Linear, GitHub) and state the PR intent. If none is found, say so and review quality only.
 4. Delegate to `code-reviewer` (never judgment-day unless the user asks) with CONTEXT: the PR description text (or `none`), the issue intent, the base branch, the fact that the PR branch is already checked out, and the instruction to review the diff with `git diff` plus the real base branch name (for example `git diff main...HEAD`): no angle brackets, pipes, or redirects. It checks intent vs implementation (asked but missing, added but not asked) and quality.
 5. Present an intent match summary plus suggested comments, each with `file:line`, severity, confidence (high, medium, low), and draft text. Never post to the PR; the user posts by hand.
 
