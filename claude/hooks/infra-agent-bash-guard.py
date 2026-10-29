@@ -504,7 +504,8 @@ def store_path_outside_specter(command: str) -> bool:
     positionally. Relative paths are denied (the guard does not know the cwd). `unregister` takes an id only.
     """
     try:
-        tokens = shlex.split(command)
+        # posix=False keeps quotes and backslashes in tokens: a quoted or escaped `~`/`$HOME` is not expanded by the shell.
+        tokens = shlex.split(command, posix=False)
     except ValueError:
         tokens = command.split()
     if tokens[:2] != ["openspec", "store"] or tokens[2:3] == [] or tokens[2] not in STORE_ADMIN_SUBCOMMANDS:
@@ -518,14 +519,19 @@ def store_path_outside_specter(command: str) -> bool:
         if flag in STORE_VALUE_FLAGS:
             value = inline_value if has_value else next(args, "")
             if flag == "--path":
-                paths.append(value)
+                paths.append(_expand_home_prefix(value))
         elif not token.startswith("--"):
-            positionals.append(token)
+            positionals.append(_expand_home_prefix(token))
     if subcommand == "register":
         paths = positionals[:1] + paths
     if not paths:
         return True
     return not all(is_under_specter(value) for value in paths)
+
+
+def _expand_home_prefix(value: str) -> str:
+    """The shell expands a leading unquoted `$HOME/` like `~/`."""
+    return "~/" + value[len("$HOME/"):] if value.startswith("$HOME/") else value
 
 
 def is_under_specter(value: str) -> bool:
@@ -712,7 +718,8 @@ def _decide(agent_type: str, command: str):
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
             f"read-only and command chaining/substitution characters "
             f"(&&, ;, |, $(), backticks, newlines, redirects) are not "
-            f"permitted, regardless of allow-list matches."
+            f"permitted, regardless of allow-list matches. Run the command alone: "
+            f"no cd, &&, ;, pipes or redirects."
         )
 
     original_command = command
@@ -737,7 +744,8 @@ def _decide(agent_type: str, command: str):
     if store_path_outside_specter(command):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' may only give store "
-            f"commands paths under {SPECTER_ROOT}."
+            f"commands paths under {SPECTER_ROOT}. Give an explicit unquoted path "
+            f"(`--path {SPECTER_ROOT}/<id>`, or positional for register)."
         )
     command = strip_git_dash_c(command)
     if matches_any(command, rules.get("native_ask", [])):
@@ -756,10 +764,16 @@ def _decide(agent_type: str, command: str):
             f"infra-agent-bash-guard: command matches '{agent_type}' "
             f"read-only allow-list."
         )
+    words = command.split()
+    hint = (
+        "; store setup/register/unregister is owned by specter-ops"
+        if words[:2] == ["openspec", "store"] and words[2:3] and words[2] in STORE_ADMIN_SUBCOMMANDS
+        else ""
+    )
     return "deny", (
         f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is "
         f"restricted to a read-only command allow-list; "
-        f"this command is not on it."
+        f"this command is not on it{hint}."
     )
 
 
@@ -881,6 +895,18 @@ def _selftest() -> int:
         ("specter-ops", "openspec store register --id demo ~/dev/specter/demo", "allow"),
         ("specter-ops", "openspec store register ~/dev/specter/demo --id demo", "allow"),
         ("specter-ops", "openspec store setup demo --path ~/dev/specter/demo", "allow"),
+        ("specter-ops", "openspec store setup x --path $HOME/dev/specter/x", "allow"),
+        ("specter-ops", "openspec store setup x --path ${HOME}/dev/specter/x", "deny"),
+        ("specter-ops", "openspec store register $HOME/dev/specter/x", "allow"),
+        ("specter-ops", "openspec store setup x --path=$HOME/dev/specter/x", "allow"),
+        ("specter-ops", "openspec store setup x --path $HOME/dev/specter/../..", "deny"),
+        ("specter-ops", "openspec store setup x --path $HOME/dev/specter/x$Y", "deny"),
+        ("specter-ops", "openspec store setup x --path $HOME/", "deny"),
+        ("specter-ops", "openspec store setup x --path '$HOME/dev/specter/x'", "deny"),
+        ("specter-ops", "openspec store setup x --path '~/dev/specter/x'", "deny"),
+        ("specter-ops", "openspec store setup x --path \\$HOME/dev/specter/x", "deny"),
+        ("specter-ops", "openspec store setup x --path $HOMEX/dev/specter/x", "deny"),
+        ("sdd-propose", "openspec store setup x --path ~/dev/specter/x", "deny"),
         ("specter-ops", "openspec store unregister demo", "allow"),
         ("specter-ops", "openspec store list", "allow"),
         ("specter-ops", "openspec validate --store demo --strict --json", "allow"),
@@ -1276,6 +1302,14 @@ def _selftest() -> int:
     unparsable = evaluate_payload("not json")
     assert unparsable and unparsable[0] == "ask", f"FAIL: unparsable payload got={unparsable!r}"
     print("PASS: unparsable payload -> 'ask'")
+
+    reason = decide("sdd-propose", "openspec store setup x --path ~/dev/specter/x")[1]
+    assert "specter-ops" in reason, reason
+    reason = decide("specter-ops", "cd ~/dev/specter && ls")[1]
+    assert "Run the command alone" in reason, reason
+    reason = decide("specter-ops", "openspec store setup x")[1]
+    assert "--path" in reason, reason
+    print("PASS: actionable deny reasons")
 
     print("All self-test cases passed.")
     return 0
