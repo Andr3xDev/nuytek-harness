@@ -19,7 +19,7 @@ Portable source for my agent setup across machines.
 
 ## Not Included
 
-- Secrets: `GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear auth, Claude cloud connector auth
+- Secrets: `GITHUB_TOKEN`, Linear auth, Claude cloud connector auth
 - Runtime data: Claude history, project transcripts, paste cache, jobs, stats
 - Dependency caches: `node_modules`, plugin caches
 - Machine-specific cloud connectors: disconnect/connect at `https://claude.ai/customize/connectors`
@@ -46,7 +46,6 @@ Portable source for my agent setup across machines.
 - `filesystem`: `npx -y @modelcontextprotocol/server-filesystem /home/andrex/dev /home/andrex/laburo/`
 - `github`: `npx -y @modelcontextprotocol/server-github` with `GITHUB_TOKEN`
 - `linear-server`: `https://mcp.linear.app/mcp`
-- `zenhub` (optional): `npx -y mcp-remote https://api.zenhub.com/mcp` with `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`
 
 ## Expected Plugins
 

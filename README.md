@@ -35,7 +35,7 @@ Every change takes a snapshot in `~/.claude-backups/`.
 
 Available for: Claude Code.
 
-Secrets and auth stay outside the repo (`GITHUB_TOKEN`, `ZENHUB_API_TOKEN`, `ZENHUB_WORKSPACE_ID`, Linear MCP auth).
+Secrets and auth stay outside the repo (`GITHUB_TOKEN`, Linear MCP auth).
 
 <br>
 
@@ -98,7 +98,7 @@ Loaded on demand.
 |---|---|
 | Design | `senior-architect`, `software-design-patterns`, `refactoring-techniques`, `event-schema` |
 | Quality | `karpathy-guidelines`, `judgment-day`, `md-style-guide` |
-| Trackers / releases | `github-issue`, `github-pr`, `linear-issue`, `zenhub-issue`, `release-notes` |
+| Trackers / releases | `github-issue`, `github-pr`, `linear-issue`, `release-notes` |
 | Session / docs | `context-compact`, `find-docs`, `skill-registry` |
 
 ### MCPs
@@ -112,7 +112,6 @@ Reference: [claude/mcp-servers.md](claude/mcp-servers.md).
 | `context7` | Current library docs |
 | `github` | Issues, PRs, repo search |
 | `linear-server` | Linear issues and projects |
-| `zenhub` | ZenHub (optional, work) |
 | `filesystem` | Filesystem access outside the project root |
 
 ### Commands

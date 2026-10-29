@@ -25,5 +25,4 @@ Read `../md-style-guide/SKILL.md` first; this skill adds only GitHub rules.
 |:---|:---:|
 | Something is broken | `templates/bug.md` |
 | New capability or change | `templates/feature.md` |
-| Plan for a goal, epic, or task in ZenHub | Use `zenhub-issue` |
 | User asks to publish | Show title and body, wait for user OK, then `mcp__github__create_issue` |

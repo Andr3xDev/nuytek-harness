@@ -22,7 +22,7 @@ Claude Code. It governs delegation prompts only; runtime plugin activation is se
 - Ponytail is never injected into SDD, review, or infrastructure executors.
 - Judgment-day belongs only to the tech-orchestrator, only when the user explicitly asks for it; never inject it into `judge-a` or `judge-b`.
 - The SDD protocol is mandatory for every `sdd-*` role; inject it for the tech-orchestrator only when the user approved SDD.
-- Tracker skills (`linear-issue`, `github-issue`, `github-pr`, `release-notes`, `zenhub-issue`) are never injected into subagents: they ask the user and need tracker tools.
+- Tracker skills (`linear-issue`, `github-issue`, `github-pr`, `release-notes`) are never injected into subagents: they ask the user and need tracker tools.
 - `md-style-guide` is mandatory for SDD artifact writers and conditional for other SDD roles when producing Markdown.
 
 ## Runtime Plugins
@@ -77,7 +77,6 @@ Apply a conditional skill only when both the role and task trigger match.
 | github-issue | tech-orchestrator | GitHub issue in a repo without a Linear team. |
 | github-pr | tech-orchestrator | Write, open, or rewrite a PR title or description. |
 | release-notes | tech-orchestrator | Release notes, GitHub release body, changelog entry, or chat release message. |
-| zenhub-issue | tech-orchestrator | ZenHub epic, goal, or task. |
 
 ## Exact Paths
 
@@ -100,7 +99,6 @@ Apply a conditional skill only when both the role and task trigger match.
 | github-issue | `/home/andrex/.claude/skills/github-issue/SKILL.md` |
 | github-pr | `/home/andrex/.claude/skills/github-pr/SKILL.md` |
 | release-notes | `/home/andrex/.claude/skills/release-notes/SKILL.md` |
-| zenhub-issue | `/home/andrex/.claude/skills/zenhub-issue/SKILL.md` |
 
 ## Delegation Procedure
 
