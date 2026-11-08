@@ -2,6 +2,8 @@ package domain
 
 import (
 	"fmt"
+	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -87,12 +89,15 @@ func ValidateManifest(m Manifest, allowedKinds []Kind) error {
 		if !isRelativeInside(c.Target) {
 			return fmt.Errorf("component %q: target %q must be relative without \"..\"", c.Name, c.Target)
 		}
+		if slices.Contains(c.Needs, "") {
+			return fmt.Errorf("component %q: empty need", c.Name)
+		}
 	}
 	return nil
 }
 
 func isRelativeInside(p string) bool {
-	return !strings.HasPrefix(p, "/") && !slices.Contains(strings.Split(p, "/"), "..")
+	return !strings.HasPrefix(p, "/") && !slices.Contains(strings.Split(p, "/"), "..") && path.Clean(p) != "."
 }
 
 type MissingDep struct {
@@ -123,11 +128,14 @@ const (
 	utcStampLayout   = "20060102T150405Z"
 )
 
+// claude.sh appends "-1" to a UTC stamp for each same-second collision.
+var collisionSuffix = regexp.MustCompile(`(-\d+)+$`)
+
 func ParseBackupStamp(name string) (time.Time, bool) {
 	if t, err := time.ParseInLocation(localStampLayout, name, time.Local); err == nil {
 		return t, true
 	}
-	if t, err := time.ParseInLocation(utcStampLayout, name, time.UTC); err == nil {
+	if t, err := time.ParseInLocation(utcStampLayout, collisionSuffix.ReplaceAllString(name, ""), time.UTC); err == nil {
 		return t, true
 	}
 	return time.Time{}, false
