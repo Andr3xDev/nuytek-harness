@@ -55,8 +55,10 @@ func run() int {
 		store = state.Discard(fileStore)
 	}
 	saved, warning := store.Load()
+	// The alt screen hides stderr, so warnings go to the TUI; they hit stderr only if it never starts.
+	var warnings []string
 	if warning != "" {
-		fmt.Fprintln(os.Stderr, "warning:", warning)
+		warnings = append(warnings, warning)
 	}
 
 	claudeSpec := claude.Spec()
@@ -64,20 +66,23 @@ func run() int {
 	fsys := osfs.FS{}
 	res, err := repo.Resolve(*repoFlag, os.Getenv(repoEnvVar), saved.RepoPath, cwd, target.ManifestRel(claudeSpec.ID), fsys)
 	if err != nil {
+		for _, w := range warnings {
+			fmt.Fprintln(os.Stderr, "warning:", w)
+		}
 		return fail(exitNoRepo, err)
 	}
 	if res.Warning != "" {
-		fmt.Fprintln(os.Stderr, "warning:", res.Warning)
+		warnings = append(warnings, res.Warning)
 	}
 	if res.Source == repo.SourceFlag {
 		if err := store.Save(state.State{RepoPath: res.Path}); err != nil {
-			fmt.Fprintln(os.Stderr, "warning: saving state:", err)
+			warnings = append(warnings, fmt.Sprintf("saving state: %v", err))
 		}
 	}
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
 	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path}
-	if _, err := tea.NewProgram(ui.NewRoot(targets, env, *dryRun)).Run(); err != nil {
+	if _, err := tea.NewProgram(ui.NewRoot(targets, env, *dryRun, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)
 	}
 	return 0

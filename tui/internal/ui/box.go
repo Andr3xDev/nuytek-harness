@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"unicode"
 
 	"charm.land/lipgloss/v2"
 )
@@ -55,6 +56,18 @@ func truncate(text string, width int) string {
 	return string(runes) + "…"
 }
 
+// sanitize drops control characters (ESC, C0, C1) except newline: file-derived text must not
+// reach the terminal with live sequences such as OSC 8 links or DCS/APC strings.
+func sanitize(text string) string {
+	return strings.Map(func(r rune) rune {
+		if r != '\n' && unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, text)
+}
+
+// wrap sanitizes and wraps plain, unstyled text; every file-derived string goes through it.
 func wrap(text string, width int) []string {
-	return strings.Split(lipgloss.NewStyle().Width(max(width, 1)).Render(text), "\n")
+	return strings.Split(lipgloss.NewStyle().Width(max(width, 1)).Render(sanitize(text)), "\n")
 }

@@ -24,11 +24,42 @@ func TestRenderBox_LongTitleKeepsEveryLineAtWidth(t *testing.T) {
 }
 
 func TestRoot_DryRunBadgeShown(t *testing.T) {
-	r := NewRoot([]target.Target{availableTarget()}, check.Env{}, true)
+	r := NewRoot([]target.Target{availableTarget()}, check.Env{}, true, nil)
 	r.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	if out := r.render(); !strings.Contains(out, dryRunLabel) {
 		t.Fatalf("render lacks %q:\n%s", dryRunLabel, out)
+	}
+}
+
+func TestRoot_WarningShownAndFitsTerminalWidth(t *testing.T) {
+	const text = "state file /home/u/.local/state/nuytek-harness/state.toml is corrupt: fix or delete it"
+	for _, tc := range []struct{ w, h int }{{80, 24}, {40, 8}} {
+		r := NewRoot([]target.Target{availableTarget()}, check.Env{}, false, []string{text})
+		r.Update(tea.WindowSizeMsg{Width: tc.w, Height: tc.h})
+
+		out := r.render()
+		if tc.w == 80 && !strings.Contains(out, "state.toml is corrupt: fix or") {
+			t.Errorf("render lacks the warning:\n%s", out)
+		}
+		lines := strings.Split(out, "\n")
+		if len(lines) > tc.h {
+			t.Errorf("%dx%d: %d lines overflow the terminal", tc.w, tc.h, len(lines))
+		}
+		for i, line := range lines {
+			if got := lipgloss.Width(line); got > tc.w {
+				t.Errorf("%dx%d line %d width = %d: %q", tc.w, tc.h, i, got, line)
+			}
+		}
+	}
+}
+
+func TestWrap_StripsTerminalSequences(t *testing.T) {
+	in := "a\x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\ b\x1bPq data\x1b\\ \u009b31m c"
+	for _, line := range wrap(in, 80) {
+		if strings.ContainsAny(line, "\x1b\u009b") {
+			t.Errorf("control character survived: %q", line)
+		}
 	}
 }
 

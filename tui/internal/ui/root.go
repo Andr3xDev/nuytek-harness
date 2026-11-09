@@ -15,17 +15,18 @@ import (
 )
 
 const (
-	sidebarWidth   = 30
-	minWidth       = 40
-	minHeight      = 8
-	panelChrome    = 2 // tab row + blank line above the scrollable content
-	sidebarTitle   = "Targets"
-	helpTitle      = "Help"
-	computingText  = "Computing..."
-	notAvailable   = "Not available"
-	tooSmallText   = "Terminal too small"
-	noTargetsText  = "No targets"
-	dashboardTitle = "Dashboard"
+	sidebarWidth    = 30
+	minWidth        = 40
+	minHeight       = 8
+	panelChrome     = 2 // tab row + blank line above the scrollable content
+	maxWarningLines = 4
+	sidebarTitle    = "Targets"
+	helpTitle       = "Help"
+	computingText   = "Computing..."
+	notAvailable    = "Not available"
+	tooSmallText    = "Terminal too small"
+	noTargetsText   = "No targets"
+	dashboardTitle  = "Dashboard"
 )
 
 type phase int
@@ -60,6 +61,8 @@ type Root struct {
 	env     check.Env
 	dryRun  bool
 
+	warnings []string
+
 	ctx    context.Context
 	cancel context.CancelFunc
 
@@ -77,19 +80,21 @@ type Root struct {
 	w, h     int
 }
 
-func NewRoot(targets []target.Target, env check.Env, dryRun bool) *Root {
+// NewRoot's warnings stay visible above the keybar for the whole session.
+func NewRoot(targets []target.Target, env check.Env, dryRun bool, warnings []string) *Root {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Root{
-		targets: targets,
-		env:     env,
-		dryRun:  dryRun,
-		ctx:     ctx,
-		cancel:  cancel,
-		keys:    newKeyMap(),
-		th:      newTheme(defaultDark),
-		help:    help.New(),
-		states:  make([]targetState, len(targets)),
-		tabs:    []string{dashboardTitle},
+		targets:  targets,
+		env:      env,
+		dryRun:   dryRun,
+		warnings: warnings,
+		ctx:      ctx,
+		cancel:   cancel,
+		keys:     newKeyMap(),
+		th:       newTheme(defaultDark),
+		help:     help.New(),
+		states:   make([]targetState, len(targets)),
+		tabs:     []string{dashboardTitle},
 	}
 }
 
@@ -206,7 +211,17 @@ type layout struct{ sidebarW, panelW, bodyH int }
 
 func (r *Root) layout() layout {
 	sidebarW := min(sidebarWidth, r.w*2/5)
-	return layout{sidebarW: sidebarW, panelW: r.w - sidebarW, bodyH: r.h - 1}
+	return layout{sidebarW: sidebarW, panelW: r.w - sidebarW, bodyH: r.h - 1 - len(r.warningLines())}
+}
+
+// warningLines wraps the warnings to the terminal width, capped so they cannot crowd out the body.
+func (r *Root) warningLines() []string {
+	if len(r.warnings) == 0 {
+		return nil
+	}
+	lines := wrap(strings.Join(r.warnings, "  "), r.w)
+	lines = lines[:min(len(lines), maxWarningLines)]
+	return styleAll(r.th.warning, lines)
 }
 
 func (r *Root) viewportHeight() int {
@@ -278,6 +293,9 @@ func (r *Root) render() string {
 	if r.showHelp {
 		body = overlayCentered(body, helpPopup(r.th, r.help, r.keys, r.w, l.bodyH), r.w, l.bodyH)
 		bindings = []key.Binding{r.keys.Help, r.keys.Quit}
+	}
+	for _, line := range r.warningLines() {
+		body += "\n" + line
 	}
 	return body + "\n" + keybar(r.th, r.help, bindings, r.dryRun, r.w)
 }
