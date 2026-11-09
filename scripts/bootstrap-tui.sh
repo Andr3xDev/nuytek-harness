@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: "${HOME:?HOME must be set and non-empty}"
+case "$HOME" in
+  /*) ;;
+  *) echo "HOME must be an absolute path" >&2; exit 1 ;;
+esac
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if ! command -v go >/dev/null 2>&1; then
