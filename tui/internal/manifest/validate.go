@@ -5,6 +5,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 func Validate(m Manifest, allowedKinds []Kind) error {
@@ -34,8 +35,19 @@ func Validate(m Manifest, allowedKinds []Kind) error {
 		if slices.Contains(c.Needs, "") {
 			return fmt.Errorf("component %q: empty need", c.Name)
 		}
+		for _, need := range c.Needs {
+			if !isBareCommand(need) {
+				return fmt.Errorf("component %q: need %q must be a bare command name", c.Name, need)
+			}
+		}
 	}
 	return nil
+}
+
+// Needs are executed by the dependency check; a path or flag in an untrusted
+// checkout's manifest would run that checkout's binary.
+func isBareCommand(name string) bool {
+	return !strings.ContainsFunc(name, unicode.IsSpace) && !strings.ContainsRune(name, '/') && !strings.HasPrefix(name, "-")
 }
 
 func isRelativeInside(p string) bool {
