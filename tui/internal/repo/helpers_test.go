@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const testMarker = "claude.toml"
+const testMarker = "targets/claude.toml"
 
 func mkRepo(t *testing.T) string {
 	t.Helper()
@@ -14,7 +14,7 @@ func mkRepo(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Join(repo, "targets"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repo, "targets", testMarker), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, testMarker), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return repo

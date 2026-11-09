@@ -17,6 +17,11 @@ const (
 	targetsDir  = "targets"
 )
 
+// ManifestRel is the repo-relative path of a target's manifest, the one place that convention lives.
+func ManifestRel(id string) string {
+	return filepath.Join(targetsDir, id+manifestExt)
+}
+
 type LoadManifest func(path string, kinds []manifest.Kind) (manifest.Manifest, error)
 
 // Load returns the registered specs first, then manifests found in targets/ that no spec claims.
@@ -46,7 +51,7 @@ func loadTarget(repo string, spec Spec, load LoadManifest, fsys check.FS) Target
 	if spec.Checks == nil {
 		return t
 	}
-	path := filepath.Join(repo, targetsDir, spec.ID+manifestExt)
+	path := filepath.Join(repo, ManifestRel(spec.ID))
 	if _, err := fsys.Lstat(path); err != nil {
 		t.Err = fmt.Errorf("manifest %s: %w", path, err)
 		return t

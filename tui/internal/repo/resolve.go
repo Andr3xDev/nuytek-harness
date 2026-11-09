@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 )
 
-const targetsDir = "targets"
-
 // FS is the only filesystem access Resolve needs.
 type FS interface {
 	Lstat(path string) (fs.FileInfo, error)
@@ -25,9 +23,9 @@ type Resolution struct {
 	Path, Source, Warning string
 }
 
-// isRepo reports whether dir holds targets/<marker>.
+// isRepo reports whether dir holds the repo-relative marker path.
 func isRepo(fsys FS, dir, marker string) bool {
-	_, err := fsys.Lstat(filepath.Join(dir, targetsDir, marker))
+	_, err := fsys.Lstat(filepath.Join(dir, marker))
 	return err == nil
 }
 
@@ -38,13 +36,13 @@ func resolveExplicit(label, path, source, marker string, fsys FS) (Resolution, e
 		return Resolution{}, fmt.Errorf("%s %s: %w", label, path, err)
 	}
 	if !isRepo(fsys, abs, marker) {
-		return Resolution{}, fmt.Errorf("%s %s is not a harness repo (missing %s/%s)", label, abs, targetsDir, marker)
+		return Resolution{}, fmt.Errorf("%s %s is not a harness repo (missing %s)", label, abs, marker)
 	}
 	return Resolution{Path: abs, Source: source}, nil
 }
 
 // Resolve picks the repo by precedence flag > env > statePath > walking up from cwd.
-// marker is the file name inside targets/ that identifies a harness repo.
+// marker is the repo-relative file path that identifies a harness repo.
 // Explicit flag/env without a repo marker is an error; a stale statePath only warns.
 func Resolve(flag, env, statePath, cwd, marker string, fsys FS) (Resolution, error) {
 	if flag != "" {

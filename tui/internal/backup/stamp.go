@@ -10,7 +10,7 @@ const (
 	utcStampLayout   = "20060102T150405Z"
 )
 
-// claude.sh appends "-1" to a UTC stamp for each same-second collision.
+// The bash backup flow appends "-N" to a UTC stamp on a same-second collision.
 var collisionSuffix = regexp.MustCompile(`(-\d+)+$`)
 
 func ParseStamp(name string) (time.Time, bool) {
