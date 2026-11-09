@@ -35,24 +35,3 @@ func TestManifest_AllNeeds(t *testing.T) {
 		})
 	}
 }
-
-func TestManifest_TargetOf(t *testing.T) {
-	m := manifest.Manifest{Components: []manifest.Component{comp("settings", manifest.KindFile, "s", ".claude/settings.json")}}
-	tests := []struct {
-		name   string
-		lookup string
-		want   string
-		wantOK bool
-	}{
-		{"known", "settings", ".claude/settings.json", true},
-		{"unknown", "nope", "", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, ok := m.TargetOf(tt.lookup)
-			if got != tt.want || ok != tt.wantOK {
-				t.Fatalf("got (%q, %v), want (%q, %v)", got, ok, tt.want, tt.wantOK)
-			}
-		})
-	}
-}

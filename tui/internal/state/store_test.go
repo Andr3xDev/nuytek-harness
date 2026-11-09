@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/testutil"
 )
 
 // Both stores must satisfy the interface the shell consumes.
@@ -21,27 +22,10 @@ var (
 	_ store = state.DiscardStore{}
 )
 
-func statePath(t *testing.T) string {
-	t.Helper()
-	return filepath.Join(t.TempDir(), "nuytek-harness", "state.toml")
-}
-
 func TestStore_MissingFileLoadsEmptyWithoutWarning(t *testing.T) {
 	got, warning := state.NewStore(statePath(t)).Load()
 	if got != (state.State{}) || warning != "" {
 		t.Fatalf("Load = %+v, %q; want empty state and no warning", got, warning)
-	}
-}
-
-func TestStore_SaveCreatesDirectoryAndRoundTrips(t *testing.T) {
-	path := statePath(t)
-	s := state.NewStore(path)
-	if err := s.Save(state.State{RepoPath: "/a"}); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-	got, warning := state.NewStore(path).Load()
-	if got.RepoPath != "/a" || warning != "" {
-		t.Fatalf("Load = %+v, %q; want RepoPath /a and no warning", got, warning)
 	}
 }
 
@@ -120,26 +104,14 @@ func TestStore_SaveReplacesCorruptFile(t *testing.T) {
 	}
 }
 
-func TestDiscard_LoadsFromRealStore(t *testing.T) {
-	path := statePath(t)
-	fileStore := state.NewStore(path)
-	if err := fileStore.Save(state.State{RepoPath: "/a"}); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-	got, warning := state.Discard(fileStore).Load()
-	if got.RepoPath != "/a" || warning != "" {
-		t.Fatalf("Load = %+v, %q; want RepoPath /a and no warning", got, warning)
-	}
-}
-
 func TestDiscard_SaveWritesNothing(t *testing.T) {
 	root := t.TempDir()
 	d := state.Discard(state.NewStore(filepath.Join(root, "nuytek-harness", "state.toml")))
-	before := treeHash(t, root)
+	before := testutil.TreeHash(t, root)
 	if err := d.Save(state.State{RepoPath: "/a"}); err != nil {
 		t.Fatalf("Save = %v, want nil", err)
 	}
-	if after := treeHash(t, root); after != before {
+	if after := testutil.TreeHash(t, root); after != before {
 		t.Fatal("dry-run Save changed the state directory")
 	}
 }

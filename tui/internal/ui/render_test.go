@@ -23,6 +23,15 @@ func TestRenderBox_LongTitleKeepsEveryLineAtWidth(t *testing.T) {
 	}
 }
 
+func TestRoot_DryRunBadgeShown(t *testing.T) {
+	r := NewRoot([]target.Target{availableTarget()}, check.Env{}, true)
+	r.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	if out := r.render(); !strings.Contains(out, dryRunLabel) {
+		t.Fatalf("render lacks %q:\n%s", dryRunLabel, out)
+	}
+}
+
 func TestRoot_RenderFitsTerminalWidth(t *testing.T) {
 	long := availableTarget()
 	long.Spec.Name = strings.Repeat("Name", 20)

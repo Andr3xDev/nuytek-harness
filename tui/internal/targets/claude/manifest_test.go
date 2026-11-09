@@ -2,17 +2,13 @@ package claude
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/testutil"
 )
 
 const realManifest = "../../../../targets/claude.toml"
@@ -70,33 +66,9 @@ func (allToolsExec) Output(context.Context, string, ...string) ([]byte, error) {
 	return []byte("1.2.3\n"), nil
 }
 
-func treeHash(t *testing.T, roots ...string) string {
+func homeAndRepoHash(t *testing.T, env check.Env) string {
 	t.Helper()
-	h := sha256.New()
-	for _, root := range roots {
-		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			info, err := d.Info()
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(h, "%s|%v|%d\n", path, info.Mode(), info.Size())
-			if info.Mode().IsRegular() {
-				data, err := os.ReadFile(path)
-				if err != nil {
-					return err
-				}
-				h.Write(data)
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return testutil.TreeHash(t, env.Home) + testutil.TreeHash(t, env.Repo)
 }
 
 func TestSpecChecks_RunningEveryCheckMutatesNothing(t *testing.T) {
@@ -117,12 +89,12 @@ func TestSpecChecks_RunningEveryCheckMutatesNothing(t *testing.T) {
 	writeFile(t, env.Home, ".claude/skills/s/SKILL.md", "---\nname: s\ndescription: d\n---\nbody\n")
 	writeFile(t, env.Repo, "claude/claude-mcp.json", `{"mcpServers":{"s":{"command":"node","args":["x"],"env":{"K":"${FOO}","M":"${MISSING}"}}}}`)
 
-	before := treeHash(t, env.Home, env.Repo)
+	before := homeAndRepoHash(t, env)
 	results := check.Run(context.Background(), env, checks)
 	if len(results) == 0 {
 		t.Fatal("no results: the checks did no work")
 	}
-	if after := treeHash(t, env.Home, env.Repo); after != before {
+	if after := homeAndRepoHash(t, env); after != before {
 		t.Fatal("running the Claude checks changed the HOME or repo tree")
 	}
 }

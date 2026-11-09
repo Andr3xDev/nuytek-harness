@@ -16,13 +16,13 @@ func TestEnvRefs(t *testing.T) {
 		name        string
 		text        string
 		env         map[string]string
-		want        check.Status
+		want        []check.Status
 		wantMessage string
 	}{
-		{"unset warns naming variable", "token ${EXAMPLE_TOKEN}", nil, check.StatusWarning, "EXAMPLE_TOKEN"},
-		{"set is ok", "token ${EXAMPLE_TOKEN}", map[string]string{"EXAMPLE_TOKEN": "v"}, check.StatusOK, ""},
-		{"unset with default is ok", "${EXAMPLE_TOKEN:-fallback}", nil, check.StatusOK, ""},
-		{"bare dollar is ignored", "$EXAMPLE_TOKEN", nil, check.StatusOK, ""},
+		{"unset warns naming variable", "token ${EXAMPLE_TOKEN}", nil, []check.Status{check.StatusWarning}, "EXAMPLE_TOKEN"},
+		{"set is ok", "token ${EXAMPLE_TOKEN}", map[string]string{"EXAMPLE_TOKEN": "v"}, []check.Status{check.StatusOK}, ""},
+		{"unset with default is ok", "${EXAMPLE_TOKEN:-fallback}", nil, []check.Status{check.StatusOK}, ""},
+		{"bare dollar is ignored", "$EXAMPLE_TOKEN", nil, nil, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -33,27 +33,19 @@ func TestEnvRefs(t *testing.T) {
 
 			got := runCheck(t, check.EnvRefs("mcp-env", envRefPattern, extract), env)
 
-			warnings := 0
-			for _, r := range got {
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d results, want %d: %+v", len(got), len(tt.want), got)
+			}
+			for i, r := range got {
 				if r.CheckID != "mcp-env" || r.Subject != "github" {
 					t.Errorf("result %+v: want CheckID mcp-env, Subject github", r)
 				}
-				if r.Status == check.StatusWarning {
-					warnings++
-					if !strings.Contains(r.Message, tt.wantMessage) {
-						t.Errorf("message %q lacks %q", r.Message, tt.wantMessage)
-					}
+				if r.Status != tt.want[i] {
+					t.Errorf("result %d status = %v, want %v", i, r.Status, tt.want[i])
 				}
-			}
-			wantWarnings := 0
-			if tt.want == check.StatusWarning {
-				wantWarnings = 1
-			}
-			if warnings != wantWarnings {
-				t.Fatalf("got %d warnings, want %d: %+v", warnings, wantWarnings, got)
-			}
-			if strings.Contains(tt.text, "${") && len(got) == 0 {
-				t.Fatalf("no results: a source with references must report them")
+				if !strings.Contains(r.Message, tt.wantMessage) {
+					t.Errorf("message %q lacks %q", r.Message, tt.wantMessage)
+				}
 			}
 		})
 	}

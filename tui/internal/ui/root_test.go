@@ -26,20 +26,51 @@ func TestRoot_InitStartsLoadingAndResultMakesReady(t *testing.T) {
 	}
 }
 
-func TestRoot_StaleGenerationIsDropped(t *testing.T) {
+func TestRoot_RefreshRecomputesAndDropsStaleResult(t *testing.T) {
 	r := newRoot(t, availableTarget())
 	r.Init()
 	r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
 	r.focus = focusPanel
+	oldGen := r.states[0].gen
 
 	if cmd := press(r, textKey("r")); cmd == nil {
 		t.Fatal("r on a ready target returned nil Cmd, want recompute")
 	}
-	staleGen := r.states[0].gen - 1
-	r.Update(computedMsg{idx: 0, gen: staleGen})
+	if got := r.states[0].phase; got != loading {
+		t.Fatalf("phase after r = %v, want loading", got)
+	}
+	if got := r.states[0].gen; got != oldGen+1 {
+		t.Fatalf("gen after r = %d, want %d", got, oldGen+1)
+	}
 
+	r.Update(computedMsg{idx: 0, gen: oldGen})
 	if got := r.states[0].phase; got != loading {
 		t.Fatalf("phase after stale result = %v, want loading", got)
+	}
+
+	r.Update(computedMsg{idx: 0, gen: oldGen + 1})
+	if got := r.states[0].phase; got != ready {
+		t.Fatalf("phase after fresh result = %v, want ready", got)
+	}
+}
+
+func TestRoot_SidebarSelectsTargetsAndBoundsCursor(t *testing.T) {
+	r := newRoot(t, availableTarget(), availableTarget())
+	r.Init()
+	r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
+	cachedGen := r.states[0].gen
+
+	if cmd := press(r, downKey); cmd == nil || r.cursor != 1 {
+		t.Fatalf("down: cmd nil = %v, cursor = %d; want a Cmd and cursor 1", cmd == nil, r.cursor)
+	}
+	if cmd := press(r, downKey); cmd != nil || r.cursor != 1 {
+		t.Fatalf("down at the end: cmd nil = %v, cursor = %d; want no Cmd and cursor 1", cmd == nil, r.cursor)
+	}
+	if cmd := press(r, upKey); cmd != nil || r.cursor != 0 {
+		t.Fatalf("up: cmd nil = %v, cursor = %d; want no Cmd and cursor 0", cmd == nil, r.cursor)
+	}
+	if st := r.states[0]; st.phase != ready || st.gen != cachedGen {
+		t.Fatalf("cached target recomputed: phase = %v, gen = %d, want ready and gen %d", st.phase, st.gen, cachedGen)
 	}
 }
 

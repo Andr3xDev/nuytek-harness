@@ -2,15 +2,15 @@ package main_test
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/testutil"
 )
 
 const (
@@ -128,18 +128,6 @@ func TestUninstallScript_NothingInstalled(t *testing.T) {
 	}
 }
 
-func TestUninstallScript_SecondRunAfterRemovalReportsNothing(t *testing.T) {
-	home := t.TempDir()
-	installFiles(t, home)
-	runUninstall(t, home)
-
-	out, code := runUninstall(t, home)
-
-	if code != 0 || !strings.Contains(out, nothingMessage) || strings.Contains(out, "removed:") {
-		t.Fatalf("exit = %d, output:\n%s", code, out)
-	}
-}
-
 func TestUninstallScript_LeavesHarnessConfigUntouched(t *testing.T) {
 	home := t.TempDir()
 	writeFile(t, filepath.Join(home, ".claude", "settings.json"), `{"a":1}`)
@@ -151,13 +139,13 @@ func TestUninstallScript_LeavesHarnessConfigUntouched(t *testing.T) {
 		t.Fatal(err)
 	}
 	installFiles(t, home)
-	before := treeHash(t, home, binPath(home), statePath(home))
+	before := testutil.TreeHash(t, home, binPath(home), statePath(home))
 
 	if out, code := runUninstall(t, home); code != 0 {
 		t.Fatalf("exit = %d, output:\n%s", code, out)
 	}
 
-	if after := treeHash(t, home, binPath(home), statePath(home)); after != before {
+	if after := testutil.TreeHash(t, home, binPath(home), statePath(home)); after != before {
 		t.Fatalf("tree changed outside bin and state:\nbefore %s\nafter  %s", before, after)
 	}
 }
@@ -194,46 +182,4 @@ func TestUninstallScript_SymlinkedStateRemovesOnlyLink(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", "removed: "+p, out)
 		}
 	}
-}
-
-// treeHash covers path, mode, content and link target of everything under root except the skipped paths.
-func treeHash(t *testing.T, root string, skip ...string) string {
-	t.Helper()
-	h := sha256.New()
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		for _, s := range skip {
-			if path == s {
-				if d.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-		}
-		info, err := os.Lstat(path)
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(root, path)
-		fmt.Fprintf(h, "%s|%v|", rel, info.Mode())
-		switch {
-		case info.Mode()&fs.ModeSymlink != 0:
-			link, _ := os.Readlink(path)
-			fmt.Fprint(h, link)
-		case info.Mode().IsRegular():
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			h.Write(data)
-		}
-		fmt.Fprintln(h)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil))
 }

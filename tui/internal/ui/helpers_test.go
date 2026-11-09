@@ -28,6 +28,8 @@ func textKey(s string) tea.KeyPressMsg {
 }
 
 var (
+	downKey  = tea.KeyPressMsg{Code: tea.KeyDown}
+	upKey    = tea.KeyPressMsg{Code: tea.KeyUp}
 	enterKey = tea.KeyPressMsg{Code: tea.KeyEnter}
 	escKey   = tea.KeyPressMsg{Code: tea.KeyEscape}
 	ctrlC    = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}

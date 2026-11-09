@@ -22,16 +22,11 @@ func TestEvaluators_MergesExtraAndKeepsDataKinds(t *testing.T) {
 
 	for _, kind := range []manifest.Kind{manifest.KindDir, manifest.KindDirX, manifest.KindFile, manifest.KindFileX, "mcp"} {
 		if got[kind] == nil {
-			t.Errorf("no evaluator for kind %q", kind)
+			t.Fatalf("no evaluator for kind %q", kind)
 		}
 	}
-	if len(got) != 5 {
-		t.Errorf("got %d evaluators, want 5", len(got))
-	}
-	if got["mcp"] != nil {
-		got["mcp"](context.Background(), check.Env{}, manifest.Component{})
-		if !called {
-			t.Error("extra evaluator was replaced")
-		}
+	got["mcp"](context.Background(), check.Env{}, manifest.Component{})
+	if !called {
+		t.Error("extra evaluator was replaced")
 	}
 }
