@@ -20,7 +20,7 @@ var mcpExpandedKeys = []string{"command", "args", "env", "url", "headers"}
 
 type mcpServers map[string]map[string]any
 
-// readMCPSource reads the harness-owned server definitions at the repo-relative source (design D6).
+// readMCPSource reads the harness-owned server definitions at the repo-relative source.
 func readMCPSource(env check.Env, source string) (mcpServers, error) {
 	var servers mcpServers
 	err := readJSON(env.FS, filepath.Join(env.Repo, source), &servers)

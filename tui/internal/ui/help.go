@@ -7,7 +7,6 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// helpLines lists every key, grouped, for the help popup.
 func helpLines(t theme, h help.Model, k keyMap, width int) []string {
 	h.Styles = t.help
 	h.SetWidth(width)
@@ -35,7 +34,6 @@ type popup struct {
 	w, h int
 }
 
-// overlayCentered draws p over base, centered in a w x h area.
 func overlayCentered(base string, p popup, w, h int) string {
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(base),

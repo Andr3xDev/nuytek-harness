@@ -55,7 +55,6 @@ func truncate(text string, width int) string {
 	return string(runes) + "…"
 }
 
-// wrap hard-wraps text to width so every returned line fits.
 func wrap(text string, width int) []string {
 	return strings.Split(lipgloss.NewStyle().Width(max(width, 1)).Render(text), "\n")
 }

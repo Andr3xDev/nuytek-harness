@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// DefaultProbeTimeout bounds each version probe.
 const DefaultProbeTimeout = 3 * time.Second
 
 var versionPattern = regexp.MustCompile(`v?\d+(\.\d+)+`)

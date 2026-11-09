@@ -34,7 +34,7 @@ type HookRefs struct {
 	ArgPaths   []string // other path-like arguments: must exist
 }
 
-// ParseHookCommand applies the heuristic of design D5.
+// ParseHookCommand classifies a hook command into the paths and commands that must exist; anything it cannot analyze safely is returned as Complex.
 func ParseHookCommand(cmd string) HookRefs {
 	tokens, complex := tokenize(cmd)
 	if complex {

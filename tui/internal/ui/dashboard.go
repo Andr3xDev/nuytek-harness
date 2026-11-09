@@ -52,7 +52,6 @@ func countRows(t theme, d dashboard.Dashboard, width int) []string {
 	return rows
 }
 
-// dashboardLines renders d as plain wrapped lines, one section after another.
 func dashboardLines(t theme, d dashboard.Dashboard, width int) []string {
 	var rows []string
 	add := func(style lipgloss.Style, plain string) {

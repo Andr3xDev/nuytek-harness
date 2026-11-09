@@ -16,7 +16,6 @@ const MaxOutputBytes = 64 * 1024
 
 const killWaitDelay = 500 * time.Millisecond
 
-// Exec is the os/exec-backed check.Exec.
 type Exec struct{}
 
 func (Exec) LookPath(name string) (string, error) { return exec.LookPath(name) }

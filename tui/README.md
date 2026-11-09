@@ -42,7 +42,7 @@ The script removes only `~/.local/bin/nuytek-harness` and `~/.local/state/nuytek
 
 ## Architecture
 
-Packages are grouped by domain under `tui/internal`. Each owns its types and logic.
+Packages under `tui/internal` each own their types and logic.
 
 | Package | Purpose |
 |---|---|
@@ -72,7 +72,7 @@ Dependency rule: interfaces are declared by the consumer, and each package impor
 
 ## Adding a new CLI target
 
-Example: OpenCode. Four files, one of them a single-line edit.
+Example: OpenCode. Up to four files: a manifest, a Spec, a one-line swap in main.go (plus its import), and optional tests.
 
 1. `targets/opencode.toml`: new manifest with `[[component]]` entries (`kind`, `source`, `target`, `needs`).
 2. `tui/internal/targets/opencode/opencode.go`: new file with `func Spec() target.Spec`. Set `ID`, `Name`, `Evaluators` (usually `drift.Evaluators(nil)`), `Checks` composed from the generic `check` kinds, and `BackupDirs` if any. Paths come from `manifest.Manifest.TargetOf`.

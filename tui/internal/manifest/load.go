@@ -37,7 +37,7 @@ func Load(path string, kinds []Kind) (Manifest, error) {
 		return Manifest{}, decodeError(path, err)
 	}
 
-	// shortcut: headers found by line scan; a "[[component]]" line inside a multi-line string would shift the mapping.
+	// shortcut: headers found by line scan, so a "[[component]]" line inside a multi-line string shifts the mapping; switch to a position-aware TOML decoder if manifests ever need multi-line strings.
 	headers := headerLines(data)
 	m := Manifest{Path: path}
 	for i, rc := range raw.Component {

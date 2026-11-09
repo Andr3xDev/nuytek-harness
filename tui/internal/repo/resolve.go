@@ -23,7 +23,6 @@ type Resolution struct {
 	Path, Source, Warning string
 }
 
-// isRepo reports whether dir holds the repo-relative marker path.
 func isRepo(fsys FS, dir, marker string) bool {
 	_, err := fsys.Lstat(filepath.Join(dir, marker))
 	return err == nil
