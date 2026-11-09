@@ -35,6 +35,7 @@ func TestRequirements(t *testing.T) {
 		{"command on PATH", check.Requirement{Subject: "jq", Command: "jq"}, check.StatusOK, ""},
 		{"sound present", check.Requirement{Subject: "sound-ok", Path: sound}, check.StatusOK, ""},
 		{"sound missing", check.Requirement{Subject: "sound-gone", Path: filepath.Join(env.Home, "done.wav")}, check.StatusError, "done.wav"},
+		{"unanalyzed skips the other checks", check.Requirement{Subject: "complex", Path: filepath.Join(env.Home, "gone.py"), Unanalyzed: "not analyzed"}, check.StatusUnknown, "not analyzed"},
 	}
 	reqs := make([]check.Requirement, len(tests))
 	for i, tt := range tests {

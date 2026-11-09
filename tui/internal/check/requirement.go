@@ -14,6 +14,7 @@ const OwnerExecBit fs.FileMode = 0o100
 type Requirement struct {
 	Subject, Path, Command string
 	MustExec               bool
+	Unanalyzed             string // when set, reported as unknown with this message and no other check runs
 }
 
 func Requirements(id string, extract func(env Env) ([]Requirement, error)) Check {
@@ -32,6 +33,9 @@ func Requirements(id string, extract func(env Env) ([]Requirement, error)) Check
 }
 
 func verifyRequirement(env Env, req Requirement) (Status, string) {
+	if req.Unanalyzed != "" {
+		return StatusUnknown, req.Unanalyzed
+	}
 	if req.Command != "" {
 		if _, err := env.Exec.LookPath(req.Command); err != nil {
 			return StatusError, fmt.Sprintf("command %s not found on PATH", req.Command)
