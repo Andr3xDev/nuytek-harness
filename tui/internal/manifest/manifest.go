@@ -10,8 +10,8 @@ type Component struct {
 }
 
 type Manifest struct {
-	Target, Path string
-	Components   []Component
+	Path       string
+	Components []Component
 }
 
 func (m Manifest) TargetOf(name string) (string, bool) {

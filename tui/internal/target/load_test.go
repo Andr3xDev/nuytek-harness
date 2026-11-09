@@ -77,7 +77,7 @@ func TestLoad_ChecksCompositionErrorIsReported(t *testing.T) {
 
 func TestLoad_LoadsManifestAndChecks(t *testing.T) {
 	repo := mkManifests(t, "claude")
-	m := manifest.Manifest{Target: "claude", Components: []manifest.Component{{Name: "agents", Kind: manifest.KindFile}}}
+	m := manifest.Manifest{Components: []manifest.Component{{Name: "agents", Kind: manifest.KindFile}}}
 	var gotPath string
 	var gotKinds []manifest.Kind
 	load := func(p string, kinds []manifest.Kind) (manifest.Manifest, error) {
@@ -88,7 +88,7 @@ func TestLoad_LoadsManifestAndChecks(t *testing.T) {
 
 	got := target.Load(repo, []target.Spec{implementedSpec("claude", checks)}, load, osfs.FS{})
 
-	if len(got) < 1 || got[0].Err != nil || got[0].Manifest.Target != "claude" || len(got[0].Checks) != 1 {
+	if len(got) < 1 || got[0].Err != nil || len(got[0].Checks) != 1 {
 		t.Fatalf("got %+v, want loaded manifest and one check", got)
 	}
 	if gotPath != filepath.Join(repo, "targets", "claude.toml") {
