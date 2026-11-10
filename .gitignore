@@ -14,7 +14,7 @@ daemon.log
 stats-cache.json
 
 # Local refresh rollback snapshots
-.refresh-backups/
+.refresh-backups*
 
 # OS/editor junk
 **/.DS_Store
