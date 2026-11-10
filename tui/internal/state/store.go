@@ -41,7 +41,7 @@ func (s *Store) Load() (State, string) {
 }
 
 func (s *Store) warning(err error) string {
-	return fmt.Sprintf("state file %s is unreadable (%v): fix or delete it", s.path, err)
+	return fmt.Sprintf("state file %s: fix or delete it (%v)", s.path, err)
 }
 
 // Save writes via a temp file in the same directory, then renames, so readers never see a partial file.
