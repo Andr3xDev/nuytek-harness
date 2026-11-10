@@ -195,13 +195,14 @@ func TestCompute_FeedsMissingDepsAndLastBackup(t *testing.T) {
 		Manifest: manifest.Manifest{Components: []manifest.Component{{Name: "hooks", Kind: manifest.KindDirX, Needs: []string{"jq"}}}},
 		Checks: []check.Check{fixedCheck(check.DependenciesID,
 			check.Result{CheckID: check.DependenciesID, Subject: "jq", Status: check.StatusError},
+			check.Result{CheckID: check.DependenciesID, Subject: "claude", Status: check.StatusOK},
 			check.Result{CheckID: "other", Subject: "ghost", Status: check.StatusError})},
 	}
 	env := check.Env{FS: osfs.FS{}, Home: filepath.Dir(backups)}
 
 	got := dashboard.Compute(context.Background(), env, tg)
 
-	wantDeps := []dashboard.MissingDep{{Tool: "jq", Dependents: []string{"hooks"}}}
+	wantDeps := []manifest.MissingDep{{Tool: "jq", Dependents: []string{"hooks"}}}
 	if !reflect.DeepEqual(got.MissingDeps, wantDeps) {
 		t.Fatalf("MissingDeps = %v, want %v", got.MissingDeps, wantDeps)
 	}

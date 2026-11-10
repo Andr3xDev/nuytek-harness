@@ -19,14 +19,14 @@ func Compute(ctx context.Context, env check.Env, t target.Target) Dashboard {
 		return d
 	}
 	d.Results = check.Run(ctx, env, t.Checks)
-	var deps []check.Result
+	var missingTools []string
 	for _, r := range d.Results {
 		d.Counts[r.Status]++
-		if r.CheckID == check.DependenciesID {
-			deps = append(deps, r)
+		if r.CheckID == check.DependenciesID && r.Status == check.StatusError {
+			missingTools = append(missingTools, r.Subject)
 		}
 	}
-	d.MissingDeps = MissingDeps(t.Manifest, deps)
+	d.MissingDeps = t.Manifest.MissingDeps(missingTools)
 	d.Components = evaluateComponents(ctx, env, t)
 	if t.Spec.BackupDirs != nil {
 		d.LastBackup = backup.Latest(env.FS, t.Spec.BackupDirs(env.Home, env.Repo))

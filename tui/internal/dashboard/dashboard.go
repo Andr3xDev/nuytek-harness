@@ -4,13 +4,14 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 )
 
 type Dashboard struct {
 	Counts      map[check.Status]int
 	Results     []check.Result
 	Components  []drift.Status
-	MissingDeps []MissingDep
+	MissingDeps []manifest.MissingDep
 	LastBackup  *backup.Info // nil = no backups
 	Err         error
 }
