@@ -5,6 +5,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
 type Spec struct {
@@ -12,6 +13,7 @@ type Spec struct {
 	Evaluators map[manifest.Kind]drift.Evaluator              // keys = kinds the manifest may use
 	Checks     func(manifest.Manifest) ([]check.Check, error) // nil = planned target, not available
 	BackupDirs func(home, repo string) []backup.Dir           // nil = none
+	Special    map[manifest.Kind]plan.KindOps                 // special kinds only; data kinds are built in
 }
 
 // Planned returns a spec for a target that is announced but not implemented.
