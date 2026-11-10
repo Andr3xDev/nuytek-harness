@@ -13,6 +13,8 @@ type FS interface {
 // Dir is a directory of timestamped backups; Label names it in the dashboard.
 type Dir struct {
 	Path, Label string
+	Kind        StoreKind
+	Base        string // mirror root of the snapshot paths
 }
 
 type Info struct {
