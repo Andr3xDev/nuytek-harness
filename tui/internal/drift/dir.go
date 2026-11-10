@@ -12,11 +12,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 )
 
-const (
-	bytecodeDir    = "__pycache__"
-	bytecodeSuffix = ".pyc"
-	scriptSuffix   = ".sh"
-)
+const scriptSuffix = ".sh"
 
 // evaluateDir walks the repo source only, so files that exist only in the target never count as drift.
 func evaluateDir(_ context.Context, env check.Env, c manifest.Component) Status {
@@ -45,7 +41,7 @@ func walkDir(env check.Env, c manifest.Component, src, dst, rel string) Status {
 	}
 	for _, e := range entries {
 		name := e.Name()
-		if name == bytecodeDir || strings.HasSuffix(name, bytecodeSuffix) {
+		if InstallFilter.Excludes(name) {
 			continue
 		}
 		entryRel := path.Join(rel, name)
