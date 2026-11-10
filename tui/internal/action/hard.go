@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"path/filepath"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
@@ -31,6 +32,21 @@ func PlanHardInstall(ctx context.Context, env check.Env, t target.Target) (plan.
 		p.Confirm = confirmDeletions("Hard install", parts)
 	}
 	return p, nil
+}
+
+// nonDirectories keeps files and links: Copy writes each entry as a file and creates the parents itself.
+func nonDirectories(fsys check.FS, src string, owned []string) ([]string, error) {
+	files := make([]string, 0, len(owned))
+	for _, rel := range owned {
+		info, err := fsys.Lstat(filepath.Join(src, rel))
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() {
+			files = append(files, rel)
+		}
+	}
+	return files, nil
 }
 
 // hardDirPart rebuilds the target as the filtered source: wipe it, then copy every owned file.
@@ -62,9 +78,13 @@ func hardDirPart(ctx context.Context, env check.Env, c manifest.Component) (plan
 	if err != nil {
 		return plan.Part{}, err
 	}
+	files, err := nonDirectories(env.FS, src, owned)
+	if err != nil {
+		return plan.Part{}, err
+	}
 	steps := []plan.Step{
 		plan.RemoveTree{Path: dst, Rows: deletes},
-		plan.Copy{Src: src, Dst: dst, Files: owned, Rows: rows},
+		plan.Copy{Src: src, Dst: dst, Files: files, Rows: rows},
 	}
 	paths, err := chmodPaths(env.FS, c, src, dst, false)
 	if err != nil {

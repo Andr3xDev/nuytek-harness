@@ -161,6 +161,21 @@ func TestPlanHardInstallShapes(t *testing.T) {
 			},
 		},
 		{
+			name: "source subdirectory is not a Copy entry but its file is",
+			setup: func(f *fixture) []manifest.Component {
+				f.writeRepo("claude/agents/sub/b.md", "new", 0o644)
+				f.writeHome(".claude/agents/sub/b.md", "old", 0o644)
+				return []manifest.Component{component("agents", manifest.KindDir)}
+			},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				cp := onlyStep[plan.Copy](t, p)
+				if !slices.Equal(cp.Files, []string{"sub/b.md"}) {
+					t.Errorf("Copy.Files = %v, want only sub/b.md and no directory entry", cp.Files)
+				}
+			},
+		},
+		{
 			name: "file component gets its install steps",
 			setup: func(f *fixture) []manifest.Component {
 				f.writeRepo("claude/settings.json", "new", 0o644)
