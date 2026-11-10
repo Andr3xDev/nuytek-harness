@@ -196,6 +196,7 @@ func TestCompute_FeedsMissingDepsAndLastBackup(t *testing.T) {
 		Checks: []check.Check{fixedCheck(check.DependenciesID,
 			check.Result{CheckID: check.DependenciesID, Subject: "jq", Status: check.StatusError},
 			check.Result{CheckID: check.DependenciesID, Subject: "claude", Status: check.StatusOK},
+			check.Result{CheckID: check.DependenciesID, Subject: "git", Status: check.StatusWarning},
 			check.Result{CheckID: "other", Subject: "ghost", Status: check.StatusError})},
 	}
 	env := check.Env{FS: osfs.FS{}, Home: filepath.Dir(backups)}
