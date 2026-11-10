@@ -68,6 +68,11 @@ func sanitize(text string) string {
 	}, text)
 }
 
+// sanitizeLine is sanitize for single-line text: newlines are dropped too.
+func sanitizeLine(text string) string {
+	return strings.ReplaceAll(sanitize(text), "\n", "")
+}
+
 // wrap sanitizes and wraps plain, unstyled text; every file-derived string goes through it.
 func wrap(text string, width int) []string {
 	return strings.Split(lipgloss.NewStyle().Width(max(width, 1)).Render(sanitize(text)), "\n")

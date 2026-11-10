@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/dashboard"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -74,17 +75,27 @@ func TestRoot_SidebarSelectsTargetsAndBoundsCursor(t *testing.T) {
 	}
 }
 
-func TestRoot_RefreshWhileLoadingIsIgnored(t *testing.T) {
+func TestRoot_RefreshSupersedesRunningComputation(t *testing.T) {
 	r := newRoot(t, availableTarget())
 	r.Init()
+	r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
 	r.focus = focusPanel
-	gen := r.states[0].gen
 
-	if cmd := press(r, textKey("r")); cmd != nil {
-		t.Fatal("r while loading returned a Cmd")
+	press(r, textKey("r"))
+	first := r.states[0].gen
+	press(r, textKey("r"))
+	second := r.states[0].gen
+	if second != first+1 {
+		t.Fatalf("second r: gen = %d, want %d", second, first+1)
 	}
-	if r.states[0].gen != gen {
-		t.Fatalf("generation changed from %d to %d", gen, r.states[0].gen)
+
+	r.Update(computedMsg{idx: 0, gen: first})
+	if got := r.states[0].phase; got != loading {
+		t.Fatalf("phase after the superseded result = %v, want loading", got)
+	}
+	r.Update(computedMsg{idx: 0, gen: second})
+	if got := r.states[0].phase; got != ready {
+		t.Fatalf("phase after the last result = %v, want ready", got)
 	}
 }
 
@@ -97,6 +108,66 @@ func TestRoot_PlannedTargetHasNoComputeAndKeepsSidebarFocus(t *testing.T) {
 	press(r, enterKey)
 	if r.focus != focusSidebar {
 		t.Fatal("enter moved focus to the panel of a planned target")
+	}
+	if r.activeTab() != nil {
+		t.Fatal("planned target exposes an action tab")
+	}
+	if cmd := press(r, textKey("i")); cmd != nil || r.wizard != nil {
+		t.Fatalf("i on a planned target: cmd nil = %v, wizard = %v; want no Cmd and no wizard", cmd == nil, r.wizard)
+	}
+}
+
+func TestRoot_RunActiveRefusesKeysAndOnlySetsNotice(t *testing.T) {
+	for _, k := range []string{"i", "r", "x", "d", "["} {
+		t.Run(k, func(t *testing.T) {
+			r := newRoot(t, availableTarget())
+			r.Init()
+			r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
+			r.focus = focusPanel
+			r.Update(runRequest{plan: plan.Plan{Title: "run"}})
+			if r.run == nil {
+				t.Fatal("runRequest did not start a run")
+			}
+			before := struct {
+				cursor, tab, gen int
+				focus            focus
+				phase            phase
+				help             bool
+				run              *run
+			}{r.cursor, r.tab, r.states[0].gen, r.focus, r.states[0].phase, r.showHelp, r.run}
+
+			if cmd := press(r, textKey(k)); cmd != nil {
+				t.Fatal("key returned a Cmd while a run is active")
+			}
+			after := struct {
+				cursor, tab, gen int
+				focus            focus
+				phase            phase
+				help             bool
+				run              *run
+			}{r.cursor, r.tab, r.states[0].gen, r.focus, r.states[0].phase, r.showHelp, r.run}
+			if after != before || r.wizard != nil {
+				t.Fatalf("state changed: before %+v, after %+v, wizard %v", before, after, r.wizard)
+			}
+			if r.notice != runInProgressText {
+				t.Fatalf("notice = %q, want %q", r.notice, runInProgressText)
+			}
+		})
+	}
+}
+
+func TestRoot_QuitRefusedWhileRunActive(t *testing.T) {
+	r := newRoot(t, availableTarget())
+	r.Update(runRequest{plan: plan.Plan{Title: "run"}})
+
+	if isQuit(press(r, textKey("q"))) {
+		t.Fatal("q quit while a run is active")
+	}
+	if r.notice != runInProgressText {
+		t.Fatalf("notice = %q, want %q", r.notice, runInProgressText)
+	}
+	if r.ctx.Err() != nil {
+		t.Fatal("context cancelled while a run is active")
 	}
 }
 

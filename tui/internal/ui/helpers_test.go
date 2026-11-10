@@ -20,7 +20,7 @@ func availableTarget() target.Target {
 
 func newRoot(t *testing.T, targets ...target.Target) *Root {
 	t.Helper()
-	return NewRoot(targets, check.Env{}, false, nil)
+	return NewRoot(targets, Deps{}, nil)
 }
 
 func textKey(s string) tea.KeyPressMsg {

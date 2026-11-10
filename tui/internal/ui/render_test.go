@@ -9,6 +9,7 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/dashboard"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -24,7 +25,7 @@ func TestRenderBox_LongTitleKeepsEveryLineAtWidth(t *testing.T) {
 }
 
 func TestRoot_DryRunBadgeShown(t *testing.T) {
-	r := NewRoot([]target.Target{availableTarget()}, check.Env{}, true, nil)
+	r := NewRoot([]target.Target{availableTarget()}, Deps{DryRun: true}, nil)
 	r.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	if out := r.render(); !strings.Contains(out, dryRunLabel) {
@@ -35,7 +36,7 @@ func TestRoot_DryRunBadgeShown(t *testing.T) {
 func TestRoot_WarningShownAndFitsTerminalWidth(t *testing.T) {
 	const text = "state file /home/u/.local/state/nuytek-harness/state.toml is corrupt: fix or delete it"
 	for _, tc := range []struct{ w, h int }{{80, 24}, {40, 8}} {
-		r := NewRoot([]target.Target{availableTarget()}, check.Env{}, false, []string{text})
+		r := NewRoot([]target.Target{availableTarget()}, Deps{}, []string{text})
 		r.Update(tea.WindowSizeMsg{Width: tc.w, Height: tc.h})
 
 		out := r.render()
@@ -60,6 +61,45 @@ func TestWrap_StripsTerminalSequences(t *testing.T) {
 		if strings.ContainsAny(line, "\x1b\u009b") {
 			t.Errorf("control character survived: %q", line)
 		}
+	}
+}
+
+var sanitizeCases = []struct{ name, in, wantKeepNewline string }{
+	{"ESC and C1", "a\x1b]8;;x\x1b\\b\u009bc", "a]8;;x\\bc"},
+	{"bidi override", "a\u202eb", "ab"},
+	{"bidi isolate", "a\u2066b", "ab"},
+	{"newline", "a\nb", "a\nb"},
+}
+
+func TestSanitize_DropsTerminalAndBidiControls(t *testing.T) {
+	for _, tc := range sanitizeCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sanitize(tc.in); got != tc.wantKeepNewline {
+				t.Fatalf("sanitize(%q) = %q, want %q", tc.in, got, tc.wantKeepNewline)
+			}
+		})
+	}
+}
+
+func TestSanitizeLine_AlsoDropsNewline(t *testing.T) {
+	for _, tc := range sanitizeCases {
+		t.Run(tc.name, func(t *testing.T) {
+			want := strings.ReplaceAll(tc.wantKeepNewline, "\n", "")
+			if got := sanitizeLine(tc.in); got != want {
+				t.Fatalf("sanitizeLine(%q) = %q, want %q", tc.in, got, want)
+			}
+		})
+	}
+}
+
+func TestPreviewBody_StripsBidiOverrideFromPath(t *testing.T) {
+	p := plan.Plan{Steps: []plan.Step{plan.Copy{Rows: []plan.Change{
+		{Effect: plan.EffectCreate, Path: "evil\u202egpj.txt"},
+	}}}}
+
+	out := strings.Join(previewBody(newTheme(defaultDark), p, "nothing", 80), "\n")
+	if !strings.Contains(out, "evil") || strings.ContainsRune(out, '\u202e') {
+		t.Fatalf("preview must show the path without U+202E:\n%q", out)
 	}
 }
 

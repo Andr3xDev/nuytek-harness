@@ -5,18 +5,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/dryrun"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osexec"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/repo"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/targets/claude"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/ui"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/writer"
 )
 
 const (
@@ -82,7 +86,12 @@ func run() int {
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
 	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path}
-	if _, err := tea.NewProgram(ui.NewRoot(targets, env, *dryRun, warnings)).Run(); err != nil {
+	var runner plan.Runner = writer.New(time.Now)
+	if *dryRun {
+		runner = dryrun.New()
+	}
+	deps := ui.Deps{Env: env, Runner: runner, DryRun: *dryRun}
+	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)
 	}
 	return 0
