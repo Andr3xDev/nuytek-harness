@@ -45,7 +45,21 @@ func TestDirEvaluator(t *testing.T) {
 			f.symlink(f.repo, "src/sub/b.md", f.repo+"/real/b.md")
 			f.writeTarget(".tooldir/a.md", "a", 0o644)
 			f.writeTarget(".tooldir/sub/b.md", "b", 0o644)
-		}, drift.StateDrift, "sub/b.md"},
+		}, drift.StateDrift, "sub/b.md: source is a symlink"},
+		{"nested symlink in source with missing destination is missing", manifest.KindDir, func(f fixture) {
+			f.writeSource("real/b.md", "b", 0o644)
+			f.symlink(f.repo, "src/sub/b.md", f.repo+"/real/b.md")
+			f.writeTarget(".tooldir/a.md", "a", 0o644)
+		}, drift.StateDrift, "sub/b.md: missing in target"},
+		{"nested target symlink to file", manifest.KindDir, func(f fixture) {
+			f.writeSource("src/sub/b.md", "b", 0o644)
+			f.writeTarget("elsewhere/b.md", "b", 0o644)
+			f.symlink(f.home, ".tooldir/sub/b.md", f.home+"/elsewhere/b.md")
+		}, drift.StateDrift, "sub/b.md: target is a symlink"},
+		{"nested target directory where a file is expected", manifest.KindDir, func(f fixture) {
+			f.writeSource("src/sub/b.md", "b", 0o644)
+			f.writeTarget(".tooldir/sub/b.md/inner", "x", 0o644)
+		}, drift.StateDrift, "sub/b.md: target is not a regular file"},
 		{"top-level target symlink to directory is drift", manifest.KindDir, func(f fixture) {
 			f.writeSource("src/a.md", "a", 0o644)
 			f.writeTarget("elsewhere/a.md", "a", 0o644)
