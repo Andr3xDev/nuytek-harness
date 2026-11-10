@@ -57,10 +57,11 @@ func truncate(text string, width int) string {
 }
 
 // sanitize drops control characters (ESC, C0, C1) except newline: file-derived text must not
-// reach the terminal with live sequences such as OSC 8 links or DCS/APC strings.
+// reach the terminal with live sequences such as OSC 8 links or DCS/APC strings. Bidi controls
+// (U+202E, U+2066...) are category Cf, which IsControl misses, and would reorder the displayed path.
 func sanitize(text string) string {
 	return strings.Map(func(r rune) rune {
-		if r != '\n' && unicode.IsControl(r) {
+		if r != '\n' && (unicode.IsControl(r) || unicode.Is(unicode.Bidi_Control, r)) {
 			return -1
 		}
 		return r
