@@ -4,6 +4,7 @@ kind   = "dir"
 source = "agents"
 target = ".claude/agents"
 needs  = ["claude"]
+pull   = true
 
 [[component]]
 name   = "commands"
@@ -11,6 +12,7 @@ kind   = "dir"
 source = "claude/commands"
 target = ".claude/commands"
 needs  = ["openspec"]
+pull   = true
 
 [[component]]
 name   = "skills"
@@ -18,6 +20,7 @@ kind   = "dir"
 source = "skills"
 target = ".claude/skills"
 needs  = ["claude"]
+pull   = true
 
 # jq: hooks/stop-verify.sh skips its checks when jq is missing.
 [[component]]
@@ -26,6 +29,7 @@ kind   = "dirx"
 source = "claude/hooks"
 target = ".claude/hooks"
 needs  = ["python3", "jq"]
+pull   = true
 
 [[component]]
 name   = "sounds"
@@ -33,6 +37,7 @@ kind   = "dir"
 source = "claude/sounds"
 target = ".claude/sounds"
 needs  = []
+pull   = true
 
 [[component]]
 name   = "claude-md"
@@ -40,6 +45,7 @@ kind   = "file"
 source = "claude/CLAUDE.md"
 target = ".claude/CLAUDE.md"
 needs  = []
+pull   = true
 
 [[component]]
 name   = "settings"
@@ -47,6 +53,7 @@ kind   = "file"
 source = "claude/claude-settings.json"
 target = ".claude/settings.json"
 needs  = ["node"]
+pull   = true
 
 [[component]]
 name   = "claude-hud-config"
@@ -54,6 +61,7 @@ kind   = "file"
 source = "claude/claude-hud-config.json"
 target = ".claude/plugins/claude-hud/config.json"
 needs  = ["node"]
+pull   = true
 
 [[component]]
 name   = "common-sdd"
@@ -61,6 +69,7 @@ kind   = "file"
 source = "shared/common-sdd.md"
 target = ".claude/common-sdd.md"
 needs  = []
+pull   = true
 
 [[component]]
 name   = "engram-protocol"
@@ -68,6 +77,7 @@ kind   = "file"
 source = "shared/engram-protocol.md"
 target = ".claude/engram-protocol.md"
 needs  = ["engram"]
+pull   = true
 
 [[component]]
 name   = "context7"
@@ -75,6 +85,7 @@ kind   = "file"
 source = "shared/rules/context7.md"
 target = ".claude/rules/context7.md"
 needs  = []
+pull   = true
 
 [[component]]
 name   = "codegraph-health"

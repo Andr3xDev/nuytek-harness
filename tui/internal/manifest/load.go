@@ -23,6 +23,7 @@ type rawComponent struct {
 	Source string
 	Target string
 	Needs  *[]string
+	Pull   bool
 }
 
 // Load parses and validates the manifest at path. Errors read "path:LINE: message".
@@ -48,7 +49,7 @@ func Load(path string, kinds []Kind) (Manifest, error) {
 		if rc.Needs == nil {
 			return Manifest{}, positioned(path, line, "component %q: needs is required (use [] if none)", rc.Name)
 		}
-		m.Components = append(m.Components, Component{Name: rc.Name, Kind: rc.Kind, Source: rc.Source, Target: rc.Target, Needs: *rc.Needs})
+		m.Components = append(m.Components, Component{Name: rc.Name, Kind: rc.Kind, Source: rc.Source, Target: rc.Target, Needs: *rc.Needs, Pull: rc.Pull})
 		// Validating each growing prefix pins the first failure to its component.
 		if err := Validate(m, kinds); err != nil {
 			return Manifest{}, positioned(path, line, "%v", err)

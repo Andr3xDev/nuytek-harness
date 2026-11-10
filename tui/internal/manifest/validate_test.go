@@ -40,6 +40,9 @@ func TestValidate_Rejects(t *testing.T) {
 		{"mcp and plugins accepted when allowed", []manifest.Component{comp("mcp", "mcp", "x", ".claude.json"), comp("plugins", "plugins", "y", ".s.json")}, testKinds, false, ""},
 		{"mcp rejected when not allowed", []manifest.Component{comp("mcp", "mcp", "x", ".claude.json")}, []manifest.Kind{manifest.KindFile}, true, "mcp"},
 		{"nil needs is valid", []manifest.Component{{Name: "a", Kind: manifest.KindFile, Source: "x", Target: ".a"}}, testKinds, false, ""},
+		{"pull on mcp rejected", []manifest.Component{{Name: "mcp", Kind: "mcp", Source: "x", Target: ".claude.json", Pull: true}}, testKinds, true, "mcp"},
+		{"pull on plugins rejected", []manifest.Component{{Name: "plugins", Kind: "plugins", Source: "x", Target: ".s.json", Pull: true}}, testKinds, true, "plugins"},
+		{"pull on dir valid", []manifest.Component{{Name: "agents", Kind: manifest.KindDir, Source: "x", Target: ".a", Pull: true}}, testKinds, false, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
