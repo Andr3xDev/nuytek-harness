@@ -5,8 +5,9 @@ import (
 	"time"
 )
 
-// FS is the only filesystem access Latest needs.
+// FS is the only filesystem access the backup package needs.
 type FS interface {
+	Lstat(path string) (fs.FileInfo, error)
 	ReadDir(path string) ([]fs.DirEntry, error)
 }
 
@@ -24,28 +25,9 @@ type Info struct {
 
 // Latest returns the newest backup across dirs, or nil when there is none.
 func Latest(fsys FS, dirs []Dir) *Info {
-	var newest *Info
-	for _, dir := range dirs {
-		entries, err := fsys.ReadDir(dir.Path)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			when, ok := ParseStamp(e.Name())
-			if !ok {
-				info, err := e.Info()
-				if err != nil {
-					continue
-				}
-				when = info.ModTime()
-			}
-			if newest == nil || when.After(newest.Time) {
-				newest = &Info{Time: when, Label: dir.Label}
-			}
-		}
+	entries := List(fsys, dirs)
+	if len(entries) == 0 {
+		return nil
 	}
-	return newest
+	return &Info{Time: entries[0].Time, Label: entries[0].Label}
 }
