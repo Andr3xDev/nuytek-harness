@@ -22,7 +22,11 @@ func edit(e plan.Edit) error {
 	switch {
 	case err == nil:
 		path = resolved
-	case !errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, os.ErrNotExist):
+		if info, lerr := os.Lstat(e.Path); lerr == nil && info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("%s is a broken symlink, fix or remove it first", e.Path)
+		}
+	default:
 		return fmt.Errorf("resolve %s: %w", e.Path, err)
 	}
 	before, err := os.Stat(path)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
@@ -52,9 +53,21 @@ func PlanPull(ctx context.Context, env check.Env, t target.Target, names []strin
 	var steps []plan.Step
 	for _, c := range comps {
 		repoPath, deployed := componentPaths(env, c)
-		rows, err := drift.Diff(env.FS, deployed, repoPath, drift.PullFilter, drift.BlockedFail)
+		info, err := env.FS.Lstat(deployed)
 		if err != nil {
 			return plan.Plan{}, err
+		}
+		var rows []plan.Change
+		switch {
+		case info.Mode()&fs.ModeSymlink != 0 && c.Kind.IsDir():
+			return plan.Plan{}, fmt.Errorf("refusing to pull through symlink %s", deployed)
+		case info.Mode()&fs.ModeSymlink != 0:
+			// Diff follows a root source link for install; in pull the deployed side is the source and a link is never copied.
+			rows = []plan.Change{{Effect: plan.EffectCreate, Path: filepath.Base(deployed), Note: drift.NoteLink}}
+		default:
+			if rows, err = drift.Diff(env.FS, deployed, repoPath, drift.PullFilter, drift.BlockedFail); err != nil {
+				return plan.Plan{}, err
+			}
 		}
 		if step, ok := pullCopy(deployed, repoPath, rows); ok {
 			steps = append(steps, step)

@@ -116,4 +116,25 @@ func TestEditThroughSymlink(t *testing.T) {
 	}
 }
 
+func TestEditRefusesBrokenSymlink(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "cfg-link.json")
+	must(t, os.Symlink(filepath.Join(dir, "missing.json"), link))
+	called := false
+	step := plan.Edit{Path: link, Edit: func([]byte, bool) ([]byte, error) { called = true; return []byte("new"), nil }}
+
+	res, _ := run(t, newWriter(fixedNow), step)
+
+	wantStatus(t, res, plan.StepFailed)
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "broken symlink") || !strings.Contains(res.Err.Error(), link) {
+		t.Fatalf("err = %v, want a broken-symlink error naming %s", res.Err, link)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("link replaced: %v, %v", info, err)
+	}
+	if called {
+		t.Fatal("edit callback ran for a broken symlink")
+	}
+}
+
 func ptr(s string) *string { return &s }

@@ -102,6 +102,41 @@ func TestPlanPull(t *testing.T) {
 			},
 		},
 		{
+			name: "deployed single-file symlink is a skip row and never copied",
+			setup: func(f *fixture) []manifest.Component {
+				f.writeRepo("claude/settings.json", "old", 0o644)
+				f.writeHome("elsewhere.json", "new", 0o644)
+				f.symlink(f.home, ".claude/settings.json", filepath.Join(f.home, "elsewhere.json"))
+				return []manifest.Component{pullable(component("settings.json", manifest.KindFile))}
+			},
+			names: []string{"settings.json"},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				if len(stepsOf[plan.Snapshot](p)) != 0 || !p.Empty() {
+					t.Errorf("steps = %v, want no copy of a linked file", p.Steps)
+				}
+				rows := p.Rows()
+				if len(rows) != 1 || rows[0].Effect != plan.EffectSkip || rows[0].Note != "not pulled: symlink" {
+					t.Errorf("rows = %+v, want one skip row 'not pulled: symlink'", rows)
+				}
+			},
+		},
+		{
+			name: "deployed directory symlink is refused",
+			setup: func(f *fixture) []manifest.Component {
+				f.writeRepo("claude/agents/a.md", "old", 0o644)
+				f.mkdir(f.home, "elsewhere")
+				f.symlink(f.home, ".claude/agents", filepath.Join(f.home, "elsewhere"))
+				return []manifest.Component{agents}
+			},
+			names: []string{"agents"},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				if err == nil || !strings.Contains(err.Error(), "refusing to pull through symlink") {
+					t.Fatalf("err = %v, want a refusing-to-pull-through-symlink error", err)
+				}
+			},
+		},
+		{
 			name: "snapshot holds only the existing repo files of overwrite rows, in the repo store",
 			setup: func(f *fixture) []manifest.Component {
 				f.writeRepo("claude/agents/a.md", "old", 0o644)
