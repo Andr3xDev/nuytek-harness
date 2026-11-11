@@ -30,7 +30,7 @@ Each CLI target has these tabs, switched with `[` and `]`, or `h` and `l` (`←`
 - Dashboard: installed components and health checks.
 - Update: changes the repo has that the machine does not, then applies them.
 - Pull: copies machine changes back into the repo.
-- Backups: lists backups, with restore (`r`) and delete (`d`).
+- Backups: lists backups, with backup now (`b`), restore (`r`) and delete (`d`).
 
 Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view.
 
