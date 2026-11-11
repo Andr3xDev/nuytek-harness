@@ -11,6 +11,9 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
+// NoteLink marks a row whose source is a symlink.
+const NoteLink = "link"
+
 // Blocked decides what Diff does with an entry below the root whose type blocks the copy.
 type Blocked int
 
@@ -19,10 +22,11 @@ const (
 	BlockedReplace
 )
 
+// NoteReplaces prefixes the note of a row whose destination has a type that blocks the copy.
+const NoteReplaces = "replaces "
+
 const (
-	rootFile     = "."
-	noteLink     = "link"
-	noteReplaces = "replaces "
+	rootFile = "."
 
 	describeDirectory = "directory"
 	describeSymlink   = "symlink"
@@ -105,10 +109,11 @@ func (d *differ) file(src, dst, rel string, fresh bool) error {
 	if err != nil {
 		return err
 	}
-	srcLink := srcInfo.Mode()&fs.ModeSymlink != 0
+	// A single-file component follows its source link, as the copy does, so the preview compares content.
+	srcLink := srcInfo.Mode()&fs.ModeSymlink != 0 && rel != rootFile
 	note := ""
 	if srcLink {
-		note = noteLink
+		note = NoteLink
 	}
 	if fresh {
 		d.add(plan.EffectCreate, rel, note)
@@ -124,10 +129,10 @@ func (d *differ) file(src, dst, rel string, fresh bool) error {
 	case dstInfo.IsDir():
 		return d.replace(dst, rel, dstInfo)
 	case srcLink:
-		d.add(plan.EffectOverwrite, rel, noteLink)
+		d.add(plan.EffectOverwrite, rel, NoteLink)
 		return nil
 	case !dstInfo.Mode().IsRegular():
-		d.add(plan.EffectOverwrite, rel, noteReplaces+describe(dstInfo))
+		d.add(plan.EffectOverwrite, rel, NoteReplaces+describe(dstInfo))
 		return nil
 	}
 	differs, err := d.contentDiffers(src, dst, srcInfo, dstInfo)
@@ -142,7 +147,7 @@ func (d *differ) replace(dst, rel string, info fs.FileInfo) error {
 	if d.blocked == BlockedFail {
 		return ErrPathConflict{Path: dst, Found: describe(info)}
 	}
-	d.add(plan.EffectOverwrite, rel, noteReplaces+describe(info))
+	d.add(plan.EffectOverwrite, rel, NoteReplaces+describe(info))
 	return nil
 }
 
@@ -151,7 +156,7 @@ func (d *differ) add(effect plan.Effect, rel, note string) {
 }
 
 func (d *differ) contentDiffers(src, dst string, srcInfo, dstInfo fs.FileInfo) (bool, error) {
-	if srcInfo.Size() != dstInfo.Size() {
+	if srcInfo.Mode()&fs.ModeSymlink == 0 && srcInfo.Size() != dstInfo.Size() {
 		return true, nil
 	}
 	srcData, err := d.fsys.ReadFile(src)

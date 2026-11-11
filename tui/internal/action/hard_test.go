@@ -133,6 +133,23 @@ func TestPlanHardInstallShapes(t *testing.T) {
 			},
 		},
 		{
+			name: "changed files without extras or type conflicts fall back to a plain install",
+			setup: func(f *fixture) []manifest.Component {
+				f.writeRepo("claude/agents/a.md", "new", 0o644)
+				f.writeHome(".claude/agents/a.md", "old", 0o644)
+				return []manifest.Component{component("agents", manifest.KindDir)}
+			},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				if len(stepsOf[plan.RemoveTree](p)) != 0 {
+					t.Errorf("steps = %v, want no wipe", p.Steps)
+				}
+				if cp := onlyStep[plan.Copy](t, p); !slices.Equal(cp.Files, []string{"a.md"}) {
+					t.Errorf("copy files = %v, want [a.md]", cp.Files)
+				}
+			},
+		},
+		{
 			name: "symlinked component root is a path conflict",
 			setup: func(f *fixture) []manifest.Component {
 				f.writeRepo("claude/agents/a.md", "a", 0o644)

@@ -13,11 +13,6 @@ func TestFileEvaluatorReasons(t *testing.T) {
 		setup func(f fixture)
 		want  string
 	}{
-		{"source symlink", func(f fixture) {
-			f.writeSource("real/a.cfg", "same", 0o644)
-			f.symlink(f.repo, "src/a.cfg", f.repo+"/real/a.cfg")
-			f.writeTarget(".tooldir/a.cfg", "same", 0o644)
-		}, "source is a symlink"},
 		{"target symlink", func(f fixture) {
 			f.writeSource("src/a.cfg", "same", 0o644)
 			f.writeTarget("elsewhere/a.cfg", "same", 0o644)
@@ -73,10 +68,15 @@ func TestFileEvaluator(t *testing.T) {
 			f.writeTarget("elsewhere/a.cfg", "same", 0o644)
 			f.symlink(f.home, ".tooldir/a.cfg", f.home+"/elsewhere/a.cfg")
 		}, drift.StateDrift},
-		{"source symlink is drift", manifest.KindFile, func(f fixture) {
+		{"source symlink with the same content is installed", manifest.KindFile, func(f fixture) {
 			f.writeSource("real/a.cfg", "same", 0o644)
 			f.symlink(f.repo, "src/a.cfg", f.repo+"/real/a.cfg")
 			f.writeTarget(".tooldir/a.cfg", "same", 0o644)
+		}, drift.StateInstalled},
+		{"source symlink with different content is drift", manifest.KindFile, func(f fixture) {
+			f.writeSource("real/a.cfg", "same", 0o644)
+			f.symlink(f.repo, "src/a.cfg", f.repo+"/real/a.cfg")
+			f.writeTarget(".tooldir/a.cfg", "other", 0o644)
 		}, drift.StateDrift},
 		{"filex without exec bit is drift", manifest.KindFileX, func(f fixture) {
 			f.writeSource("src/a.cfg", "same", 0o755)

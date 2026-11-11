@@ -14,7 +14,10 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
-const notPulledNote = "not pulled: not in repo"
+const (
+	notPulledNote        = "not pulled: not in repo"
+	notPulledSymlinkNote = "not pulled: symlink"
+)
 
 // ErrMissingDeployed names pull components whose deployed path is missing.
 type ErrMissingDeployed struct{ Names []string }
@@ -60,13 +63,17 @@ func PlanPull(ctx context.Context, env check.Env, t target.Target, names []strin
 	return plan.New("Pull", store, steps), nil
 }
 
-// pullCopy turns Overwrite rows into one Copy; Create rows (deployed-only) become skip rows that are never copied.
+// pullCopy turns Overwrite rows into one Copy; Create rows (deployed-only) and deployed symlinks
+// become skip rows that are never copied, so a link cannot land in the repo.
 func pullCopy(deployed, repoPath string, rows []plan.Change) (plan.Copy, bool) {
 	cp := plan.Copy{Src: deployed, Dst: repoPath}
 	for _, row := range rows {
-		if row.Effect == plan.EffectCreate {
+		switch {
+		case row.Note == drift.NoteLink:
+			row = plan.Change{Effect: plan.EffectSkip, Path: row.Path, Note: notPulledSymlinkNote}
+		case row.Effect == plan.EffectCreate:
 			row = plan.Change{Effect: plan.EffectSkip, Path: row.Path, Note: notPulledNote}
-		} else {
+		default:
 			cp.Files = append(cp.Files, row.Path)
 		}
 		cp.Rows = append(cp.Rows, row)

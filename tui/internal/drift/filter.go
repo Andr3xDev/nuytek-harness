@@ -26,7 +26,7 @@ func (f Filter) Excludes(base string) bool {
 var (
 	InstallFilter = Filter{Names: []string{"__pycache__"}, Globs: []string{"*.pyc"}}
 	PullFilter    = Filter{
-		Names: append([]string{".git", "node_modules", "auth.json", "credentials.json", ".env", ".DS_Store"}, InstallFilter.Names...),
-		Globs: append([]string{".env.*", "*.pem", "*.key"}, InstallFilter.Globs...),
+		Names: append([]string{".git", "node_modules", "auth.json", "credentials.json", ".credentials.json", ".env", ".DS_Store"}, InstallFilter.Names...),
+		Globs: append([]string{".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "*.token"}, InstallFilter.Globs...),
 	}
 )

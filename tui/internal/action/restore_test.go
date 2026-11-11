@@ -139,3 +139,39 @@ func TestPlanRestore(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanRestoreRefusals(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(f *fixture, snapshot string)
+		isLink  bool
+		wantMsg string
+	}{
+		{"entry flagged as link", func(f *fixture, snapshot string) { f.mkdir(snapshot, "") }, true, "symlink"},
+		{"snapshot path is a symlink", func(f *fixture, snapshot string) {
+			f.writeHome("elsewhere/a.md", "A", 0o644)
+			f.symlink(f.homeStore(), "20240101-000000", filepath.Join(f.home, "elsewhere"))
+		}, false, "symlink"},
+		{"a directory where the snapshot has a file", func(f *fixture, snapshot string) {
+			f.write(snapshot, "a.md", "A", 0o644)
+			f.writeHome("a.md/inner", "x", 0o644)
+		}, false, "move"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			snapshot := filepath.Join(f.homeStore(), "20240101-000000")
+			tt.setup(f, snapshot)
+			entry := backup.Entry{Stamp: "20240101-000000", Kind: backup.StoreHome, Base: f.home, Path: snapshot, Label: "x", IsLink: tt.isLink}
+
+			p, err := action.PlanRestore(context.Background(), f.env(), f.target(component("agents", manifest.KindDir)), entry)
+
+			if err == nil || !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Fatalf("err = %v, want it to contain %q", err, tt.wantMsg)
+			}
+			if len(p.Steps) != 0 {
+				t.Errorf("steps = %v, want none", p.Steps)
+			}
+		})
+	}
+}

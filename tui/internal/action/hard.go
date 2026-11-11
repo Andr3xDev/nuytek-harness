@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
@@ -67,7 +69,8 @@ func hardDirPart(ctx context.Context, env check.Env, c manifest.Component) (plan
 	if err != nil {
 		return plan.Part{}, err
 	}
-	if len(rows) == 0 && len(extras) == 0 {
+	// Without extras and without a blocking type, a plain overwrite converges and the wipe would only add risk.
+	if len(extras) == 0 && !slices.ContainsFunc(rows, func(row plan.Change) bool { return strings.HasPrefix(row.Note, drift.NoteReplaces) }) {
 		return installPart(ctx, env, c)
 	}
 	deletes := make([]plan.Change, 0, len(extras))

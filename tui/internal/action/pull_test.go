@@ -76,6 +76,32 @@ func TestPlanPull(t *testing.T) {
 			},
 		},
 		{
+			name: "deployed symlink is a skip row and never copied",
+			setup: func(f *fixture) []manifest.Component {
+				f.writeRepo("claude/agents/a.md", "old", 0o644)
+				f.writeRepo("claude/agents/ln.md", "old", 0o644)
+				f.writeHome(".claude/agents/a.md", "new", 0o644)
+				f.symlink(f.home, ".claude/agents/ln.md", "/etc/hostname")
+				return []manifest.Component{agents}
+			},
+			names: []string{"agents"},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				cp := onlyStep[plan.Copy](t, p)
+				if !slices.Equal(cp.Files, []string{"a.md"}) {
+					t.Errorf("copy files = %v, want [a.md]", cp.Files)
+				}
+				if got := rowPaths(p, plan.EffectSkip); !slices.Equal(got, []string{"ln.md"}) {
+					t.Errorf("skip rows = %v, want [ln.md]", got)
+				}
+				for _, r := range p.Rows() {
+					if r.Effect == plan.EffectSkip && r.Note != "not pulled: symlink" {
+						t.Errorf("skip row note = %q, want %q", r.Note, "not pulled: symlink")
+					}
+				}
+			},
+		},
+		{
 			name: "snapshot holds only the existing repo files of overwrite rows, in the repo store",
 			setup: func(f *fixture) []manifest.Component {
 				f.writeRepo("claude/agents/a.md", "old", 0o644)

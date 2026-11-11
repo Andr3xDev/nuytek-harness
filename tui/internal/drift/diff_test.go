@@ -150,3 +150,35 @@ func TestDiff(t *testing.T) {
 		})
 	}
 }
+
+func TestDiffSingleFileFollowsSourceLink(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		wantEffect plan.Effect
+		wantRows   int
+	}{
+		{"same content converges", "real", plan.EffectOverwrite, 0},
+		{"different content is a plain overwrite", "other", plan.EffectOverwrite, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.writeSource("real", "real", 0o644)
+			f.symlink(f.repo, "ln", "real")
+			f.writeTarget("dst", tt.target, 0o644)
+
+			rows, err := drift.Diff(osfs.FS{}, filepath.Join(f.repo, "ln"), filepath.Join(f.home, "dst"), drift.Filter{}, drift.BlockedFail)
+
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != tt.wantRows {
+				t.Fatalf("rows = %+v, want %d", rows, tt.wantRows)
+			}
+			if tt.wantRows == 1 && (rows[0].Effect != tt.wantEffect || rows[0].Note != "") {
+				t.Fatalf("row = %+v, want a plain %s", rows[0], tt.wantEffect)
+			}
+		})
+	}
+}

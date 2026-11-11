@@ -34,11 +34,11 @@ func rowReason(row plan.Change) string {
 	switch {
 	case row.Effect == plan.EffectCreate:
 		reason = "missing in target"
-	case row.Note == noteLink:
+	case row.Note == NoteLink:
 		reason = "source is a symlink"
-	case row.Note == noteReplaces+describeSymlink:
+	case row.Note == NoteReplaces+describeSymlink:
 		reason = "target is a symlink"
-	case strings.HasPrefix(row.Note, noteReplaces):
+	case strings.HasPrefix(row.Note, NoteReplaces):
 		reason = notRegularReason
 	default:
 		reason = "content differs"

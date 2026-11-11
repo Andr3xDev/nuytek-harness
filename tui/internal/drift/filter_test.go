@@ -17,6 +17,7 @@ func TestFilterExcludes(t *testing.T) {
 		{"pull", drift.PullFilter, []string{
 			".git", "node_modules", "auth.json", "credentials.json", ".env", ".env.local",
 			"a.pem", "a.key", ".DS_Store", "__pycache__", "x.pyc",
+			".credentials.json", "a.p12", "a.pfx", "a.token",
 		}, []string{"a.md", "environment.md"}},
 		{"zero", drift.Filter{}, nil, []string{"__pycache__", ".git", "a.md"}},
 	}
