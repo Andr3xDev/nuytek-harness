@@ -1,6 +1,6 @@
 # nuytek-harness TUI
 
-Terminal dashboard and doctor for the harness repo. It shows, per CLI target, which manifest components are installed and which health checks pass. This version is read-only apart from its own state file.
+Terminal dashboard and doctor for the harness repo. It shows, per CLI target, which manifest components are installed and which health checks pass. It also runs install, update, pull and backup actions.
 
 ## Build and install
 
@@ -19,7 +19,20 @@ nuytek-harness --repo <repo-root>
 ## Flags
 
 - `--repo <path>`: path to the harness repo. When it resolves, it is saved to `~/.local/state/nuytek-harness/state.toml`.
-- `--dry-run`: never write state.
+- `--dry-run`: apply no step, write no files and save no state; read-only health checks still run. Every step is listed as not executed.
+
+The TUI needs a terminal on both stdin and stdout. Otherwise it prints `nuytek-harness: a terminal is required` to stderr and exits with code 1, before it reads or writes any state.
+
+## Actions
+
+Each CLI target has these tabs, switched with `[` and `]`:
+
+- Dashboard: installed components and health checks.
+- Update: changes the repo has that the machine does not, then applies them.
+- Pull: copies machine changes back into the repo.
+- Backups: lists backups, with restore (`r`) and delete (`d`).
+
+Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, asks for confirmation with `enter`, snapshots to a backup first, then streams the step output. `esc` goes back and `?` lists the keys of the current view.
 
 ## Repo discovery
 
@@ -79,4 +92,11 @@ Example: OpenCode. Up to four files: a manifest, a Spec, a one-line swap in main
 3. `tui/cmd/nuytek-harness/main.go`: replace `target.Planned("opencode", "OpenCode")` in `specs` with `opencode.Spec()` and add the import.
 4. `tui/internal/targets/opencode/*_test.go`: optional, only for OpenCode-specific extractors.
 
-No edit to `manifest`, `check`, `drift`, `target`, `dashboard`, or `ui`: the sidebar and dashboard render whatever targets they receive. If OpenCode needs a new check kind, write it inside `targets/opencode` first and promote it to `check` only when a second target needs it.
+For the actions, also:
+
+- Set `pull = true` on each component that `Pull` should copy back into the repo.
+- Return two unique entries from `BackupDirs`: one under home and one under the repo.
+- Add `Special` kind operations (`map[manifest.Kind]plan.KindOps`) only for kinds that are not plain files or directories.
+- Add a `.gitignore` pattern for the repo backup store, like the existing `backups/`.
+
+No edit to `manifest`, `check`, `drift`, `backup`, `target`, `plan`, `action`, `writer`, `dryrun`, `dashboard`, or `ui`: the sidebar and dashboard render whatever targets they receive, and the actions work from the `Spec`. If OpenCode needs a new check kind, write it inside `targets/opencode` first and promote it to `check` only when a second target needs it.
