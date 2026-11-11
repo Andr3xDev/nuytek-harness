@@ -41,7 +41,7 @@ func removeTree(t plan.RemoveTree) error {
 	return os.RemoveAll(t.Path)
 }
 
-// The planner owns glob safety: RemoveAll on a directory match deletes the whole tree.
+// removeMatching deletes regular files and links only; a directory match is left alone.
 func removeMatching(r plan.RemoveMatching) error {
 	for _, pattern := range r.Globs {
 		matches, err := filepath.Glob(pattern)
@@ -49,7 +49,14 @@ func removeMatching(r plan.RemoveMatching) error {
 			return err
 		}
 		for _, m := range matches {
-			if err := os.RemoveAll(m); err != nil {
+			info, err := os.Lstat(m)
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				continue
+			}
+			if err := os.Remove(m); err != nil {
 				return err
 			}
 		}

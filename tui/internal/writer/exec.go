@@ -46,7 +46,11 @@ func execute(ctx context.Context, e plan.Exec, line func(string)) plan.StepResul
 	case ctx.Err() != nil:
 		return plan.StepResult{Status: plan.StepFailed, Err: ctx.Err()}
 	case runCtx.Err() != nil:
-		return plan.StepResult{Status: plan.StepFailed, Err: fmt.Errorf("%s timed out after %s", e.Describe(), e.Timeout)}
+		status := plan.StepFailed
+		if e.Warn {
+			status = plan.StepWarned
+		}
+		return plan.StepResult{Status: status, Err: fmt.Errorf("%s timed out after %s", e.Describe(), e.Timeout)}
 	case e.Warn:
 		return plan.StepResult{Status: plan.StepWarned, Err: fmt.Errorf("%s: %w", e.Describe(), err)}
 	}

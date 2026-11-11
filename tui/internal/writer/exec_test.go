@@ -20,6 +20,7 @@ func TestExec(t *testing.T) {
 	}{
 		{name: "success streams lines", script: "echo one; echo two", timeout: 5 * time.Second, want: plan.StepDone, wantLines: []string{"one", "two"}},
 		{name: "timeout kills the command", script: "sleep 30", timeout: 50 * time.Millisecond, want: plan.StepFailed},
+		{name: "timeout with Warn is warned", script: "sleep 30", timeout: 50 * time.Millisecond, warn: true, want: plan.StepWarned},
 		{name: "nonzero with Warn is warned", script: "echo oops; exit 3", timeout: 5 * time.Second, warn: true, want: plan.StepWarned, wantLines: []string{"oops"}},
 		{name: "nonzero without Warn fails", script: "exit 3", timeout: 5 * time.Second, want: plan.StepFailed},
 		{name: "stdin is /dev/null", script: "cat; echo done", timeout: 5 * time.Second, want: plan.StepDone, wantLines: []string{"done"}},

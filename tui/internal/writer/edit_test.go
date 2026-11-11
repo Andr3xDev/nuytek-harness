@@ -78,6 +78,24 @@ func TestEdit(t *testing.T) {
 	}
 }
 
+func TestEditFailsWhenFileChangesBetweenReadAndRename(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "cfg.json")
+	must(t, os.WriteFile(path, []byte("old"), 0o644))
+	step := plan.Edit{Path: path, Edit: func([]byte, bool) ([]byte, error) {
+		must(t, os.WriteFile(path, []byte("other process"), 0o644))
+		return []byte("mine"), nil
+	}}
+
+	res, _ := run(t, newWriter(fixedNow), step)
+
+	wantStatus(t, res, plan.StepFailed)
+	if res.Err == nil || !strings.Contains(res.Err.Error(), "changed while editing, retry") || !strings.Contains(res.Err.Error(), path) {
+		t.Fatalf("err = %v, want changed-while-editing naming %s", res.Err, path)
+	}
+	equalTree(t, treeOf(t, dir), fixture{"cfg.json": "other process"})
+}
+
 func TestEditThroughSymlink(t *testing.T) {
 	root := t.TempDir()
 	build(t, root, fixture{"real/cfg.json": "old"})

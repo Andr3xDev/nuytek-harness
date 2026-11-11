@@ -139,3 +139,17 @@ func (r RemoveMatching) Changes() []Change {
 	return rows
 }
 func (r RemoveMatching) Touches() Touch { return Touch{Globs: r.Globs} }
+
+const globMetaChars = `\*?[`
+
+// EscapeGlob makes a literal path usable as the prefix of a glob pattern.
+func EscapeGlob(literal string) string {
+	var b strings.Builder
+	for _, r := range literal {
+		if strings.ContainsRune(globMetaChars, r) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

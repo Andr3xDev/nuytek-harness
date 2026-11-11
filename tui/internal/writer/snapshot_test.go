@@ -41,9 +41,24 @@ func TestSnapshot(t *testing.T) {
 			want: fixture{"d/a": "A"},
 		},
 		{
-			name:  "symlink stored as symlink",
+			name:  "top-level symlink stores the resolved content under the link name",
 			files: fixture{"real": "R", "ln": "->real"}, paths: []string{"ln"},
-			want: fixture{"ln": "->real"},
+			want: fixture{"ln": "R"},
+		},
+		{
+			name:  "top-level symlink to a directory stores the tree under the link name",
+			files: fixture{"realdir/x": "X", "ln": "->realdir"}, paths: []string{"ln"},
+			want: fixture{"ln/x": "X"},
+		},
+		{
+			name:  "symlink inside a snapshotted tree stays a symlink",
+			files: fixture{"d/real": "R", "d/ln": "->real"}, paths: []string{"d"},
+			want: fixture{"d/real": "R", "d/ln": "->real"},
+		},
+		{
+			name:  "dangling top-level symlink stays a symlink",
+			files: fixture{"ln": "->gone"}, paths: []string{"ln"},
+			want: fixture{"ln": "->gone"},
 		},
 		{name: "executable keeps its mode", files: fixture{"h/run.sh": "#!"}, exec: "h/run.sh", paths: []string{"h/run.sh"}, want: fixture{"h/run.sh": "#!"}},
 		{name: "missing path is skipped", files: fixture{"a": "A"}, paths: []string{"a", "gone.json"}, want: fixture{"a": "A"}},
@@ -109,6 +124,43 @@ func TestSnapshot(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSnapshotThenEditThroughSymlinkRestoresOldContent(t *testing.T) {
+	root := t.TempDir()
+	base, storePath := filepath.Join(root, "home"), filepath.Join(root, "store")
+	build(t, root, fixture{"dotfiles/claude.json": "old"})
+	must(t, os.MkdirAll(base, 0o755))
+	link := filepath.Join(base, ".claude.json")
+	must(t, os.Symlink(filepath.Join(root, "dotfiles/claude.json"), link))
+	w := newWriter(fixedNow)
+
+	snap, _ := run(t, w, plan.Snapshot{Store: backup.Dir{Path: storePath, Base: base}, Paths: []string{link}})
+	wantStatus(t, snap, plan.StepDone)
+	edited, _ := run(t, w, plan.Edit{Path: link, Edit: func([]byte, bool) ([]byte, error) { return []byte("new"), nil }})
+	wantStatus(t, edited, plan.StepDone)
+	restored, _ := run(t, w, plan.Copy{Src: filepath.Join(storePath, snap.Detail), Dst: base, Files: []string{".claude.json"}})
+	wantStatus(t, restored, plan.StepDone)
+
+	if b, err := os.ReadFile(link); err != nil || string(b) != "old" {
+		t.Fatalf("restored content = %q, %v; want old", b, err)
+	}
+}
+
+func TestSnapshotGlobUnderBaseWithMetacharacters(t *testing.T) {
+	root := t.TempDir()
+	base, storePath := filepath.Join(root, "h[1]*?"), filepath.Join(root, "store")
+	build(t, base, fixture{"d/a.md": "A", "d/b.txt": "B"})
+	build(t, filepath.Join(root, "h1x"), fixture{"d/a.md": "decoy"})
+	step := plan.Snapshot{
+		Store: backup.Dir{Path: storePath, Base: base},
+		Globs: []string{filepath.Join(plan.EscapeGlob(base), "d/*.md")},
+	}
+
+	res, _ := run(t, newWriter(fixedNow), step)
+
+	wantStatus(t, res, plan.StepDone)
+	equalTree(t, treeOf(t, filepath.Join(storePath, res.Detail)), fixture{"d/a.md": "A"})
 }
 
 func TestSnapshotNothingExistsCreatesNoStore(t *testing.T) {

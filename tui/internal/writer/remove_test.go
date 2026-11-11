@@ -84,6 +84,29 @@ func TestRemoveMatching(t *testing.T) {
 	}
 }
 
+func TestRemoveMatchingSkipsDirectoriesAndRemovesLinksNotTargets(t *testing.T) {
+	root := t.TempDir()
+	build(t, root, fixture{"cavecrew-dir/keep": "K", "keep-target": "T", "cavecrew-ln": "->keep-target", "cavecrew-a": "A"})
+
+	res, _ := run(t, newWriter(fixedNow), plan.RemoveMatching{Globs: []string{filepath.Join(root, "cavecrew-*")}})
+
+	wantStatus(t, res, plan.StepDone)
+	equalTree(t, treeOf(t, root), fixture{"cavecrew-dir/keep": "K", "keep-target": "T"})
+}
+
+func TestRemoveMatchingHomeWithGlobMetacharacters(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "h[1]*?")
+	build(t, root, fixture{"a.md": "A", "b.txt": "B"})
+	other := filepath.Join(filepath.Dir(root), "h1x")
+	build(t, other, fixture{"a.md": "decoy"})
+
+	res, _ := run(t, newWriter(fixedNow), plan.RemoveMatching{Globs: []string{filepath.Join(plan.EscapeGlob(root), "*.md")}})
+
+	wantStatus(t, res, plan.StepDone)
+	equalTree(t, treeOf(t, root), fixture{"b.txt": "B"})
+	equalTree(t, treeOf(t, other), fixture{"a.md": "decoy"})
+}
+
 func TestChmod(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -107,6 +130,20 @@ func TestChmod(t *testing.T) {
 				t.Fatalf("mode = %o, want %o", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestChmodSkipsSymlinks(t *testing.T) {
+	root := t.TempDir()
+	build(t, root, fixture{"real": "R", "ln": "->real"})
+	real := filepath.Join(root, "real")
+	setMode(t, real, 0o644)
+
+	res, _ := run(t, newWriter(fixedNow), plan.Chmod{Paths: []string{filepath.Join(root, "ln")}})
+
+	wantStatus(t, res, plan.StepDone)
+	if got := modeOf(t, real); got != 0o644 {
+		t.Fatalf("link target mode = %o, want 644", got)
 	}
 }
 

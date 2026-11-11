@@ -62,7 +62,7 @@ func (w *Writer) snapshot(s plan.Snapshot) plan.StepResult {
 func snapshotPaths(s plan.Snapshot) ([]string, error) {
 	candidates := append([]string(nil), s.Paths...)
 	for _, pattern := range s.Globs {
-		if err := checkInside(s.Store.Base, pattern); err != nil {
+		if err := checkInside(s.Store.Base, unescapeGlob(pattern)); err != nil {
 			return nil, err
 		}
 		matches, err := filepath.Glob(pattern)
@@ -85,6 +85,18 @@ func snapshotPaths(s plan.Snapshot) ([]string, error) {
 	return existing, nil
 }
 
+// unescapeGlob drops the backslashes plan.EscapeGlob added, so the literal prefix can be compared with Base.
+func unescapeGlob(pattern string) string {
+	var b strings.Builder
+	for i := 0; i < len(pattern); i++ {
+		if pattern[i] == '\\' && i+1 < len(pattern) {
+			i++
+		}
+		b.WriteByte(pattern[i])
+	}
+	return b.String()
+}
+
 func checkInside(base, p string) error {
 	rel, err := filepath.Rel(base, p)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -100,12 +112,20 @@ type mirror struct {
 }
 
 // copyTree copies one path and everything below it; an entry already present keeps its first copy.
+// A link at root is followed and its target stored under the link's name, because Edit and Copy write
+// through it; links below root stay links. A dangling link is stored as a link.
 func (m mirror) copyTree(root string) error {
-	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+	walkRoot := root
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		walkRoot = resolved
+	}
+	rootRel, _ := filepath.Rel(m.base, root)
+	return filepath.WalkDir(walkRoot, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(m.base, p)
+		below, _ := filepath.Rel(walkRoot, p)
+		rel := filepath.Join(rootRel, below)
 		dst := filepath.Join(m.stampDir, rel)
 		if d.IsDir() {
 			mode := m.dirMode
