@@ -2,6 +2,8 @@ package claude
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
@@ -211,6 +214,32 @@ func TestPlugins_CavecrewGlobsEscapeHomeMetacharacters(t *testing.T) {
 	}
 	if matches, _ := filepath.Glob(last.Globs[2]); len(matches) != 1 {
 		t.Errorf("glob %q matches %v, want the one cavecrew file", last.Globs[2], matches)
+	}
+}
+
+type failingReadDirFS struct {
+	osfs.FS
+	err error
+}
+
+func (f failingReadDirFS) ReadDir(path string) ([]fs.DirEntry, error) {
+	if strings.HasSuffix(path, "plugins") {
+		return nil, f.err
+	}
+	return f.FS.ReadDir(path)
+}
+
+func TestPlugins_CavecrewMatchGoesThroughInjectedFS(t *testing.T) {
+	env := newEnv(t)
+	env.LookupEnv = noEnv
+	env.FS = failingReadDirFS{err: fs.ErrPermission}
+	writeFile(t, env.Repo, pluginsSourceRel, `{"enabledPlugins": {"p@m": true}}`)
+	writeFile(t, env.Home, ".claude/plugins/marketplaces/caveman/agents/cavecrew-x.md", "x")
+
+	_, err := installPlugins(context.Background(), env, pluginsComponent())
+
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("err = %v, want the injected FS error, not a swallowed disk glob", err)
 	}
 }
 

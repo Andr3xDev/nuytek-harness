@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
@@ -110,23 +111,53 @@ func planPlugins(env check.Env, c manifest.Component, hard bool) (plan.Part, err
 		addPluginStep(&part, id, func() plan.Exec { return pluginExec(nil, "claude", "plugin", "install", id) })
 	}
 
-	if step, ok := cavecrewRemoval(env.Home); ok {
+	step, found, err := cavecrewRemoval(env)
+	if err != nil {
+		return plan.Part{}, err
+	}
+	if found {
 		part.Steps = append(part.Steps, step)
 	}
 	return part, nil
 }
 
 // cavecrewRemoval is planned only when a cavecrew file exists now, so a clean install previews no deletion.
-func cavecrewRemoval(home string) (plan.RemoveMatching, bool) {
+func cavecrewRemoval(env check.Env) (step plan.RemoveMatching, found bool, err error) {
 	globs := make([]string, len(cavecrewAgentGlobs))
-	found := false
 	for i, glob := range cavecrewAgentGlobs {
-		globs[i] = filepath.Join(plan.EscapeGlob(home), glob)
-		if matches, _ := filepath.Glob(globs[i]); len(matches) > 0 {
-			found = true
+		globs[i] = filepath.Join(plan.EscapeGlob(env.Home), glob)
+		matched, err := anyMatch(env.FS, env.Home, glob)
+		if err != nil {
+			return plan.RemoveMatching{}, false, err
 		}
+		found = found || matched
 	}
-	return plan.RemoveMatching{Globs: globs}, found
+	return plan.RemoveMatching{Globs: globs}, found, nil
+}
+
+// anyMatch reports whether pattern, relative to base, matches an entry; base is literal and needs no escaping.
+// It walks through fsys because filepath.Glob reads the real disk and hides errors.
+func anyMatch(fsys check.FS, base, pattern string) (bool, error) {
+	dirs := []string{base}
+	for _, segment := range strings.Split(pattern, string(filepath.Separator)) {
+		var next []string
+		for _, dir := range dirs {
+			entries, err := fsys.ReadDir(dir)
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
+				continue
+			}
+			if err != nil {
+				return false, err
+			}
+			for _, entry := range entries {
+				if ok, _ := filepath.Match(segment, entry.Name()); ok {
+					next = append(next, filepath.Join(dir, entry.Name()))
+				}
+			}
+		}
+		dirs = next
+	}
+	return len(dirs) > 0, nil
 }
 
 // readKeys returns the entries of the JSON object at path under home, or of the object under wrapper when set.
