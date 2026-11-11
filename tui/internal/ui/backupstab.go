@@ -19,6 +19,7 @@ const (
 	noBackupsText    = "No backups"
 	emptyFiles       = "The snapshot holds no files."
 	nothingToRestore = "Nothing to restore."
+	nothingToBackUp  = "Nothing to back up."
 	bytesPerUnit     = 1024
 )
 
@@ -139,6 +140,8 @@ func (b *backupsTab) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		b.cursor = max(b.cursor-1, 0)
 	case key.Matches(msg, k.Down):
 		b.cursor = max(min(b.cursor+1, len(b.rows)-1), 0)
+	case key.Matches(msg, k.Backup):
+		return b.startFlow(newDirectFlow(b.svc, "Backup", nothingToBackUp, b.backupPlan()))
 	case len(b.rows) == 0:
 	case key.Matches(msg, k.Accept):
 		return b.openFiles(b.rows[b.cursor].entry)
@@ -164,6 +167,13 @@ func (b *backupsTab) restorePlan(e backup.Entry) planFunc {
 	}
 }
 
+func (b *backupsTab) backupPlan() planFunc {
+	svc, t := b.svc, b.t
+	return func(context.Context, []string) (plan.Plan, error) {
+		return action.PlanBackup(svc.Env, t)
+	}
+}
+
 func (b *backupsTab) deletePlan(e backup.Entry) planFunc {
 	svc, t := b.svc, b.t
 	return func(context.Context, []string) (plan.Plan, error) {
@@ -185,9 +195,9 @@ func (b *backupsTab) Keys() []key.Binding {
 	case b.files != nil:
 		return []key.Binding{k.Cancel, k.Move}
 	case len(b.rows) == 0:
-		return nil
+		return []key.Binding{k.Backup}
 	}
-	return []key.Binding{described(k.Accept, "view files"), k.Restore, k.Delete, k.Move}
+	return []key.Binding{described(k.Accept, "view files"), k.Backup, k.Restore, k.Delete, k.Move}
 }
 
 func (b *backupsTab) View(w, h int) string {

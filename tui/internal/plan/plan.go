@@ -29,7 +29,7 @@ func New(title string, store *backup.Dir, steps []Step) Plan {
 		touch.Paths = append(touch.Paths, t.Paths...)
 		touch.Globs = append(touch.Globs, t.Globs...)
 	}
-	paths := dropCovered(touch.Paths)
+	paths := DropCovered(touch.Paths)
 	globs := slices.Compact(slices.Sorted(slices.Values(touch.Globs)))
 	if len(paths) == 0 && len(globs) == 0 {
 		return p
@@ -38,8 +38,8 @@ func New(title string, store *backup.Dir, steps []Step) Plan {
 	return p
 }
 
-// dropCovered sorts and dedupes paths, removing any path below another in the set.
-func dropCovered(paths []string) []string {
+// DropCovered sorts and dedupes paths, removing any path below another in the set.
+func DropCovered(paths []string) []string {
 	var kept []string
 	for _, path := range slices.Compact(slices.Sorted(slices.Values(paths))) {
 		covered := slices.ContainsFunc(kept, func(ancestor string) bool {

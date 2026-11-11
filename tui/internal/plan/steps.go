@@ -38,6 +38,7 @@ type Snapshot struct {
 	Store backup.Dir
 	Paths []string
 	Globs []string
+	Rows  []Change // preview rows; plans built by New leave it nil
 }
 
 // Copy rows are named Rows because a Changes field would clash with the Changes method.
@@ -74,11 +75,11 @@ type Exec struct {
 
 type RemoveMatching struct{ Globs []string }
 
-func (s Snapshot) Describe() string { return "snapshot into " + s.Store.Label }
-func (Snapshot) Changes() []Change  { return nil }
-func (s Snapshot) Touches() Touch   { return Touch{Paths: s.Paths, Globs: s.Globs} }
-func (c Copy) Describe() string     { return fmt.Sprintf("copy %s to %s", c.Src, c.Dst) }
-func (c Copy) Changes() []Change    { return c.Rows }
+func (s Snapshot) Describe() string  { return "snapshot into " + s.Store.Label }
+func (s Snapshot) Changes() []Change { return s.Rows }
+func (s Snapshot) Touches() Touch    { return Touch{Paths: s.Paths, Globs: s.Globs} }
+func (c Copy) Describe() string      { return fmt.Sprintf("copy %s to %s", c.Src, c.Dst) }
+func (c Copy) Changes() []Change     { return c.Rows }
 func (c Copy) Touches() Touch {
 	var paths []string
 	for _, row := range c.Rows {

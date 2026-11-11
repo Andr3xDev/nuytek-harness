@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/dashboard"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
@@ -100,6 +101,16 @@ func TestPreviewBody_StripsBidiOverrideFromPath(t *testing.T) {
 	out := strings.Join(previewBody(newTheme(defaultDark), p, "nothing", 80), "\n")
 	if !strings.Contains(out, "evil") || strings.ContainsRune(out, '\u202e') {
 		t.Fatalf("preview must show the path without U+202E:\n%q", out)
+	}
+}
+
+func TestPreviewBody_SnapshotOnlyPlanHasNoLeadLine(t *testing.T) {
+	snap := plan.Snapshot{Store: backup.Dir{Label: "home"}, Rows: []plan.Change{{Effect: plan.EffectCreate, Path: "/h/a"}}}
+
+	out := strings.Join(previewBody(newTheme(defaultDark), plan.Plan{Steps: []plan.Step{snap}}, "nothing", 80), "\n")
+
+	if strings.Contains(out, "before the first change") || strings.Count(out, "snapshot into home") != 1 {
+		t.Fatalf("snapshot-only preview must name the snapshot once, without a lead line:\n%s", out)
 	}
 }
 

@@ -70,7 +70,7 @@ func previewBody(th theme, p plan.Plan, emptyText string, width int) []string {
 	if p.Empty() && !slices.ContainsFunc(rows, func(c plan.Change) bool { return c.Effect == plan.EffectSkip }) {
 		lines = append(lines, th.muted.Render(emptyText))
 	}
-	if len(p.Steps) > 0 {
+	if len(p.Steps) > 1 {
 		if snap, ok := p.Steps[0].(plan.Snapshot); ok {
 			lines = append(lines, styleAll(th.muted, wrap(snap.Describe()+" before the first change", width))...)
 		}

@@ -43,6 +43,13 @@ func TestStepTouches(t *testing.T) {
 	}
 }
 
+func TestSnapshotChangesReturnsRows(t *testing.T) {
+	rows := []plan.Change{{Effect: plan.EffectCreate, Path: ".claude/agents"}}
+	if got := (plan.Snapshot{Rows: rows}).Changes(); !slices.Equal(got, rows) {
+		t.Fatalf("Changes = %+v, want %+v", got, rows)
+	}
+}
+
 func TestExecChanges(t *testing.T) {
 	t.Run("nil rows give one run row from argv", func(t *testing.T) {
 		got := plan.Exec{Argv: []string{"claude", "plugin", "update", "x"}}.Changes()
