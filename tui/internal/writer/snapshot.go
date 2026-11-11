@@ -26,6 +26,9 @@ func (w *Writer) snapshot(s plan.Snapshot) plan.StepResult {
 	if err != nil {
 		return fromError(err)
 	}
+	if len(paths) == 0 {
+		return plan.StepResult{Status: plan.StepDone}
+	}
 	dirMode := defaultDirMode
 	if s.Store.Kind == backup.StoreRepo {
 		dirMode = repoDirMode

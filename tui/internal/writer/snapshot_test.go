@@ -111,6 +111,27 @@ func TestSnapshot(t *testing.T) {
 	}
 }
 
+func TestSnapshotNothingExistsCreatesNoStore(t *testing.T) {
+	root := t.TempDir()
+	base, storePath := filepath.Join(root, "home"), filepath.Join(root, "store")
+	build(t, base, fixture{})
+	step := plan.Snapshot{
+		Store: backup.Dir{Path: storePath, Base: base},
+		Paths: []string{filepath.Join(base, "gone.json")},
+		Globs: []string{filepath.Join(base, "zzz/*")},
+	}
+
+	res, _ := run(t, newWriter(fixedNow), step)
+
+	wantStatus(t, res, plan.StepDone)
+	if res.Detail != "" {
+		t.Fatalf("Detail = %q, want empty", res.Detail)
+	}
+	if _, err := os.Lstat(storePath); !os.IsNotExist(err) {
+		t.Fatalf("store dir exists after a snapshot of nothing: %v", err)
+	}
+}
+
 func TestSnapshotRepoStoreMode(t *testing.T) {
 	root := t.TempDir()
 	base, storePath := filepath.Join(root, "repo"), filepath.Join(root, "store")
