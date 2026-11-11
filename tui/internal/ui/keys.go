@@ -23,9 +23,9 @@ func newKeyMap() keyMap {
 		Down:    key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 		Move:    key.NewBinding(key.WithKeys("up", "down", "k", "j"), key.WithHelp("↑/↓", "move")),
 		Focus:   key.NewBinding(key.WithKeys("tab", "enter", "right", "l"), key.WithHelp("tab/enter", "open panel")),
-		Back:    key.NewBinding(key.WithKeys("esc", "tab", "left", "h"), key.WithHelp("esc/tab", "sidebar")),
-		PrevTab: key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev tab")),
-		NextTab: key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next tab")),
+		Back:    key.NewBinding(key.WithKeys("esc", "tab"), key.WithHelp("esc/tab", "sidebar")),
+		PrevTab: key.NewBinding(key.WithKeys("[", "left", "h"), key.WithHelp("[/h", "prev tab")),
+		NextTab: key.NewBinding(key.WithKeys("]", "right", "l"), key.WithHelp("]/l", "next tab")),
 		Refresh: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		Help:    key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
@@ -83,7 +83,7 @@ func (k keyMap) helpGroups(tabKeys []key.Binding) [][]key.Binding {
 	if claims(tabKeys, "r") {
 		r = k.Restore
 	}
-	tabs := key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "tabs"))
+	tabs := key.NewBinding(key.WithKeys("[", "]", "h", "l", "left", "right"), key.WithHelp("[/] h/l", "tabs"))
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Focus, k.Back, k.Help, k.Quit, k.CancelRun},
 		{tabs, r, k.Install, k.Mode},

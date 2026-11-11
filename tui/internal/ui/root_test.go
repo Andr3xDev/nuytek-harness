@@ -118,7 +118,7 @@ func TestRoot_PlannedTargetHasNoComputeAndKeepsSidebarFocus(t *testing.T) {
 }
 
 func TestRoot_RunActiveRefusesKeysAndOnlySetsNotice(t *testing.T) {
-	for _, k := range []string{"i", "r", "x", "d", "["} {
+	for _, k := range []string{"i", "r", "x", "d", "[", "h", "l"} {
 		t.Run(k, func(t *testing.T) {
 			r := newRoot(t, availableTarget())
 			r.Init()
@@ -255,6 +255,43 @@ func TestRoot_EnterFocusesPanelAndEscReturnsToSidebar(t *testing.T) {
 	press(r, escKey)
 	if r.focus != focusSidebar {
 		t.Fatal("esc did not return focus to the sidebar")
+	}
+}
+
+func TestRoot_PanelSwitchesTabsWithHLAndArrowsAndWraps(t *testing.T) {
+	right, left := tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyLeft}
+	tests := []struct {
+		name string
+		key  tea.KeyPressMsg
+		from int
+		want int
+	}{
+		{"l next", textKey("l"), 0, 1},
+		{"right next", right, 0, 1},
+		{"h prev", textKey("h"), 1, 0},
+		{"left prev", left, 1, 0},
+		{"h wraps to last", textKey("h"), 0, 3},
+		{"l wraps to first", textKey("l"), 3, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRoot(t, availableTarget())
+			r.focus = focusPanel
+			r.tab = tc.from
+			press(r, tc.key)
+			if r.tab != tc.want || r.focus != focusPanel {
+				t.Fatalf("tab = %d, focus = %v; want tab %d in the panel", r.tab, r.focus, tc.want)
+			}
+		})
+	}
+}
+
+func TestRoot_PanelTabKeyReturnsToSidebar(t *testing.T) {
+	r := newRoot(t, availableTarget())
+	r.focus = focusPanel
+	press(r, tea.KeyPressMsg{Code: tea.KeyTab})
+	if r.focus != focusSidebar {
+		t.Fatal("tab did not return focus to the sidebar")
 	}
 }
 
