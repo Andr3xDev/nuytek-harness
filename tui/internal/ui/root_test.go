@@ -176,6 +176,9 @@ func TestRoot_CtrlCDuringRunCancelsTheRunNotTheApp(t *testing.T) {
 	r.Update(runRequest{plan: plan.Plan{Title: "run"}})
 	cancelled := 0
 	r.run.cancel = func() { cancelled++ }
+	if keys, _ := r.keybarKeys(); !claims(keys, "ctrl+c") {
+		t.Fatalf("keybar keys = %v, want ctrl+c listed while a run is active", keys)
+	}
 
 	if isQuit(press(r, ctrlC)) {
 		t.Fatal("ctrl+c quit while a run is active")

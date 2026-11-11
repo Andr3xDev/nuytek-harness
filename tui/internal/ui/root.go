@@ -249,10 +249,8 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// cancelRunKey stops an active run; q stays refused so a quit cannot be mistaken for a cancel.
-const cancelRunKey = "ctrl+c"
-
 // handleRunKey keeps the output pane modal: while the run is active everything but scrolling and cancel is refused.
+// ctrl+c cancels the run; q stays refused so a quit cannot be mistaken for a cancel.
 func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
 	switch {
@@ -260,7 +258,7 @@ func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 		r.run.scrollBy(-1)
 	case key.Matches(msg, k.Down):
 		r.run.scrollBy(1)
-	case !r.run.done && msg.String() == cancelRunKey:
+	case !r.run.done && key.Matches(msg, k.CancelRun):
 		r.run.requestCancel()
 	case !r.run.done:
 		r.notice = runInProgressText
@@ -428,7 +426,7 @@ func (r *Root) keybarKeys() (keys, pinned []key.Binding) {
 	k := r.svc.keys
 	switch {
 	case r.run != nil && !r.run.done:
-		return []key.Binding{k.Move}, nil
+		return []key.Binding{k.Move, k.CancelRun}, nil
 	case r.run != nil:
 		return []key.Binding{described(k.Cancel, "close"), k.Move}, []key.Binding{k.Quit}
 	case r.showHelp:

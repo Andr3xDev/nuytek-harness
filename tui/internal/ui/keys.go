@@ -14,7 +14,7 @@ type keyMap struct {
 	Install, Mode               key.Binding
 	Toggle, All, Accept, Cancel key.Binding
 	Remove, Restore, Delete     key.Binding
-	Yes                         key.Binding
+	Yes, CancelRun              key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -39,6 +39,8 @@ func newKeyMap() keyMap {
 		Restore: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restore")),
 		Delete:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		Yes:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm")),
+		// Outside a run ctrl+c quits through Quit; CancelRun only describes it while one is active.
+		CancelRun: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "cancel run")),
 	}
 }
 
@@ -83,7 +85,7 @@ func (k keyMap) helpGroups(tabKeys []key.Binding) [][]key.Binding {
 	}
 	tabs := key.NewBinding(key.WithKeys("[", "]"), key.WithHelp("[/]", "tabs"))
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Focus, k.Back, k.Help, k.Quit},
+		{k.Up, k.Down, k.Focus, k.Back, k.Help, k.Quit, k.CancelRun},
 		{tabs, r, k.Install, k.Mode},
 		{k.Toggle, k.All, k.Accept, k.Yes, k.Cancel, k.Remove, k.Delete},
 	}
