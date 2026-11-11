@@ -122,6 +122,7 @@ func TestPluginOps(t *testing.T) {
 				if tt.installed != nil {
 					writeFile(t, env.Home, installedPluginsRel, *tt.installed)
 				}
+				writeFile(t, env.Home, ".claude/plugins/marketplaces/caveman/agents/cavecrew-x.md", "x")
 
 				part, err := planPart(context.Background(), env, pluginsComponent())
 
@@ -154,7 +155,7 @@ func requirePluginStepShape(t *testing.T, env check.Env, part plan.Part) {
 	}
 	var wantGlobs []string
 	for _, g := range cavecrewGlobs {
-		wantGlobs = append(wantGlobs, filepath.Join(env.Home, g))
+		wantGlobs = append(wantGlobs, filepath.Join(plan.EscapeGlob(env.Home), g))
 	}
 	if !slices.Equal(last.Globs, wantGlobs) {
 		t.Errorf("globs = %v, want %v", last.Globs, wantGlobs)
@@ -174,6 +175,42 @@ func requirePluginStepShape(t *testing.T, env check.Env, part plan.Part) {
 				t.Errorf("%q: rows = %+v, want %+v", step.Describe(), rows, want)
 			}
 		}
+	}
+}
+
+func TestPlugins_CavecrewRemovalOnlyWhenAFileMatches(t *testing.T) {
+	env := newEnv(t)
+	env.LookupEnv = noEnv
+	writeFile(t, env.Repo, pluginsSourceRel, `{"enabledPlugins": {"p@m": true}}`)
+
+	part, err := installPlugins(context.Background(), env, pluginsComponent())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(describeAll(part.Steps), removeMatchingDescribe) {
+		t.Errorf("steps = %v, want no cavecrew removal when nothing matches", describeAll(part.Steps))
+	}
+}
+
+func TestPlugins_CavecrewGlobsEscapeHomeMetacharacters(t *testing.T) {
+	env := newEnv(t)
+	env.LookupEnv = noEnv
+	env.Home = filepath.Join(env.Home, "h[1]*?")
+	writeFile(t, env.Repo, pluginsSourceRel, `{"enabledPlugins": {"p@m": true}}`)
+	writeFile(t, env.Home, ".claude/plugins/marketplaces/caveman/agents/cavecrew-x.md", "x")
+
+	part, err := installPlugins(context.Background(), env, pluginsComponent())
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	last, ok := part.Steps[len(part.Steps)-1].(plan.RemoveMatching)
+	if !ok {
+		t.Fatalf("last step is %T, want plan.RemoveMatching", part.Steps[len(part.Steps)-1])
+	}
+	if matches, _ := filepath.Glob(last.Globs[2]); len(matches) != 1 {
+		t.Errorf("glob %q matches %v, want the one cavecrew file", last.Globs[2], matches)
 	}
 }
 

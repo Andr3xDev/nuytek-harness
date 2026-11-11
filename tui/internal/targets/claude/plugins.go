@@ -110,12 +110,23 @@ func planPlugins(env check.Env, c manifest.Component, hard bool) (plan.Part, err
 		addPluginStep(&part, id, func() plan.Exec { return pluginExec(nil, "claude", "plugin", "install", id) })
 	}
 
-	globs := make([]string, len(cavecrewAgentGlobs))
-	for i, glob := range cavecrewAgentGlobs {
-		globs[i] = filepath.Join(env.Home, glob)
+	if step, ok := cavecrewRemoval(env.Home); ok {
+		part.Steps = append(part.Steps, step)
 	}
-	part.Steps = append(part.Steps, plan.RemoveMatching{Globs: globs})
 	return part, nil
+}
+
+// cavecrewRemoval is planned only when a cavecrew file exists now, so a clean install previews no deletion.
+func cavecrewRemoval(home string) (plan.RemoveMatching, bool) {
+	globs := make([]string, len(cavecrewAgentGlobs))
+	found := false
+	for i, glob := range cavecrewAgentGlobs {
+		globs[i] = filepath.Join(plan.EscapeGlob(home), glob)
+		if matches, _ := filepath.Glob(globs[i]); len(matches) > 0 {
+			found = true
+		}
+	}
+	return plan.RemoveMatching{Globs: globs}, found
 }
 
 // readKeys returns the entries of the JSON object at path under home, or of the object under wrapper when set.

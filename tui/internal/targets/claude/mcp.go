@@ -149,12 +149,19 @@ func sameJSON(a, b json.RawMessage) bool {
 	return json.Unmarshal(a, &x) == nil && json.Unmarshal(b, &y) == nil && reflect.DeepEqual(x, y)
 }
 
-func installMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Part, error) {
-	owned, err := ownedServers(env.FS, env.Repo, c)
-	if err != nil {
-		return plan.Part{}, err
+// planServers returns the repo-owned servers and the deployed ones, the input of every MCP plan.
+func planServers(env check.Env, c manifest.Component) (owned, current map[string]json.RawMessage, err error) {
+	if owned, err = ownedServers(env.FS, env.Repo, c); err != nil {
+		return nil, nil, err
 	}
-	current, err := currentServers(env, c)
+	if current, err = currentServers(env, c); err != nil {
+		return nil, nil, err
+	}
+	return owned, current, nil
+}
+
+func installMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Part, error) {
+	owned, current, err := planServers(env, c)
 	if err != nil {
 		return plan.Part{}, err
 	}
@@ -166,11 +173,7 @@ func installMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Pa
 }
 
 func removeMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Part, error) {
-	owned, err := ownedServers(env.FS, env.Repo, c)
-	if err != nil {
-		return plan.Part{}, err
-	}
-	current, err := currentServers(env, c)
+	owned, current, err := planServers(env, c)
 	if err != nil {
 		return plan.Part{}, err
 	}
@@ -192,11 +195,7 @@ func removeMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Par
 }
 
 func hardInstallMCP(_ context.Context, env check.Env, c manifest.Component) (plan.Part, error) {
-	owned, err := ownedServers(env.FS, env.Repo, c)
-	if err != nil {
-		return plan.Part{}, err
-	}
-	current, err := currentServers(env, c)
+	owned, current, err := planServers(env, c)
 	if err != nil {
 		return plan.Part{}, err
 	}
