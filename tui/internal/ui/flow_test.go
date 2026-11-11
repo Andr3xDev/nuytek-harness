@@ -74,6 +74,20 @@ func TestFlow_EscInPreviewAndConfirmYieldsNoRunRequest(t *testing.T) {
 	}
 }
 
+func TestFlow_RunTitleFollowsFlowAction(t *testing.T) {
+	f := newTestFlow(t, applicablePlan(""))
+	planned(f)
+
+	req, ok := f.Update(enterKey)().(runRequest)
+
+	if !ok || req.plan.Title != "Test" {
+		t.Fatalf("run request = %+v (ok=%v), want plan title %q", req, ok, "Test")
+	}
+	if got := newRun(req.plan.Title, false).boxTitle(); got != "Output - Test (running)" {
+		t.Fatalf("boxTitle = %q", got)
+	}
+}
+
 func TestRun_FollowShowsLastLineOfWrappedOutput(t *testing.T) {
 	r := newRun("x", false)
 	r.add(plan.Event{Phase: plan.PhaseLine, Text: strings.Repeat("long ", 30)})

@@ -244,6 +244,8 @@ func (f *flow) accept() tea.Cmd {
 		return nil
 	}
 	p := f.p
+	// The Update tab reuses the install planner, whose own title would name the run "Install".
+	p.Title = f.title
 	f.reset()
 	return func() tea.Msg { return runRequest{plan: p} }
 }
