@@ -11,7 +11,10 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
-const snapshotStamp = "20240101-000000"
+const (
+	snapshotStamp = "20240101-000000"
+	skippedDetail = "not executed"
+)
 
 // recordingRunner reports statuses by step description and records the order of runs.
 type recordingRunner struct {
@@ -27,6 +30,9 @@ func (r *recordingRunner) Run(_ context.Context, s plan.Step, line func(string))
 		result.Status = status
 		if status == plan.StepFailed || status == plan.StepWarned {
 			result.Err = errors.New("boom")
+		}
+		if status == plan.StepSkipped {
+			result.Detail = skippedDetail
 		}
 	}
 	if _, ok := s.(plan.Snapshot); ok {
@@ -77,6 +83,13 @@ func TestApply(t *testing.T) {
 			wantWarned: 1,
 		},
 		{
+			name:       "a skipped step emits its detail as the closing text",
+			steps:      []plan.Step{execStep("a")},
+			status:     map[string]plan.StepStatus{"a": plan.StepSkipped},
+			wantRan:    []string{"a"},
+			wantEvents: []string{"start:a", "line:a:out a", "skipped:a:" + skippedDetail},
+		},
+		{
 			name:       "an unknown status is treated as failed",
 			steps:      []plan.Step{execStep("a"), execStep("b")},
 			status:     map[string]plan.StepStatus{"a": "bogus"},
@@ -102,6 +115,10 @@ func TestApply(t *testing.T) {
 			result := plan.Apply(context.Background(), runner, plan.Plan{Steps: tt.steps}, func(e plan.Event) {
 				if e.Phase == plan.PhaseLine {
 					events = append(events, fmt.Sprintf("line:%s:%s", e.Step, e.Text))
+					return
+				}
+				if e.Phase == plan.PhaseSkipped {
+					events = append(events, fmt.Sprintf("skipped:%s:%s", e.Step, e.Text))
 					return
 				}
 				events = append(events, fmt.Sprintf("%s:%s", e.Phase, e.Step))

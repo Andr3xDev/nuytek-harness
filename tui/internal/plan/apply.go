@@ -80,6 +80,8 @@ func Apply(ctx context.Context, r Runner, p Plan, emit func(Event)) Result {
 		text := ""
 		if outcome.Err != nil {
 			text = outcome.Err.Error()
+		} else if outcome.Status == StepSkipped {
+			text = outcome.Detail
 		}
 		send(Phase(outcome.Status), text)
 		switch outcome.Status {
