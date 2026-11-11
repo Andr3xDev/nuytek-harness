@@ -14,6 +14,7 @@ type keyMap struct {
 	Install, Mode               key.Binding
 	Toggle, All, Accept, Cancel key.Binding
 	Remove, Restore, Delete     key.Binding
+	Yes                         key.Binding
 }
 
 func newKeyMap() keyMap {
@@ -37,6 +38,7 @@ func newKeyMap() keyMap {
 		Remove:  key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "remove")),
 		Restore: key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restore")),
 		Delete:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
+		Yes:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm")),
 	}
 }
 
@@ -83,7 +85,7 @@ func (k keyMap) helpGroups(tabKeys []key.Binding) [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Focus, k.Back, k.Help, k.Quit},
 		{tabs, r, k.Install, k.Mode},
-		{k.Toggle, k.All, k.Accept, k.Cancel, k.Remove, k.Delete},
+		{k.Toggle, k.All, k.Accept, k.Yes, k.Cancel, k.Remove, k.Delete},
 	}
 }
 

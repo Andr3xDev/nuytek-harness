@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -12,6 +13,7 @@ import (
 
 const (
 	outputMargin      = 2 // cells the pane leaves free on each axis, so the outer borders stay visible
+	maxOutputLines    = 2000
 	runInProgressText = "a run is in progress"
 	notExecutedText   = "not executed"
 	noSnapshotText    = "snapshot: none (nothing existed)"
@@ -59,27 +61,45 @@ type outLine struct {
 
 // run is the output pane state; its text stays raw and is wrapped (and so sanitized) when drawn.
 type run struct {
-	title  string
-	dryRun bool
-	events <-chan tea.Msg
-	lines  []outLine
-	done   bool
-	scroll scroller
-	follow bool
+	title      string
+	dryRun     bool
+	events     <-chan tea.Msg
+	cancel     context.CancelFunc // stops the apply; its goroutine then reports applyDone
+	cancelling bool
+	lines      []outLine  // capped at maxOutputLines, oldest dropped first
+	wrapped    [][]string // styled and wrapped lines[:len(wrapped)] at wrappedWidth
+	wrapWidth  int
+	done       bool
+	scroll     scroller
+	follow     bool
 }
 
 func newRun(title string, dryRun bool) *run {
 	return &run{title: title, dryRun: dryRun, follow: true}
 }
 
+func (r *run) push(lines ...outLine) {
+	r.lines = append(r.lines, lines...)
+	if drop := len(r.lines) - maxOutputLines; drop > 0 {
+		r.lines = slices.Delete(r.lines, 0, drop)
+		r.wrapped = r.wrapped[min(drop, len(r.wrapped)):]
+	}
+}
+
+// requestCancel stops the apply once; the pane stays open until applyDone arrives.
+func (r *run) requestCancel() {
+	r.cancelling = true
+	r.cancel()
+}
+
 func (r *run) add(e plan.Event) {
 	switch e.Phase {
 	case plan.PhaseStart:
-		r.lines = append(r.lines, outLine{outStep, fmt.Sprintf("[%d/%d] %s", e.Index, e.Total, e.Step)})
+		r.push(outLine{outStep, fmt.Sprintf("[%d/%d] %s", e.Index, e.Total, e.Step)})
 	case plan.PhaseLine:
-		r.lines = append(r.lines, outLine{outText, "    " + e.Text})
+		r.push(outLine{outText, "    " + e.Text})
 	case plan.PhaseDone:
-		r.lines = append(r.lines, outLine{outDone, "    done"})
+		r.push(outLine{outDone, "    done"})
 	case plan.PhaseSkipped:
 		text := "    skipped"
 		if r.dryRun {
@@ -87,38 +107,38 @@ func (r *run) add(e plan.Event) {
 		} else if e.Text != "" {
 			text += " - " + e.Text
 		}
-		r.lines = append(r.lines, outLine{outNote, text})
+		r.push(outLine{outNote, text})
 	case plan.PhaseWarned:
-		r.lines = append(r.lines, outLine{outWarn, "    warned: " + e.Text})
+		r.push(outLine{outWarn, "    warned: " + e.Text})
 	case plan.PhaseFailed:
-		r.lines = append(r.lines, outLine{outFail, "    failed: " + e.Text})
+		r.push(outLine{outFail, "    failed: " + e.Text})
 	}
 }
 
 func (r *run) finish(res plan.Result) {
 	r.done = true
-	r.lines = append(r.lines, outLine{outText, ""})
+	r.push(outLine{outText, ""})
 	switch {
 	case res.Failed != nil:
-		r.lines = append(r.lines,
+		r.push(
 			outLine{outFail, "Failed at step: " + res.Failed.Step},
 			outLine{outFail, fmt.Sprintf("error: %v", res.Failed.Err)})
 	case r.dryRun:
-		r.lines = append(r.lines, outLine{outNote, "Dry-run finished: nothing was written or executed."})
+		r.push(outLine{outNote, "Dry-run finished: nothing was written or executed."})
 	default:
-		r.lines = append(r.lines, outLine{outDone, "Finished."})
+		r.push(outLine{outDone, "Finished."})
 	}
 	switch {
 	case r.dryRun:
 	case res.Stamp != "":
-		r.lines = append(r.lines, outLine{outText, "snapshot: " + res.Stamp})
+		r.push(outLine{outText, "snapshot: " + res.Stamp})
 	default:
-		r.lines = append(r.lines, outLine{outNote, noSnapshotText})
+		r.push(outLine{outNote, noSnapshotText})
 	}
 	if len(res.Warned) > 0 {
-		r.lines = append(r.lines, outLine{outWarn, fmt.Sprintf("Warnings (%d):", len(res.Warned))})
+		r.push(outLine{outWarn, fmt.Sprintf("Warnings (%d):", len(res.Warned))})
 		for _, w := range res.Warned {
-			r.lines = append(r.lines, outLine{outWarn, "  " + w})
+			r.push(outLine{outWarn, "  " + w})
 		}
 	}
 }
@@ -132,8 +152,11 @@ func (r *run) scrollBy(delta int) {
 
 func (r *run) boxTitle() string {
 	title := sanitizeLine(r.title)
-	if r.done {
+	switch {
+	case r.done:
 		return runTitle + " - " + title + " (esc to close)"
+	case r.cancelling:
+		return runTitle + " - " + title + " (cancelling...)"
 	}
 	return runTitle + " - " + title + " (running)"
 }
@@ -156,10 +179,14 @@ func (t theme) forOut(k outKind) lipgloss.Style {
 }
 
 func (r *run) view(th theme, w, h int) []string {
-	var lines []string
-	for _, l := range r.lines {
-		lines = append(lines, styleAll(th.forOut(l.kind), wrap(l.text, w))...)
+	if w != r.wrapWidth {
+		r.wrapped, r.wrapWidth = nil, w
 	}
+	for len(r.wrapped) < len(r.lines) {
+		l := r.lines[len(r.wrapped)]
+		r.wrapped = append(r.wrapped, styleAll(th.forOut(l.kind), wrap(l.text, w)))
+	}
+	lines := slices.Concat(r.wrapped...)
 	if r.follow {
 		r.scroll.offset = len(lines)
 	}

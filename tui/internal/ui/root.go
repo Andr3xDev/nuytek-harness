@@ -190,6 +190,9 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case applyDone:
 		if r.run != nil {
 			r.run.finish(msg.result)
+			if r.run.cancel != nil {
+				r.run.cancel()
+			}
 		}
 	case tea.KeyPressMsg:
 		return r, r.handleKey(msg)
@@ -204,8 +207,10 @@ func (r *Root) startRun(p plan.Plan) tea.Cmd {
 		return nil
 	}
 	r.wizard = nil
+	runCtx, cancel := context.WithCancel(r.ctx)
 	r.run = newRun(p.Title, r.svc.DryRun)
-	return startApply(r.ctx, r.svc.Runner, p)
+	r.run.cancel = cancel
+	return startApply(runCtx, r.svc.Runner, p)
 }
 
 func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -244,7 +249,10 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// handleRunKey keeps the output pane modal: while the run is active everything but scrolling is refused.
+// cancelRunKey stops an active run; q stays refused so a quit cannot be mistaken for a cancel.
+const cancelRunKey = "ctrl+c"
+
+// handleRunKey keeps the output pane modal: while the run is active everything but scrolling and cancel is refused.
 func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
 	switch {
@@ -252,6 +260,8 @@ func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 		r.run.scrollBy(-1)
 	case key.Matches(msg, k.Down):
 		r.run.scrollBy(1)
+	case !r.run.done && msg.String() == cancelRunKey:
+		r.run.requestCancel()
 	case !r.run.done:
 		r.notice = runInProgressText
 	case key.Matches(msg, k.Quit):

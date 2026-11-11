@@ -48,15 +48,27 @@ func TestFlow_StalePlanAfterEscAndRestartIsDropped(t *testing.T) {
 	}
 }
 
-func TestFlow_ConfirmPlanNeedsTwoEnters(t *testing.T) {
+func TestFlow_ConfirmPlanNeedsEnterThenY(t *testing.T) {
 	f := newTestFlow(t, applicablePlan("sure?"))
 	planned(f)
 
 	if isRunRequest(f.Update(enterKey)) || f.stage != stageConfirm {
-		t.Fatalf("first enter: stage = %v, want confirm without a run request", f.stage)
+		t.Fatalf("enter in preview: stage = %v, want confirm without a run request", f.stage)
 	}
-	if !isRunRequest(f.Update(enterKey)) {
-		t.Fatal("second enter must produce a runRequest")
+	if isRunRequest(f.Update(enterKey)) || f.stage != stageConfirm {
+		t.Fatalf("enter in confirm: stage = %v, want it to do nothing", f.stage)
+	}
+	if !isRunRequest(f.Update(textKey("y"))) {
+		t.Fatal("y in confirm must produce a runRequest")
+	}
+}
+
+func TestFlow_YInPreviewDoesNothing(t *testing.T) {
+	f := newTestFlow(t, applicablePlan("sure?"))
+	planned(f)
+
+	if isRunRequest(f.Update(textKey("y"))) || f.stage != stagePreview {
+		t.Fatalf("y in preview: stage = %v, want preview without a run request", f.stage)
 	}
 }
 

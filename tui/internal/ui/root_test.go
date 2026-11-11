@@ -171,6 +171,31 @@ func TestRoot_QuitRefusedWhileRunActive(t *testing.T) {
 	}
 }
 
+func TestRoot_CtrlCDuringRunCancelsTheRunNotTheApp(t *testing.T) {
+	r := newRoot(t, availableTarget())
+	r.Update(runRequest{plan: plan.Plan{Title: "run"}})
+	cancelled := 0
+	r.run.cancel = func() { cancelled++ }
+
+	if isQuit(press(r, ctrlC)) {
+		t.Fatal("ctrl+c quit while a run is active")
+	}
+	if cancelled != 1 || !r.run.cancelling {
+		t.Fatalf("cancel calls = %d, cancelling = %v, want 1 and true", cancelled, r.run.cancelling)
+	}
+	if !strings.Contains(r.run.boxTitle(), "cancelling") {
+		t.Fatalf("title = %q, want a cancelling notice", r.run.boxTitle())
+	}
+	if r.ctx.Err() != nil {
+		t.Fatal("app context cancelled; only the run may be")
+	}
+
+	r.Update(applyDone{})
+	if strings.Contains(r.run.boxTitle(), "cancelling") || !r.run.done {
+		t.Fatalf("title = %q, done = %v, want the notice gone after applyDone", r.run.boxTitle(), r.run.done)
+	}
+}
+
 func TestRoot_QuitKeysQuitAndCancelContext(t *testing.T) {
 	for name, k := range map[string]tea.KeyPressMsg{"q": textKey("q"), "ctrl+c": ctrlC} {
 		t.Run(name, func(t *testing.T) {

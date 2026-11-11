@@ -191,7 +191,7 @@ func (f *flow) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			f.body.by(-1)
 		case key.Matches(msg, k.Down):
 			f.body.by(1)
-		case key.Matches(msg, k.Accept):
+		case f.stage == stagePreview && key.Matches(msg, k.Accept), f.stage == stageConfirm && key.Matches(msg, k.Yes):
 			return f.accept()
 		}
 	}
@@ -264,7 +264,7 @@ func (f *flow) Keys() []key.Binding {
 		}
 		return append(keys, k.Cancel, k.Move)
 	case stageConfirm:
-		return []key.Binding{described(k.Accept, "confirm"), described(k.Cancel, "decline"), k.Move}
+		return []key.Binding{k.Yes, described(k.Cancel, "decline"), k.Move}
 	}
 	return nil
 }
