@@ -2,6 +2,7 @@ package check_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -47,6 +48,10 @@ func (f *fakeExec) Output(ctx context.Context, name string, args ...string) ([]b
 		return nil, ctx.Err()
 	}
 	return []byte(f.outputs[name]), f.probeErrs[name]
+}
+
+func (f *fakeExec) Run(context.Context, string, ...string) (check.ExecResult, error) {
+	return check.ExecResult{}, errors.New("Run is not used by these checks")
 }
 
 func (f *fakeExec) argsOf(name string) []string {

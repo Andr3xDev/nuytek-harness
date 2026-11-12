@@ -66,6 +66,9 @@ func (allToolsExec) LookPath(name string) (string, error) { return "/usr/bin/" +
 func (allToolsExec) Output(context.Context, string, ...string) ([]byte, error) {
 	return []byte("1.2.3\n"), nil
 }
+func (allToolsExec) Run(context.Context, string, ...string) (check.ExecResult, error) {
+	return check.ExecResult{Stdout: []byte("1.2.3\n")}, nil
+}
 
 func homeAndRepoHash(t *testing.T, env check.Env) string {
 	t.Helper()

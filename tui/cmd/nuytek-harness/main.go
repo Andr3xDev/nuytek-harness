@@ -86,7 +86,7 @@ func run() int {
 	}
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
-	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path}
+	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path, Cwd: cwd}
 	deps := ui.Deps{Env: env, Runner: runner, DryRun: *dryRun}
 	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)
