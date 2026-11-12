@@ -20,6 +20,9 @@ func PlanBackup(env check.Env, t target.Target) (plan.Plan, error) {
 	}
 	var paths []string
 	for _, c := range t.Manifest.Components {
+		if !c.Kind.Deploys() {
+			continue
+		}
 		_, dst := componentPaths(env, c)
 		if _, err := env.FS.Lstat(dst); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
