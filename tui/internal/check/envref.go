@@ -25,6 +25,7 @@ func EnvRefs(id string, pattern *regexp.Regexp, extract func(env Env) ([]TextSou
 						r.Message = name + " is unset, default applies"
 					} else {
 						r.Status, r.Message = StatusWarning, name+" is not set"
+						r.Suggestion = "set " + name + " in the environment, or use ${" + name + ":-default}"
 					}
 				}
 				results = append(results, r)

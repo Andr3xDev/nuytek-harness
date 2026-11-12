@@ -72,3 +72,24 @@ func TestRequirements_ExtractErrorIsSingleUnknown(t *testing.T) {
 		t.Fatalf("got %+v, want one unknown result carrying the extract error", got)
 	}
 }
+
+func TestRequirements_NotFoundCasesCarrySuggestion(t *testing.T) {
+	env := newHome(t, &fakeExec{})
+	reqs := []check.Requirement{
+		{Subject: "cmd", Command: "codegraph"},
+		{Subject: "file", Path: filepath.Join(env.Home, "gone.py")},
+		{Subject: "ok-file", Path: env.Home},
+	}
+
+	got := runCheck(t, check.Requirements("hooks", func(check.Env) ([]check.Requirement, error) { return reqs, nil }), env)
+
+	if s := resultFor(t, got, "cmd").Suggestion; !strings.Contains(s, "install codegraph") {
+		t.Errorf("command suggestion = %q, want install codegraph", s)
+	}
+	if s := resultFor(t, got, "file").Suggestion; !strings.Contains(s, "install") {
+		t.Errorf("path suggestion = %q, want it to point at install", s)
+	}
+	if s := resultFor(t, got, "ok-file").Suggestion; s != "" {
+		t.Errorf("ok suggestion = %q, want none", s)
+	}
+}

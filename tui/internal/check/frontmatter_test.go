@@ -3,6 +3,7 @@ package check_test
 import (
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
@@ -76,5 +77,16 @@ func TestFrontmatter_MissingRootYieldsNoResults(t *testing.T) {
 
 	if len(got) != 0 {
 		t.Fatalf("got %+v, want no results for a missing root", got)
+	}
+}
+
+func TestFrontmatter_MissingDescriptionSuggestsField(t *testing.T) {
+	env := newHome(t, nil)
+	writeFile(t, filepath.Join(env.Home, "items", "a.md"), "---\nname: x\n---\n", 0o644)
+
+	got := runCheck(t, check.Frontmatter("fm", []check.Set{{Root: "items", Pattern: "*.md"}}), env)
+
+	if len(got) != 1 || !strings.Contains(got[0].Suggestion, "description") {
+		t.Fatalf("got %+v, want one error suggesting a description field", got)
 	}
 }
