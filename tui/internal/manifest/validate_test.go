@@ -7,6 +7,8 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 )
 
+var withSpecter = append([]manifest.Kind{manifest.KindSpecter}, testKinds...)
+
 func TestValidate_Rejects(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -43,6 +45,11 @@ func TestValidate_Rejects(t *testing.T) {
 		{"pull on mcp rejected", []manifest.Component{{Name: "mcp", Kind: "mcp", Source: "x", Target: ".claude.json", Pull: true}}, testKinds, true, "mcp"},
 		{"pull on plugins rejected", []manifest.Component{{Name: "plugins", Kind: "plugins", Source: "x", Target: ".s.json", Pull: true}}, testKinds, true, "plugins"},
 		{"pull on dir valid", []manifest.Component{{Name: "agents", Kind: manifest.KindDir, Source: "x", Target: ".a", Pull: true}}, testKinds, false, ""},
+		{"non-deploying kind needs no source or target", []manifest.Component{{Name: "sp", Kind: "specter", Needs: []string{"openspec"}}}, withSpecter, false, ""},
+		{"non-deploying kind rejects a source", []manifest.Component{{Name: "sp", Kind: "specter", Source: "x"}}, withSpecter, true, "source"},
+		{"non-deploying kind rejects a target", []manifest.Component{{Name: "sp", Kind: "specter", Target: ".a"}}, withSpecter, true, "target"},
+		{"pull on non-deploying kind rejected", []manifest.Component{{Name: "sp", Kind: "specter", Pull: true}}, withSpecter, true, "pull"},
+		{"deploying kind still needs source and target beside a non-deploying one", []manifest.Component{{Name: "sp", Kind: "specter"}, comp("a", manifest.KindFile, "", ".a")}, withSpecter, true, "empty source"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
