@@ -23,6 +23,11 @@ func (r recordingFS) Lstat(p string) (fs.FileInfo, error) {
 	return r.FS.Lstat(p)
 }
 
+func (r recordingFS) Stat(p string) (fs.FileInfo, error) {
+	*r.touched = append(*r.touched, p)
+	return r.FS.Stat(p)
+}
+
 func (r recordingFS) ReadFile(p string) ([]byte, error) {
 	*r.touched = append(*r.touched, p)
 	return r.FS.ReadFile(p)

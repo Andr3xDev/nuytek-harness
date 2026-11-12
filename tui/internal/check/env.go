@@ -8,6 +8,7 @@ import (
 // FS has no write method: the read-only guarantee is compile-time.
 type FS interface {
 	Lstat(path string) (fs.FileInfo, error) // never follows links
+	Stat(path string) (fs.FileInfo, error)  // follows links: sizes and kinds of a link's target
 	ReadFile(path string) ([]byte, error)
 	ReadDir(path string) ([]fs.DirEntry, error)
 }
