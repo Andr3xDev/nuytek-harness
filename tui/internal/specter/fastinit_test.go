@@ -36,7 +36,7 @@ func newInitFixture(t *testing.T, storeIDs ...string) initFixture {
 		writeStore(t, root, id, "id: "+id+"\n")
 	}
 	reposPath := filepath.Join(root, "repos.yaml")
-	writeFile(t, reposPath, realReposYAML)
+	writeFile(t, reposPath, sampleReposYAML)
 	repoDir := filepath.Join(env.Home, "work", "proj")
 	writeFile(t, filepath.Join(repoDir, ".git", "config"), "[remote \"origin\"]\n\turl = "+originURL+"\n")
 	env.Cwd = repoDir
@@ -94,11 +94,11 @@ func TestPlanFastInit_UnmappedRepoPlansRegisterThenMappingEdit(t *testing.T) {
 	if edit.Path != fx.reposPath {
 		t.Errorf("Edit.Path = %q, want %q", edit.Path, fx.reposPath)
 	}
-	got, err := edit.Edit([]byte(realReposYAML), true)
+	got, err := edit.Edit([]byte(sampleReposYAML), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.Replace(realReposYAML, "stores:\n", "  - remote: "+originURL+"\n    store: a\nstores:\n", 1)
+	want := strings.Replace(sampleReposYAML, "stores:\n", "  - remote: "+originURL+"\n    store: a\nstores:\n", 1)
 	if string(got) != want {
 		t.Errorf("edit result =\n%s\nwant\n%s", got, want)
 	}
@@ -134,7 +134,7 @@ func TestPlanFastInit_RepoWithoutRemoteMapsByHomeRelativePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := editStep(t, p).Edit([]byte(realReposYAML), true)
+	got, err := editStep(t, p).Edit([]byte(sampleReposYAML), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestPlanFastInit_NoStoreToChooseGivesReason(t *testing.T) {
 func TestPlanFastInit_RootOutsideHomeIsEmptyWithReason(t *testing.T) {
 	outside := t.TempDir()
 	writeStore(t, outside, "a", "id: a\n")
-	writeFile(t, filepath.Join(outside, "repos.yaml"), realReposYAML)
+	writeFile(t, filepath.Join(outside, "repos.yaml"), sampleReposYAML)
 	env := envWith(t, openspecExec(check.ExecResult{Stdout: []byte(`{"stores":[]}`)}), outside)
 
 	p, err := specter.PlanFastInit(context.Background(), env, "a")
@@ -302,7 +302,7 @@ func TestFastInit_ApplyRegistersMapsAndCreatesNoSnapshot(t *testing.T) {
 	if want := "store register " + filepath.Join(fx.root, "alpha") + " --id alpha --yes\n"; readFileOrEmpty(t, log) != want {
 		t.Errorf("fake openspec saw %q, want %q", readFileOrEmpty(t, log), want)
 	}
-	want := strings.Replace(realReposYAML, "stores:\n", "  - remote: "+originURL+"\n    store: alpha\nstores:\n", 1)
+	want := strings.Replace(sampleReposYAML, "stores:\n", "  - remote: "+originURL+"\n    store: alpha\nstores:\n", 1)
 	if got := readFileOrEmpty(t, fx.reposPath); got != want {
 		t.Errorf("repos.yaml =\n%s\nwant (all comments and flow maps byte-identical)\n%s", got, want)
 	}
@@ -332,7 +332,7 @@ func TestFastInit_DryRunRunsNothingAndListsStepsAsNotExecuted(t *testing.T) {
 	if got := readFileOrEmpty(t, log); got != "" {
 		t.Errorf("fake openspec ran under dry-run: %q", got)
 	}
-	if got := readFileOrEmpty(t, fx.reposPath); got != realReposYAML {
+	if got := readFileOrEmpty(t, fx.reposPath); got != sampleReposYAML {
 		t.Errorf("repos.yaml changed under dry-run:\n%s", got)
 	}
 	closing := 0

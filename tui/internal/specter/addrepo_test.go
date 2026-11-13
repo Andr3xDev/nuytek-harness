@@ -8,8 +8,8 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 )
 
-// Same shape as a real repos.yaml with fictional values: header comments, block repos, flow-style stores.
-const realReposYAML = `# Repo -> OpenSpec store map (` + "`repos:`" + `), read by the orchestrator. Match by git remote; ` + "`path`" + ` entries match the working directory prefix (longest wins).
+// A repos.yaml shape with fictional values: header comments, block repos, flow-style stores.
+const sampleReposYAML = `# Repo -> OpenSpec store map (` + "`repos:`" + `), read by the orchestrator. Match by git remote; ` + "`path`" + ` entries match the working directory prefix (longest wins).
 # ` + "`stores:`" + ` maps each store to the Engram projects its memories live in (one Engram project per repo/folder).
 repos:
   - remote: git@github.com:example/alpha.git
@@ -30,10 +30,10 @@ stores:
 
 func TestAddRepoMapping_RemoteEntryLandsAfterLastEntryAndKeepsEverythingElse(t *testing.T) {
 	entry := specter.RepoEntry{Remote: originURL, Store: "gamma-app"}
-	want := strings.Replace(realReposYAML, "stores:\n",
+	want := strings.Replace(sampleReposYAML, "stores:\n",
 		"  - remote: "+originURL+"\n    store: gamma-app\nstores:\n", 1)
 
-	got, err := specter.AddRepoMapping([]byte(realReposYAML), entry)
+	got, err := specter.AddRepoMapping([]byte(sampleReposYAML), entry)
 
 	if err != nil {
 		t.Fatal(err)
@@ -49,9 +49,9 @@ func TestAddRepoMapping_RemoteEntryLandsAfterLastEntryAndKeepsEverythingElse(t *
 
 func TestAddRepoMapping_PathEntryWhenThereIsNoRemote(t *testing.T) {
 	entry := specter.RepoEntry{Path: "~/work/proj", Store: "alpha"}
-	want := strings.Replace(realReposYAML, "stores:\n", "  - path: ~/work/proj\n    store: alpha\nstores:\n", 1)
+	want := strings.Replace(sampleReposYAML, "stores:\n", "  - path: ~/work/proj\n    store: alpha\nstores:\n", 1)
 
-	got, err := specter.AddRepoMapping([]byte(realReposYAML), entry)
+	got, err := specter.AddRepoMapping([]byte(sampleReposYAML), entry)
 
 	if err != nil {
 		t.Fatal(err)
@@ -100,12 +100,12 @@ func TestAddRepoMapping_NoReposKeyIsAnError(t *testing.T) {
 func TestAddRepoMapping_AlreadyMappedReturnsInputUnchanged(t *testing.T) {
 	entry := specter.RepoEntry{Remote: "git@github.com:example/gamma-app.git", Store: "gamma-app"}
 
-	got, err := specter.AddRepoMapping([]byte(realReposYAML), entry)
+	got, err := specter.AddRepoMapping([]byte(sampleReposYAML), entry)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != realReposYAML {
+	if string(got) != sampleReposYAML {
 		t.Errorf("result changed for an already mapped repo:\n%s", got)
 	}
 }
