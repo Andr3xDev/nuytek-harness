@@ -33,7 +33,7 @@ Each CLI target has these five tabs, switched with `[` and `]`, or `h` and `l` (
 - Backups: lists backups, with backup now (`b`), restore (`r`) and delete (`d`).
 - Manage: read-only list of the target's MCPs, Plugins and Skills. Skills that are not in the harness carry a `local` tag.
 
-Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view.
+Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. Like Install, Hard install skips the components whose tool (`openspec`, `node`, ...) is missing, leaves them untouched and names them in the confirmation; it refuses to start only when every component is blocked. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view.
 
 ## Specter
 

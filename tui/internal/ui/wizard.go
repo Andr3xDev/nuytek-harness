@@ -19,7 +19,7 @@ const (
 	wizardTitle   = "Install"
 	modeInstall   = "Install"
 	modeHard      = "Hard install"
-	hardSummary   = "Hard install resets every directory component to the repo, deleting custom files inside it, and prunes MCP servers and plugins the repo does not declare. It needs every tool."
+	hardSummary   = "Hard install resets every directory component to the repo, deleting custom files inside it, and prunes MCP servers and plugins the repo does not declare. Components whose tool is missing are skipped and left untouched."
 	installPrompt = "Select components to install"
 )
 
