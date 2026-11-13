@@ -1,6 +1,10 @@
 package target
 
-import "github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+import (
+	"cmp"
+
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+)
 
 const doctorTitle = "Doctor"
 
@@ -24,7 +28,7 @@ type ManageSection struct {
 func DoctorSection(results []check.Result) ManageSection {
 	section := ManageSection{Title: doctorTitle}
 	for _, r := range results {
-		row := ManageRow{Name: r.Subject, Status: r.Status}
+		row := ManageRow{Name: cmp.Or(r.Subject, r.CheckID), Status: r.Status}
 		if r.Status != check.StatusOK {
 			row.Detail = r.Message
 			if r.Suggestion != "" {

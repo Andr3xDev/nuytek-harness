@@ -58,6 +58,13 @@ func TestDoctorSection_WarningWithoutSuggestionHasNoSuggestionLine(t *testing.T)
 	}
 }
 
+func TestDoctorSection_RowWithoutSubjectIsNamedByCheckID(t *testing.T) {
+	sec := target.DoctorSection([]check.Result{{CheckID: "tool.git", Message: "found", Status: check.StatusOK}})
+	if got := sec.Rows[0].Name; got != "tool.git" {
+		t.Errorf("Name = %q, want the check id", got)
+	}
+}
+
 func TestDoctorSection_SuggestionAddsExactlyOneLine(t *testing.T) {
 	without := target.DoctorSection([]check.Result{{Subject: "s", Message: "bad", Status: check.StatusError}})
 	with := target.DoctorSection([]check.Result{{Subject: "s", Message: "bad", Status: check.StatusError, Suggestion: "do this"}})
