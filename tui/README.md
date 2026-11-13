@@ -25,14 +25,38 @@ The TUI needs a terminal on both stdin and stdout. Otherwise it prints `nuytek-h
 
 ## Actions
 
-Each CLI target has these tabs, switched with `[` and `]`, or `h` and `l` (`←`/`→`):
+Each CLI target has these five tabs, switched with `[` and `]`, or `h` and `l` (`←`/`→`):
 
 - Dashboard: installed components and health checks.
 - Update: changes the repo has that the machine does not, then applies them.
 - Pull: copies machine changes back into the repo.
 - Backups: lists backups, with backup now (`b`), restore (`r`) and delete (`d`).
+- Manage: read-only list of the target's MCPs, Plugins and Skills. Skills that are not in the harness carry a `local` tag.
 
 Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view.
+
+## Specter
+
+The first sidebar entry, above the CLI targets, is the global Specter screen. It is read-only except for the actions below and shows these sections:
+
+- Root: the resolved specter root and where it came from. When the root is missing it shows a `git clone` command as text; the TUI never runs git. Set `NUYTEK_SPECTER_REPO` to fill the repo URL into that hint.
+- Stores: each registered store with its repos, Engram projects and active, archived and spec counts.
+- Checks: `openspec`, registration, `repos.yaml`, and whether the harness agent files reference the root.
+- Drift: report-only items, each with a `/specter` suggestion.
+- Validation: per-store `openspec validate` results, kept for the session only.
+
+Keys on this screen:
+
+- `v`: validate all stores.
+- `f`: fast init. Registers every unregistered store folder and can map the current repo to a store.
+- `m`: maintenance. Registers unregistered store folders; other drift stays report-only. Elsewhere `m` is the install mode.
+- `r`: refresh.
+
+Fast init and maintenance take no snapshot and never delete anything. They need the root under `$HOME`.
+
+`NUYTEK_SPECTER_ROOT` sets the specter root (default `~/dev/specter`). Only the TUI reads it; the scripts and agents keep using `~/dev/specter`, and a Checks row warns when the two differ.
+
+A check that cannot run, such as one that needs a missing `openspec`, has status `skipped` (glyph `-`). It never counts as a failure.
 
 ## Repo discovery
 
@@ -68,6 +92,7 @@ Packages under `tui/internal` each own their types and logic.
 | `dashboard` | Computes the dashboard from a target |
 | `state` | State file; the only package that writes files |
 | `osfs`, `osexec` | OS implementations of `check.FS` and `check.Exec` |
+| `specter` | Specter root, stores, checks, drift, validation and write plans |
 | `targets/claude` | Claude Code composition: `Spec()` and its extractors |
 | `ui` | Bubble Tea presentation |
 
@@ -79,9 +104,10 @@ Dependency rule: interfaces are declared by the consumer, and each package impor
 - `drift` imports `check`, `manifest`.
 - `target` imports `backup`, `check`, `drift`, `manifest`.
 - `dashboard` imports `target` and what `target` imports.
+- `specter` imports `check`, `drift`, `manifest`, `plan`, `repo`. It imports no target, action, or ui.
 - `osfs`, `osexec` import `check`.
 - `targets/<cli>` imports `target`, `check`, `drift`, `manifest`, `backup`.
-- `ui` imports `dashboard`, `target`, `check`, `drift`. It never imports `targets/*`, `osfs`, `osexec`, or `state`.
+- `ui` imports `action`, `backup`, `check`, `dashboard`, `drift`, `plan`, `specter`, `target`. It never imports `targets/*`, `osfs`, `osexec`, or `state`.
 
 ## Adding a new CLI target
 
