@@ -100,6 +100,79 @@ func TestFlow_RunTitleFollowsFlowAction(t *testing.T) {
 	}
 }
 
+func newChoiceFlow(t *testing.T, got *[]string, names ...string) *flow {
+	t.Helper()
+	svc := newRoot(t, availableTarget()).svc
+	f := newSelectFlow(svc, "Test", "pick", "nothing", func(_ context.Context, picked []string) (plan.Plan, error) {
+		*got = picked
+		return applicablePlan(""), nil
+	})
+	var choices []choice
+	for _, n := range names {
+		choices = append(choices, choice{name: n})
+	}
+	f.setChoices(choices)
+	return f
+}
+
+func TestFlow_LimitOneToggleKeepsOnlyTheLatestPick(t *testing.T) {
+	var got []string
+	f := newChoiceFlow(t, &got, "a", "b")
+	f.limit = 1
+
+	space := tea.KeyPressMsg{Code: tea.KeySpace}
+	f.Update(space)
+	f.Update(downKey)
+	f.Update(space)
+
+	if names := f.names(); len(names) != 1 || names[0] != "b" {
+		t.Fatalf("names = %v, want [b]", names)
+	}
+}
+
+func TestFlow_LimitOneKeepsOnlyTheFirstPreselectedChoice(t *testing.T) {
+	var got []string
+	f := newChoiceFlow(t, &got)
+	f.limit = 1
+
+	f.setChoices([]choice{{name: "a", selected: true}, {name: "b", selected: true}, {name: "c"}})
+
+	if names := f.names(); len(names) != 1 || names[0] != "a" {
+		t.Fatalf("names = %v, want [a]", names)
+	}
+}
+
+func TestFlow_LimitOneIgnoresAllKeyAndHidesIt(t *testing.T) {
+	var got []string
+	f := newChoiceFlow(t, &got, "a", "b")
+	f.limit = 1
+
+	f.Update(textKey("a"))
+
+	if names := f.names(); len(names) != 0 {
+		t.Fatalf("names = %v, want none: the all key must do nothing with limit 1", names)
+	}
+	if claims(f.Keys(), "a") {
+		t.Fatal("limit 1 must hide the all key from Keys()")
+	}
+}
+
+func TestFlow_OptionalEnterWithoutPickPlansWithNilNames(t *testing.T) {
+	got := []string{"sentinel"}
+	f := newChoiceFlow(t, &got, "a", "b")
+	f.optional = true
+
+	cmd := f.Update(enterKey)
+	if f.stage != stagePlanning || f.notice != "" {
+		t.Fatalf("stage = %v, notice = %q, want planning without a notice", f.stage, f.notice)
+	}
+	cmd()
+
+	if got != nil {
+		t.Fatalf("planner names = %v, want nil", got)
+	}
+}
+
 func TestRun_FollowShowsLastLineOfWrappedOutput(t *testing.T) {
 	r := newRun("x", false)
 	r.add(plan.Event{Phase: plan.PhaseLine, Text: strings.Repeat("long ", 30)})

@@ -64,6 +64,8 @@ func statusGlyph(s check.Status) string {
 		return "!"
 	case check.StatusError:
 		return "✗"
+	case check.StatusSkipped:
+		return "-"
 	default:
 		return "?"
 	}
@@ -77,6 +79,8 @@ func driftGlyph(s drift.State) string {
 		return "◐"
 	case drift.StateNotInstalled:
 		return "○"
+	case drift.StateSkipped:
+		return "-"
 	default:
 		return "?"
 	}
@@ -90,6 +94,8 @@ func (t theme) forStatus(s check.Status) lipgloss.Style {
 		return t.warning
 	case check.StatusError:
 		return t.err
+	case check.StatusSkipped:
+		return t.muted
 	default:
 		return t.unknown
 	}
@@ -103,6 +109,8 @@ func (t theme) forDrift(s drift.State) lipgloss.Style {
 		return t.warning
 	case drift.StateNotInstalled:
 		return t.err
+	case drift.StateSkipped:
+		return t.muted
 	default:
 		return t.unknown
 	}
