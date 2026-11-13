@@ -159,7 +159,7 @@ type HealthSummary struct {
 }
 
 // Summary counts warning and error results as failed; skipped never fails, any unknown keeps the status from reading ok.
-func Summary(_ Facts, results []check.Result) HealthSummary {
+func Summary(results []check.Result) HealthSummary {
 	var failed, ok, unknown int
 	status := check.StatusWarning
 	for _, r := range results {

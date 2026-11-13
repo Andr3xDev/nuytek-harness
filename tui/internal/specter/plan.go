@@ -10,8 +10,6 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
-const mappingName = "repos.yaml"
-
 // Both plans are snapshot-free and carry an empty Confirm: they only register stores and add one repos.yaml entry.
 
 // PlanFastInit registers every unregistered store folder and, when mapTo names a store, maps the current repo to it.
@@ -22,7 +20,7 @@ func PlanFastInit(ctx context.Context, env check.Env, mapTo string) (plan.Plan, 
 		if step, skip := mappingStep(env, reg, mapTo); step != nil {
 			part.Steps = append(part.Steps, step)
 		} else if skip != "" {
-			part.Skipped = append(part.Skipped, plan.Skip{Name: mappingName, Reason: skip})
+			part.Skipped = append(part.Skipped, plan.Skip{Name: reposFile, Reason: skip})
 		}
 	}
 	return assemble("Specter fast init", part), nil

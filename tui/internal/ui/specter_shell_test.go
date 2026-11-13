@@ -133,12 +133,15 @@ func TestRoot_RunDismissalWithSpecterSelectedReloadsSpecter(t *testing.T) {
 	selectSpecter(r)
 	r.run = newRun("x", false)
 	r.run.finish(plan.Result{})
-	gen := r.specter.gen
+	gen, dashGen := r.specter.gen, r.states[0].gen
 
 	press(r, escKey)
 
 	if r.run != nil || r.specter.gen != gen+1 || r.specter.phase != loading {
 		t.Fatalf("run = %v, gen = %d (want %d), phase = %v; want the output pane closed and a new Specter load", r.run, r.specter.gen, gen+1, r.specter.phase)
+	}
+	if r.states[0].gen != dashGen+1 {
+		t.Errorf("target dashboard gen = %d, want %d: a Specter run changes the specter component status", r.states[0].gen, dashGen+1)
 	}
 }
 
@@ -261,6 +264,27 @@ func TestRoot_SidebarListsSpecterThenSeparatorThenTargets(t *testing.T) {
 	}
 }
 
+func TestSpecterLine_CountsDriftWhenChecksPass(t *testing.T) {
+	facts := specter.Facts{
+		Registration: specter.Registration{
+			Openspec:   specter.ToolInfo{Found: true},
+			Registered: []specter.StoreInfo{{ID: "a", Root: "/old/a"}},
+			Folders:    []specter.StoreFolder{{ID: "a", Dir: "/new/a"}},
+		},
+		Repos:    specter.ReposView{Repos: []specter.RepoEntry{{Remote: "https://example.test/a.git", Store: "a"}}},
+		RootRefs: []specter.RootRef{{Label: "agents", Found: true, References: true}},
+	}
+	if got := specter.Summary(specter.Checks(facts)); got.Text != "all checks passed" {
+		t.Fatalf("fixture checks = %q, want all checks passed", got.Text)
+	}
+
+	line := plain(specterLine(newTheme(true), &specterState{loaded: true, facts: facts}, 80))
+
+	if !strings.Contains(line, "1 problem(s)") {
+		t.Errorf("line = %q, want the drift warning counted", line)
+	}
+}
+
 func TestDashboardTab_PrependsSpecterLineAndSeparator(t *testing.T) {
 	r := specterRoot(t)
 	r.Init()
@@ -277,7 +301,7 @@ func TestDashboardTab_PrependsSpecterLineAndSeparator(t *testing.T) {
 	}
 
 	facts := specter.Facts{}
-	sum := specter.Summary(facts, specter.Checks(facts))
+	sum := specter.Summary(specter.Checks(facts))
 	r.specter.phase, r.specter.loaded, r.specter.facts = ready, true, facts
 	lines = strings.Split(plain(dash.View(60, 20)), "\n")
 	if !strings.Contains(lines[0], statusGlyph(sum.Status)) || !strings.Contains(lines[0], sum.Text) || strings.Contains(lines[0], "pending") {

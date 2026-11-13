@@ -14,7 +14,6 @@ import (
 
 const (
 	reposFile     = "repos.yaml"
-	probeCheckID  = "specter.openspec"
 	storeListKeys = 3 // active, archived, specs
 )
 
@@ -114,7 +113,7 @@ func probePaths(fsys check.FS, f Facts) map[string]bool {
 }
 
 func probeVersion(ctx context.Context, env check.Env) string {
-	res := check.ProbeResult(ctx, env.Exec, probeCheckID, openspecBinary, check.DefaultProbeTimeout)
+	res := check.ProbeResult(ctx, env.Exec, checkOpenspec, openspecBinary, check.DefaultProbeTimeout)
 	if res.Status != check.StatusOK {
 		return ""
 	}

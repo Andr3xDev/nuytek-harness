@@ -33,6 +33,8 @@ func registerBlocker(reg Registration) string {
 	switch {
 	case reg.Root.OutsideHome:
 		return noteOutsideHome
+	case !reg.RootExists && reg.FoldersErr != nil:
+		return "specter root " + reg.Root.Path + " unreadable: " + reg.FoldersErr.Error()
 	case !reg.RootExists:
 		return "specter root " + reg.Root.Path + " not found; clone it with: " + reg.CloneCommand
 	case !reg.Openspec.Found:
@@ -49,7 +51,13 @@ func registerPart(reg Registration) plan.Part {
 		return plan.Part{Notes: []string{note}}
 	}
 	var part plan.Part
+	seen := map[string]bool{}
 	for _, folder := range reg.Folders {
+		if folder.ID != "" && seen[folder.ID] {
+			part.Skipped = append(part.Skipped, plan.Skip{Name: folder.Dir, Reason: "duplicate store id " + folder.ID})
+			continue
+		}
+		seen[folder.ID] = true
 		if folder.ID == "" {
 			reason := noteNoID
 			if folder.BadID != "" {

@@ -263,7 +263,7 @@ func TestSummary(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := specter.Summary(specter.Facts{}, tc.results)
+			got := specter.Summary(tc.results)
 
 			if got.FailedCount != tc.wantFailed || !tc.wantStatus(got.Status) || got.Text == "" {
 				t.Errorf("Summary = %+v, want %d failed and a matching status", got, tc.wantFailed)

@@ -21,7 +21,7 @@ func installRegistration(ctx context.Context, env check.Env, c manifest.Componen
 	return registerPart(reg), nil
 }
 
-// Evaluate never reports drift: an unregistered store is not_installed, and drift detail lives in Drift(f).
+// Evaluate never reports drift: an unregistered store is not_installed, a store registered elsewhere is skipped, and drift detail lives in Drift(f).
 func Evaluate(ctx context.Context, env check.Env, c manifest.Component) drift.Status {
 	status := func(state drift.State, reason string) drift.Status {
 		return drift.Status{Name: c.Name, State: state, Reason: reason}
@@ -41,10 +41,22 @@ func Evaluate(ctx context.Context, env check.Env, c manifest.Component) drift.St
 	case len(reg.Folders) == 0:
 		return status(drift.StateSkipped, "no stores found")
 	}
+	elsewhere := ""
 	for _, folder := range reg.Folders {
-		if root, registered := registeredAt(reg, folder.ID); folder.ID != "" && (!registered || !sameDir(root, folder.Dir)) {
-			return status(drift.StateNotInstalled, "")
+		if folder.ID == "" {
+			continue
 		}
+		root, registered := registeredAt(reg, folder.ID)
+		switch {
+		case !registered:
+			return status(drift.StateNotInstalled, "")
+		case !sameDir(root, folder.Dir) && elsewhere == "":
+			elsewhere = "registered at " + root
+		}
+	}
+	// Install skips a store registered elsewhere, so offering it would never converge.
+	if elsewhere != "" {
+		return status(drift.StateSkipped, elsewhere)
 	}
 	return status(drift.StateInstalled, "")
 }

@@ -353,7 +353,7 @@ func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Quit
 	case key.Matches(msg, k.Cancel):
 		r.run = nil
-		return tea.Batch(r.refreshSelected(), r.reloadManage(), r.broadcast(runDismissed{}))
+		return tea.Batch(r.refreshSelected(), r.broadcast(runDismissed{}))
 	}
 	return nil
 }
@@ -373,12 +373,13 @@ func (r *Root) handleSidebarKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// refreshSelected recomputes what the sidebar selects: Specter, or the CLI target.
+// refreshSelected recomputes what the sidebar selects. The target dashboard is recomputed even under Specter,
+// because a Specter run changes the `specter` component status shown there.
 func (r *Root) refreshSelected() tea.Cmd {
 	if r.specterSelected {
-		return r.loadSpecter()
+		return tea.Batch(r.loadSpecter(), r.compute(r.cursor, true))
 	}
-	return r.compute(r.cursor, true)
+	return tea.Batch(r.compute(r.cursor, true), r.reloadManage())
 }
 
 func (r *Root) installable() bool {

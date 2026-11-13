@@ -85,6 +85,46 @@ func TestOpsInstall_RootMissingOrOutsideHomeBecomesSkipNotError(t *testing.T) {
 	}
 }
 
+func TestOpsInstall_UnreadableRootIsNotAdvisedAsMissing(t *testing.T) {
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("permissions are not enforced for this user")
+	}
+	env, root := homeEnv(t, openspecExec(storeListJSON("")))
+	writeStore(t, root, "a", "id: a\n")
+	if err := os.Chmod(root, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(root, 0o755) })
+
+	part, err := specter.Ops.Install(context.Background(), env, specterComponent)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(part.Skipped) != 1 || !strings.Contains(part.Skipped[0].Reason, "unreadable") || strings.Contains(part.Skipped[0].Reason, "clone") {
+		t.Errorf("Skipped = %+v, want an unreadable-root reason without a clone hint", part.Skipped)
+	}
+}
+
+func TestOpsInstall_DuplicateStoreIDIsRegisteredOnce(t *testing.T) {
+	env, root := homeEnv(t, nil)
+	writeStore(t, root, "a", "id: a\n")
+	writeStore(t, root, "a-copy", "id: a\n")
+	env.Exec = openspecExec(storeListJSON(root))
+
+	part, err := specter.Ops.Install(context.Background(), env, specterComponent)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(part.Steps) != 1 {
+		t.Errorf("steps = %+v, want one register", part.Steps)
+	}
+	if len(part.Skipped) != 1 || !strings.Contains(part.Skipped[0].Reason, "duplicate store id a") {
+		t.Errorf("Skipped = %+v, want the duplicate folder skipped", part.Skipped)
+	}
+}
+
 func TestPlanInstall_RegistersStoreThroughSpecterOps(t *testing.T) {
 	env, root := homeEnv(t, nil)
 	writeStore(t, root, "a", "id: a\n")
@@ -230,12 +270,17 @@ func TestEvaluate_InstalledOnlyWhenEveryFolderIsRegisteredAtItself(t *testing.T)
 		name    string
 		listing func(root string) check.ExecResult
 		want    drift.State
+
+		wantReason string
 	}{
-		{"all registered at their folders", func(root string) check.ExecResult { return storeListJSON(root, "a", "b") }, drift.StateInstalled},
-		{"one unregistered", func(root string) check.ExecResult { return storeListJSON(root, "a") }, drift.StateNotInstalled},
+		{"all registered at their folders", func(root string) check.ExecResult { return storeListJSON(root, "a", "b") }, drift.StateInstalled, ""},
+		{"one unregistered", func(root string) check.ExecResult { return storeListJSON(root, "a") }, drift.StateNotInstalled, ""},
 		{"one registered elsewhere", func(root string) check.ExecResult {
 			return check.ExecResult{Stdout: []byte(`{"stores":[{"id":"a","root":"` + filepath.Join(root, "a") + `"},{"id":"b","root":"/old/b"}]}`)}
-		}, drift.StateNotInstalled},
+		}, drift.StateSkipped, "registered at /old/b"},
+		{"one elsewhere and one unregistered", func(root string) check.ExecResult {
+			return check.ExecResult{Stdout: []byte(`{"stores":[{"id":"b","root":"/old/b"}]}`)}
+		}, drift.StateNotInstalled, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -246,8 +291,8 @@ func TestEvaluate_InstalledOnlyWhenEveryFolderIsRegisteredAtItself(t *testing.T)
 
 			got := evaluate(t, env)
 
-			if got.State != tt.want {
-				t.Errorf("state = %q (reason %q), want %q", got.State, got.Reason, tt.want)
+			if got.State != tt.want || got.Reason != tt.wantReason {
+				t.Errorf("state = %q (reason %q), want %q (reason %q)", got.State, got.Reason, tt.want, tt.wantReason)
 			}
 			if got.Name != "specter" {
 				t.Errorf("Name = %q, want specter", got.Name)

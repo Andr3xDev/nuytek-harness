@@ -29,7 +29,7 @@ func specterLine(th theme, st *specterState, width int) string {
 	if !st.loaded {
 		return th.muted.Render(truncate(specterName+" "+pendingText, width))
 	}
-	sum := specter.Summary(st.facts, specter.Checks(st.facts))
+	sum := specter.Summary(append(specter.Checks(st.facts), specter.Drift(st.facts)...))
 	return th.forStatus(sum.Status).Render(truncate(specterName+" "+statusGlyph(sum.Status)+" "+sum.Text, width))
 }
 
@@ -58,7 +58,10 @@ func specterScreen(th theme, st *specterState, width int) []string {
 func rootLines(th theme, f specter.Facts, width int) []string {
 	lines := []string{"", th.section.Render("Root")}
 	lines = append(lines, styleAll(th.plain, wrap(fmt.Sprintf("%s (%s)", f.Root.Path, f.Root.Source), width))...)
-	if !f.RootExists {
+	switch {
+	case !f.RootExists && f.FoldersErr != nil:
+		lines = append(lines, styleAll(th.warning, wrap("Root unreadable: "+f.FoldersErr.Error(), width))...)
+	case !f.RootExists:
 		lines = append(lines, styleAll(th.warning, wrap("Root not found. Clone it with:", width))...)
 		lines = append(lines, styleAll(th.plain, wrap(f.CloneCommand, width))...)
 	}
