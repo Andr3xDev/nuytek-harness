@@ -8,7 +8,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 )
 
-func TestRootFiles_ListsTheSixD6Entries(t *testing.T) {
+func TestRootFiles_ListsTheD6Entries(t *testing.T) {
 	want := []specter.RootFile{
 		{Label: "global instructions", RepoPath: "claude/CLAUDE.md", HomePath: ".claude/CLAUDE.md"},
 		{Label: "orchestrator agent", RepoPath: "agents/tech-orchestrator.md", HomePath: ".claude/agents/tech-orchestrator.md"},
@@ -16,6 +16,8 @@ func TestRootFiles_ListsTheSixD6Entries(t *testing.T) {
 		{Label: "specter-ops agent", RepoPath: "agents/sub-agents/infrastructure/specter-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/specter-ops.md"},
 		{Label: "/specter command", RepoPath: "claude/commands/specter.md", HomePath: ".claude/commands/specter.md"},
 		{Label: "SDD rules", RepoPath: "shared/common-sdd.md", HomePath: ".claude/common-sdd.md"},
+		{Label: "git-ops agent", RepoPath: "agents/sub-agents/general/git-ops.md", HomePath: ".claude/agents/sub-agents/general/git-ops.md"},
+		{Label: "engram-ops agent", RepoPath: "agents/sub-agents/infrastructure/engram-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/engram-ops.md"},
 	}
 	if !reflect.DeepEqual(specter.RootFiles, want) {
 		t.Errorf("RootFiles = %+v, want %+v", specter.RootFiles, want)

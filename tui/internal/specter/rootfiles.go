@@ -22,6 +22,8 @@ var RootFiles = []RootFile{
 	{Label: "specter-ops agent", RepoPath: "agents/sub-agents/infrastructure/specter-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/specter-ops.md"},
 	{Label: "/specter command", RepoPath: "claude/commands/specter.md", HomePath: ".claude/commands/specter.md"},
 	{Label: "SDD rules", RepoPath: "shared/common-sdd.md", HomePath: ".claude/common-sdd.md"},
+	{Label: "git-ops agent", RepoPath: "agents/sub-agents/general/git-ops.md", HomePath: ".claude/agents/sub-agents/general/git-ops.md"},
+	{Label: "engram-ops agent", RepoPath: "agents/sub-agents/infrastructure/engram-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/engram-ops.md"},
 }
 
 type RootCopy string
