@@ -474,6 +474,19 @@ func TestSpecterScreen_ActionsHiddenWhenRootOutsideHome(t *testing.T) {
 	}
 }
 
+func TestSpecterScreen_RootOutsideHomeStillRendersOverviewAndChecks(t *testing.T) {
+	facts := baseFacts()
+	facts.Root = specter.Root{Path: "/srv/specter", Source: specter.RootSourceEnv, OutsideHome: true}
+	got := view(screenRoot(t, facts, &specterFakes{}))
+
+	for _, want := range []string{"/home/u/dev/specter/alpha", "git@example.test:org/widget.git", "widget-memory"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("overview lacks %q outside HOME:\n%s", want, got)
+		}
+	}
+	assertRendered(t, got, specter.Checks(facts))
+}
+
 func TestSpecterScreen_KeybarOffersSpecterKeysWithMaintenanceHelp(t *testing.T) {
 	r := screenRoot(t, baseFacts(), &specterFakes{})
 
