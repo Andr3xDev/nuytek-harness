@@ -148,5 +148,9 @@ func readCapped(fsys check.FS, path string, max int64) ([]byte, error) {
 	if info.Size() > max {
 		return nil, fmt.Errorf("%s: %w (limit %d bytes)", path, errTooLarge, max)
 	}
-	return fsys.ReadFile(path)
+	data, err := fsys.ReadFile(path)
+	if err == nil && int64(len(data)) > max {
+		return nil, fmt.Errorf("%s: %w (limit %d bytes)", path, errTooLarge, max)
+	}
+	return data, err
 }

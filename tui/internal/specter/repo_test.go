@@ -89,6 +89,7 @@ func TestDetectRepo_StripsCredentialsFromHTTPSOrigin(t *testing.T) {
 		"https://token@github.com/example/demo.git":      "https://github.com/example/demo.git",
 		"https://github.com/example/demo.git":            "https://github.com/example/demo.git",
 		"ssh://git@github.com/example/demo.git":          "ssh://git@github.com/example/demo.git",
+		"ssh://git:token@github.com/example/demo.git":    "ssh://git@github.com/example/demo.git",
 		"https://user:tok%zzen@github.com/x.git":         "",
 	}
 	for configured, want := range tests {

@@ -38,18 +38,25 @@ func DetectRepo(env check.Env) CurrentRepo {
 	return cur
 }
 
-// stripUserinfo drops credentials from an http(s) remote so a token never reaches the tracked repos.yaml.
-// An unparsable http(s) URL yields "" rather than risk writing the credentials.
+// stripUserinfo drops credentials from a remote so a token never reaches the tracked repos.yaml: all userinfo for
+// http(s), the password for any other scheme:// URL (ssh://git@host keeps its login name). An unparsable URL yields ""
+// rather than risk writing the credentials; scp-like remotes carry no password and pass through.
 func stripUserinfo(remote string) string {
-	lower := strings.ToLower(remote)
-	if !strings.HasPrefix(lower, "https://") && !strings.HasPrefix(lower, "http://") {
+	if !strings.Contains(remote, "://") {
 		return remote
 	}
 	u, err := url.Parse(remote)
 	if err != nil {
 		return ""
 	}
-	u.User = nil
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+		u.User = nil
+	default:
+		if u.User != nil {
+			u.User = url.User(u.User.Username())
+		}
+	}
 	return u.String()
 }
 
