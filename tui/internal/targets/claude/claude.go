@@ -51,6 +51,7 @@ func Spec() target.Spec {
 			kindPlugins: {Install: installPlugins, Hard: hardInstallPlugins, Late: true, ExplicitUpdate: true},
 		},
 		Checks: checks,
+		Manage: manage,
 		BackupDirs: func(home, repo string) []backup.Dir {
 			return []backup.Dir{
 				{Path: filepath.Join(home, backupDirHome), Label: "~/" + backupDirHome, Kind: backup.StoreHome, Base: home},
