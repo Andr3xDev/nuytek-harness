@@ -13,6 +13,7 @@ import (
 const (
 	stateDirMode  = 0o755
 	stateFileMode = 0o644
+	corruptSuffix = ".corrupt"
 )
 
 const (
@@ -37,7 +38,8 @@ type Store struct{ path string }
 
 func NewStore(path string) *Store { return &Store{path: path} }
 
-// Load returns defaults for a missing file; a corrupt file also yields a warning and is left untouched.
+// Load returns defaults for a missing file; a corrupt file also yields a warning and is left untouched
+// until the next Save moves it aside.
 func (s *Store) Load() (State, string) {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -66,9 +68,12 @@ func (s *Store) warning(err error) string {
 
 // Save writes via a temp file in the same directory, then renames, so readers never see a partial file.
 // It merges into the existing file so keys it does not know survive; an empty value removes its key, and a
-// target table left with no keys is dropped. A corrupt file is replaced: Load only warned about it.
+// target table left with no keys is dropped. A corrupt file is renamed to state.toml.corrupt, then replaced.
 func (s *Store) Save(st State) error {
-	doc := s.readDoc()
+	doc, err := s.readDoc()
+	if err != nil {
+		return err
+	}
 	setOrDelete(doc, keyRepoPath, st.RepoPath)
 	setOrDelete(doc, keySpecterRoot, st.SpecterRoot)
 	targets, _ := doc[keyTargets].(map[string]any)
@@ -123,13 +128,17 @@ func (s *Store) Save(st State) error {
 	return os.Rename(tmp.Name(), s.path)
 }
 
-// readDoc returns the file as a generic map; a missing or corrupt file is an empty document.
-func (s *Store) readDoc() map[string]any {
+// readDoc returns the file as a generic map; a missing file is an empty document. A corrupt file is moved
+// aside to corruptSuffix first, so replacing it never destroys what the user wrote.
+func (s *Store) readDoc() (map[string]any, error) {
 	doc := map[string]any{}
 	if data, err := os.ReadFile(s.path); err == nil && toml.Unmarshal(data, &doc) != nil {
-		return map[string]any{}
+		if err := os.Rename(s.path, s.path+corruptSuffix); err != nil {
+			return nil, fmt.Errorf("keep corrupt state file: %w", err)
+		}
+		return map[string]any{}, nil
 	}
-	return doc
+	return doc, nil
 }
 
 func setOrDelete(m map[string]any, key, value string) {

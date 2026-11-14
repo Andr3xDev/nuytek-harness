@@ -87,12 +87,16 @@ func TestStore_CorruptFileWarnsAndStaysUntouched(t *testing.T) {
 	}
 }
 
-func TestStore_SaveReplacesCorruptFile(t *testing.T) {
+func TestStore_SaveMovesCorruptFileAsideAndWritesAValidOne(t *testing.T) {
 	path := statePath(t)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("repo_path = [not toml\n"), 0o644); err != nil {
+	const corrupt = "repo_path = [not toml\n"
+	if err := os.WriteFile(path+".corrupt", []byte("older corrupt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(corrupt), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s := state.NewStore(path)
@@ -102,6 +106,10 @@ func TestStore_SaveReplacesCorruptFile(t *testing.T) {
 	got, warning := s.Load()
 	if got.RepoPath != "/new" || warning != "" {
 		t.Fatalf("Load = %+v, %q; want RepoPath /new and no warning", got, warning)
+	}
+	kept, err := os.ReadFile(path + ".corrupt")
+	if err != nil || string(kept) != corrupt {
+		t.Errorf(".corrupt = %q, %v; want the replaced bytes", kept, err)
 	}
 }
 
