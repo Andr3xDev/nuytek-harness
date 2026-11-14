@@ -184,8 +184,9 @@ func (r *Root) handleConfigKey(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, k.Reset):
 		return r.saveConfig(row.reset())
 	case key.Matches(msg, k.UpdateTUI) && r.svc.ConfigPlanUpdate != nil:
+		env, update := r.svc.Env, r.svc.ConfigPlanUpdate
 		r.configFlow = newDirectFlow(r.svc, selfUpdateTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
-			return r.svc.ConfigPlanUpdate(ctx, r.svc.Env)
+			return update(ctx, env)
 		})
 		return r.configFlow.start()
 	}
@@ -219,7 +220,6 @@ func (r *Root) saveConfig(next state.State) tea.Cmd {
 	if next.SpecterRoot != r.svc.Env.Saved.SpecterRoot {
 		r.specter.validation = nil
 	}
-	next.Targets = maps.Clone(next.Targets)
 	r.svc.Env.Saved = next
 	return func() tea.Msg { return configSaved{} }
 }
