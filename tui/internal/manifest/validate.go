@@ -24,6 +24,8 @@ func Validate(m Manifest, allowedKinds []Kind) error {
 			return fmt.Errorf("component %q: unknown kind %q", c.Name, c.Kind)
 		case seen[c.Name]:
 			return fmt.Errorf("duplicate component name %q", c.Name)
+		case c.Pull && !c.Kind.IsData():
+			return fmt.Errorf("component %q: pull is not allowed on kind %q", c.Name, c.Kind)
 		}
 		seen[c.Name] = true
 		if !isRelativeInside(c.Source) {

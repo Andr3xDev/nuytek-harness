@@ -7,6 +7,7 @@ type Component struct {
 	Kind           Kind
 	Source, Target string
 	Needs          []string
+	Pull           bool
 }
 
 type Manifest struct {

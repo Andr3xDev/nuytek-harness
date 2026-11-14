@@ -94,6 +94,7 @@ needs  = []
 		{"unknown kind", "name = \"two\"\nkind = \"folder\"\nsource = \"x\"\ntarget = \"t\"\nneeds = []\n", `"folder"`, 8},
 		{"duplicate name reports the second header", "name = \"agents\"\nkind = \"dir\"\nsource = \"x\"\ntarget = \"t\"\nneeds = []\n", `"agents"`, 8},
 		{"needs missing", "name = \"two\"\nkind = \"dir\"\nsource = \"x\"\ntarget = \"t\"\n", "needs is required (use [] if none)", 8},
+		{"pull on mcp kind", "name = \"two\"\nkind = \"mcp\"\nsource = \"x\"\ntarget = \"t\"\nneeds = []\npull = true\n", "pull", 8},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -110,6 +111,37 @@ needs  = []
 				t.Errorf("error %q does not contain %q", err, tc.wantText)
 			}
 		})
+	}
+}
+
+func TestLoad_PullFlag(t *testing.T) {
+	path := writeManifest(t, `[[component]]
+name   = "agents"
+kind   = "dir"
+source = "agents"
+target = ".claude/agents"
+needs  = []
+pull   = true
+
+[[component]]
+name   = "sounds"
+kind   = "dir"
+source = "claude/sounds"
+target = ".claude/sounds"
+needs  = []
+`)
+	m, err := manifest.Load(path, testKinds)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(m.Components) != 2 {
+		t.Fatalf("components = %+v, want 2", m.Components)
+	}
+	if !m.Components[0].Pull {
+		t.Errorf("agents Pull = false, want true")
+	}
+	if m.Components[1].Pull {
+		t.Errorf("sounds Pull = true, want false")
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
-	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -18,8 +17,4 @@ func fixedCheck(id string, results ...check.Result) check.Check {
 
 func targetWith(checks ...check.Check) target.Target {
 	return target.Target{Spec: target.Spec{ID: "t"}, Checks: checks}
-}
-
-func comp(name string, kind manifest.Kind, source, target string, needs ...string) manifest.Component {
-	return manifest.Component{Name: name, Kind: kind, Source: source, Target: target, Needs: needs}
 }

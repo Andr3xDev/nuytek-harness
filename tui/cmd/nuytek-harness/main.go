@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"golang.org/x/term"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
@@ -25,7 +27,9 @@ const (
 	repoEnvVar     = "NUYTEK_HARNESS_REPO"
 	stateFileRel   = ".local/state/nuytek-harness/state.toml"
 	flagRepoUsage  = "path to the harness repo"
-	flagDryRunHelp = "never write state"
+	flagDryRunHelp = "apply no step, write no files and save no state; read-only health checks still run"
+
+	terminalRequiredMsg = "nuytek-harness: a terminal is required"
 )
 
 type stateStore interface {
@@ -40,6 +44,11 @@ func run() int {
 	dryRun := flag.Bool("dry-run", false, flagDryRunHelp)
 	flag.Parse()
 
+	if !terminalGate(term.IsTerminal) {
+		fmt.Fprintln(os.Stderr, terminalRequiredMsg)
+		return exitFailure
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fail(exitFailure, err)
@@ -49,11 +58,7 @@ func run() int {
 		return fail(exitFailure, err)
 	}
 
-	fileStore := state.NewStore(filepath.Join(home, stateFileRel))
-	var store stateStore = fileStore
-	if *dryRun {
-		store = state.Discard(fileStore)
-	}
+	runner, store := wireIO(*dryRun, state.NewStore(filepath.Join(home, stateFileRel)), time.Now)
 	saved, warning := store.Load()
 	// The alt screen hides stderr, so warnings go to the TUI; they hit stderr only if it never starts.
 	var warnings []string
@@ -82,7 +87,8 @@ func run() int {
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
 	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path}
-	if _, err := tea.NewProgram(ui.NewRoot(targets, env, *dryRun, warnings)).Run(); err != nil {
+	deps := ui.Deps{Env: env, Runner: runner, DryRun: *dryRun}
+	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)
 	}
 	return 0

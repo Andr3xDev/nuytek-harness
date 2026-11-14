@@ -10,4 +10,5 @@ const (
 )
 
 func (k Kind) IsDir() bool     { return k == KindDir || k == KindDirX }
+func (k Kind) IsData() bool    { return k.IsDir() || k == KindFile || k == KindFileX }
 func (k Kind) NeedsExec() bool { return k == KindDirX || k == KindFileX }

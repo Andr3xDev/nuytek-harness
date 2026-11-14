@@ -10,6 +10,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -45,11 +46,15 @@ func Spec() target.Spec {
 			kindMCP:     evaluateMCP,
 			kindPlugins: evaluatePlugins,
 		}),
+		Special: map[manifest.Kind]plan.KindOps{
+			kindMCP:     {Install: installMCP, Remove: removeMCP, Hard: hardInstallMCP},
+			kindPlugins: {Install: installPlugins, Hard: hardInstallPlugins, Late: true, ExplicitUpdate: true},
+		},
 		Checks: checks,
 		BackupDirs: func(home, repo string) []backup.Dir {
 			return []backup.Dir{
-				{Path: filepath.Join(home, backupDirHome), Label: "~/" + backupDirHome},
-				{Path: filepath.Join(repo, backupDirRepo), Label: backupDirRepo},
+				{Path: filepath.Join(home, backupDirHome), Label: "~/" + backupDirHome, Kind: backup.StoreHome, Base: home},
+				{Path: filepath.Join(repo, backupDirRepo), Label: backupDirRepo, Kind: backup.StoreRepo, Base: repo},
 			}
 		},
 	}

@@ -4,18 +4,22 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
 )
 
-func helpLines(t theme, h help.Model, k keyMap, width int) []string {
+func helpLines(t theme, h help.Model, groups [][]key.Binding, width int) []string {
 	h.Styles = t.help
 	h.SetWidth(width)
-	return strings.Split(h.FullHelpView(k.helpGroups()), "\n")
+	return strings.Split(h.FullHelpView(groups), "\n")
 }
 
 // helpPopup sizes a Help box to its content, clamped to w x h.
-func helpPopup(t theme, model help.Model, k keyMap, w, maxH int) popup {
-	lines := helpLines(t, model, k, contentWidth(w))
+func helpPopup(t theme, model help.Model, intro string, groups [][]key.Binding, w, maxH int) popup {
+	lines := helpLines(t, model, groups, contentWidth(w))
+	if intro != "" {
+		lines = append(styleAll(t.muted, wrap(intro, contentWidth(w))), lines...)
+	}
 	widest := 0
 	for _, l := range lines {
 		widest = max(widest, lipgloss.Width(l))

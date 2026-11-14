@@ -6,6 +6,7 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 )
 
 // defaultDark is fixed: querying the terminal background is not worth a startup round trip.
@@ -104,6 +105,21 @@ func (t theme) forDrift(s drift.State) lipgloss.Style {
 		return t.err
 	default:
 		return t.unknown
+	}
+}
+
+func (t theme) forEffect(e plan.Effect) lipgloss.Style {
+	switch e {
+	case plan.EffectCreate:
+		return t.ok
+	case plan.EffectOverwrite:
+		return t.warning
+	case plan.EffectDelete:
+		return t.err
+	case plan.EffectRun:
+		return t.plain
+	default:
+		return t.muted
 	}
 }
 
