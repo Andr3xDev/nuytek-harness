@@ -295,6 +295,71 @@ func TestRoot_PanelTabKeyReturnsToSidebar(t *testing.T) {
 	}
 }
 
+func TestKeyMap_StepMapsEveryMovementSpelling(t *testing.T) {
+	k := newKeyMap()
+	tests := []struct {
+		msg  tea.KeyPressMsg
+		want int
+	}{
+		{textKey("j"), 1},
+		{upKey, -1},
+		{textKey("J"), jumpRows},
+		{tea.KeyPressMsg{Code: 'j', Mod: tea.ModShift}, jumpRows},
+		{textKey("K"), -jumpRows},
+		{tea.KeyPressMsg{Code: 'k', Mod: tea.ModShift}, -jumpRows},
+		{textKey("x"), 0},
+	}
+	for _, tt := range tests {
+		if got := k.step(tt.msg); got != tt.want {
+			t.Errorf("step(%q) = %d, want %d", tt.msg.String(), got, tt.want)
+		}
+	}
+}
+
+func TestRoot_MoveSidebarClampsAndEntersSpecterAtTheTop(t *testing.T) {
+	const targets = 7
+	tests := []struct {
+		name         string
+		cursor       int
+		specter      bool
+		delta        int
+		wantCursor   int
+		wantSpecter  bool
+		wantNoAction bool
+	}{
+		{name: "down one", cursor: 1, delta: 1, wantCursor: 2},
+		{name: "jump down", cursor: 1, delta: jumpRows, wantCursor: 6},
+		{name: "jump down clamps", cursor: 4, delta: jumpRows, wantCursor: 6},
+		{name: "no-op at last target", cursor: 6, delta: jumpRows, wantCursor: 6, wantNoAction: true},
+		{name: "up one", cursor: 3, delta: -1, wantCursor: 2},
+		{name: "jump up", cursor: 6, delta: -jumpRows, wantCursor: 1},
+		{name: "jump up clamps at first target", cursor: 3, delta: -jumpRows, wantCursor: 0},
+		{name: "up from first target enters Specter", cursor: 0, delta: -1, wantCursor: 0, wantSpecter: true},
+		{name: "jump up from first target enters Specter", cursor: 0, delta: -jumpRows, wantCursor: 0, wantSpecter: true},
+		{name: "down from Specter returns to the first target", cursor: 0, specter: true, delta: 1, wantCursor: 0},
+		{name: "up on Specter stays", cursor: 0, specter: true, delta: -1, wantCursor: 0, wantSpecter: true, wantNoAction: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := make([]target.Target, targets)
+			for i := range ts {
+				ts[i] = target.Target{Spec: target.Planned("p", "P")}
+			}
+			r := newRoot(t, ts...)
+			r.cursor, r.specterSelected = tt.cursor, tt.specter
+
+			cmd := r.moveSidebar(tt.delta)
+
+			if r.cursor != tt.wantCursor || r.specterSelected != tt.wantSpecter {
+				t.Errorf("cursor %d specter %v, want %d %v", r.cursor, r.specterSelected, tt.wantCursor, tt.wantSpecter)
+			}
+			if tt.wantNoAction && cmd != nil {
+				t.Error("a move that changes nothing must not trigger a recompute")
+			}
+		})
+	}
+}
+
 func TestRoot_ViewShowsNotAvailableAndComputingText(t *testing.T) {
 	const w, h = 100, 30
 	planned := newRoot(t, target.Target{Spec: target.Planned("p", "P")})

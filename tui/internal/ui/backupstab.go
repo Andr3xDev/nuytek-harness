@@ -126,20 +126,16 @@ func (b *backupsTab) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if b.files != nil {
 		switch {
-		case key.Matches(msg, k.Up):
-			b.files.scroll.by(-1)
-		case key.Matches(msg, k.Down):
-			b.files.scroll.by(1)
+		case k.step(msg) != 0:
+			b.files.scroll.by(k.step(msg))
 		case key.Matches(msg, k.Cancel):
 			b.files = nil
 		}
 		return nil
 	}
 	switch {
-	case key.Matches(msg, k.Up):
-		b.cursor = max(b.cursor-1, 0)
-	case key.Matches(msg, k.Down):
-		b.cursor = max(min(b.cursor+1, len(b.rows)-1), 0)
+	case k.step(msg) != 0:
+		b.cursor = max(min(b.cursor+k.step(msg), len(b.rows)-1), 0)
 	case key.Matches(msg, k.Backup):
 		return b.startFlow(newDirectFlow(b.svc, "Backup", nothingToBackUp, b.backupPlan()))
 	case len(b.rows) == 0:

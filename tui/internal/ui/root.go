@@ -340,10 +340,8 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
 	switch {
-	case key.Matches(msg, k.Up):
-		r.run.scrollBy(-1)
-	case key.Matches(msg, k.Down):
-		r.run.scrollBy(1)
+	case k.step(msg) != 0:
+		r.run.scrollBy(k.step(msg))
 	case !r.run.done && key.Matches(msg, k.CancelRun):
 		r.run.requestCancel()
 	case !r.run.done:
@@ -361,10 +359,8 @@ func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 func (r *Root) handleSidebarKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
 	switch {
-	case key.Matches(msg, k.Up):
-		return r.selectUp()
-	case key.Matches(msg, k.Down):
-		return r.selectDown()
+	case k.step(msg) != 0:
+		return r.moveSidebar(k.step(msg))
 	case key.Matches(msg, k.Focus):
 		if t, ok := r.currentTarget(); r.specterSelected || ok && available(t) {
 			r.focus = focusPanel
@@ -385,6 +381,21 @@ func (r *Root) refreshSelected() tea.Cmd {
 func (r *Root) installable() bool {
 	t, ok := r.currentTarget()
 	return ok && available(t)
+}
+
+// moveSidebar steps the target cursor, clamped; the Specter entry sits above the first target.
+func (r *Root) moveSidebar(delta int) tea.Cmd {
+	switch {
+	case delta < 0 && (r.specterSelected || r.cursor == 0):
+		return r.selectUp()
+	case delta > 0 && r.specterSelected:
+		return r.selectDown()
+	}
+	next := max(min(r.cursor+delta, len(r.targets)-1), 0)
+	if next == r.cursor {
+		return nil
+	}
+	return r.selectTarget(next)
 }
 
 // selectUp enters the Specter entry from the first target; it also forces a load (screen entry).

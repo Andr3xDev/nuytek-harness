@@ -132,10 +132,8 @@ func (r *Root) handleSpecterKey(msg tea.KeyPressMsg) tea.Cmd {
 		r.focus = focusSidebar
 	case key.Matches(msg, k.Refresh):
 		return r.loadSpecter()
-	case key.Matches(msg, k.Up):
-		st.scroll.by(-1)
-	case key.Matches(msg, k.Down):
-		st.scroll.by(1)
+	case k.step(msg) != 0:
+		st.scroll.by(k.step(msg))
 	case key.Matches(msg, k.Validate):
 		return r.validateStores()
 	case key.Matches(msg, k.FastInit) && st.writable() && r.svc.SpecterPlanFastInit != nil:

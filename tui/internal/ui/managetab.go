@@ -81,10 +81,8 @@ func (m *manageTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 	case tea.KeyPressMsg:
 		k := m.svc.keys
 		switch {
-		case key.Matches(msg, k.Up):
-			m.cursor = max(m.cursor-1, 0)
-		case key.Matches(msg, k.Down):
-			m.cursor = max(min(m.cursor+1, rowCount(m.all())-1), 0)
+		case k.step(msg) != 0:
+			m.cursor = max(min(m.cursor+k.step(msg), rowCount(m.all())-1), 0)
 		}
 	}
 	return m, nil
