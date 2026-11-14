@@ -25,31 +25,36 @@ func Requirements(id string, extract func(env Env) ([]Requirement, error)) Check
 		}
 		results := make([]Result, 0, len(reqs))
 		for _, req := range reqs {
-			status, message := verifyRequirement(env, req)
-			results = append(results, Result{CheckID: id, Subject: req.Subject, Status: status, Message: message})
+			r := verifyRequirement(env, req)
+			r.CheckID, r.Subject = id, req.Subject
+			results = append(results, r)
 		}
 		return results
 	}}
 }
 
-func verifyRequirement(env Env, req Requirement) (Status, string) {
+func verifyRequirement(env Env, req Requirement) Result {
 	if req.Unanalyzed != "" {
-		return StatusUnknown, req.Unanalyzed
+		return Result{Status: StatusUnknown, Message: req.Unanalyzed}
 	}
 	if req.Command != "" {
 		if _, err := env.Exec.LookPath(req.Command); err != nil {
-			return StatusError, fmt.Sprintf("command %s not found on PATH", req.Command)
+			return Result{
+				Status:     StatusError,
+				Message:    fmt.Sprintf("command %s not found on PATH", req.Command),
+				Suggestion: fmt.Sprintf("install %s or remove the reference", req.Command),
+			}
 		}
-		return StatusOK, ""
+		return Result{Status: StatusOK}
 	}
 	info, err := env.FS.Lstat(req.Path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return StatusError, fmt.Sprintf("%s not found", req.Path)
+		return Result{Status: StatusError, Message: fmt.Sprintf("%s not found", req.Path), Suggestion: "run install for the component that deploys it"}
 	case err != nil:
-		return StatusUnknown, err.Error()
+		return Result{Status: StatusUnknown, Message: err.Error()}
 	case req.MustExec && info.Mode()&OwnerExecBit == 0:
-		return StatusError, fmt.Sprintf("%s is not executable", req.Path)
+		return Result{Status: StatusError, Message: fmt.Sprintf("%s is not executable", req.Path)}
 	}
-	return StatusOK, ""
+	return Result{Status: StatusOK}
 }

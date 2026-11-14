@@ -12,6 +12,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/dashboard"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -27,6 +28,8 @@ const (
 	notAvailable    = "Not available"
 	tooSmallText    = "Terminal too small"
 	noTargetsText   = "No targets"
+
+	dashboardTabIndex = 0
 )
 
 type phase int
@@ -57,6 +60,23 @@ type computedMsg struct {
 	dash     dashboard.Dashboard
 }
 
+// specterState mirrors targetState for the global Specter entry.
+type specterState struct {
+	phase  phase
+	gen    int
+	loaded bool
+	facts  specter.Facts
+	cancel context.CancelFunc
+
+	validation map[string]*storeValidation // by store id; survives reloads, gone with the session
+	scroll     scroller
+}
+
+type specterLoadedMsg struct {
+	gen   int
+	facts specter.Facts
+}
+
 // Root is the only tea.Model; it never blocks, long work runs in a tea.Cmd.
 type Root struct {
 	targets []target.Target
@@ -70,15 +90,20 @@ type Root struct {
 
 	help help.Model
 
-	states   []targetState
-	tabs     [][]tab // per target; none for an unavailable target
-	cursor   int
-	focus    focus
-	tab      int
-	wizard   *wizard
-	run      *run // set from the moment a plan is accepted until the output pane is dismissed
-	showHelp bool
-	w, h     int
+	states          []targetState
+	specter         specterState
+	specterSelected bool  // the global Specter entry has the cursor; cursor itself stays on a target
+	specterFlow     *flow // fast init or maintenance, from selection to the accepted run
+	specterReport   bool  // the open flow shows the drift report above its preview
+	validateSlots   chan struct{}
+	tabs            [][]tab // per target; none for an unavailable target
+	cursor          int
+	focus           focus
+	tab             int
+	wizard          *wizard
+	run             *run // set from the moment a plan is accepted until the output pane is dismissed
+	showHelp        bool
+	w, h            int
 }
 
 // NewRoot's warnings stay visible above the keybar for the whole session.
@@ -94,17 +119,50 @@ func NewRoot(targets []target.Target, deps Deps, warnings []string) *Root {
 		help:     help.New(),
 		states:   make([]targetState, len(targets)),
 		tabs:     make([][]tab, len(targets)),
+
+		validateSlots: make(chan struct{}, specter.MaxConcurrentOpenspec),
 	}
 	for i, t := range targets {
 		if available(t) {
 			st := &r.states[i]
-			r.tabs[i] = []tab{newDashboardTab(svc, st), newUpdateTab(svc, st, t), newPullTab(svc, t), newBackupsTab(svc, t)}
+			r.tabs[i] = []tab{newDashboardTab(svc, st, func() *specterState { return &r.specter }), newUpdateTab(svc, st, t), newPullTab(svc, t), newBackupsTab(svc, t)}
+			if t.Spec.Manage != nil {
+				r.tabs[i] = append(r.tabs[i], newManageTab(svc, st))
+			}
 		}
 	}
 	return r
 }
 
-func (r *Root) Init() tea.Cmd { return tea.Batch(r.compute(r.cursor, false), r.activate()) }
+func (r *Root) Init() tea.Cmd {
+	return tea.Batch(r.compute(r.cursor, false), r.activate(), r.loadSpecter())
+}
+
+// loadSpecter always supersedes a running load, whose result is dropped. It only reads: validation never starts here.
+func (r *Root) loadSpecter() tea.Cmd {
+	load := r.svc.SpecterLoad
+	if load == nil {
+		return nil
+	}
+	st := &r.specter
+	if st.cancel != nil {
+		st.cancel()
+	}
+	ctx, cancel := context.WithCancel(r.ctx)
+	st.cancel = cancel
+	st.phase = loading
+	st.gen++
+	gen := st.gen
+	return func() tea.Msg { return specterLoadedMsg{gen: gen, facts: load(ctx)} }
+}
+
+// currentTarget is false while the Specter entry is selected or there are no targets.
+func (r *Root) currentTarget() (target.Target, bool) {
+	if r.specterSelected || r.cursor >= len(r.targets) {
+		return target.Target{}, false
+	}
+	return r.targets[r.cursor], true
+}
 
 // compute starts a computation for targets[idx] unless it is unavailable. Without force it also
 // skips a ready (cached) or running one; force supersedes the running one, whose result is dropped (D18).
@@ -132,15 +190,26 @@ func (r *Root) compute(idx int, force bool) tea.Cmd {
 // activate tells the focused tab that its target or the tab itself was entered.
 func (r *Root) activate() tea.Cmd {
 	cur := r.activeTab()
-	if cur == nil {
+	t, ok := r.currentTarget()
+	if cur == nil || !ok {
 		return nil
 	}
-	return cur.Activate(r.targets[r.cursor])
+	return cur.Activate(t)
 }
 
-// activeTab is nil for an unavailable target or when there are no targets.
+// reloadManage re-runs the Manage sections of the focused target, if it has that tab.
+func (r *Root) reloadManage() tea.Cmd {
+	for _, tb := range r.tabs[r.cursor] {
+		if m, ok := tb.(*manageTab); ok {
+			return m.Activate(r.targets[r.cursor])
+		}
+	}
+	return nil
+}
+
+// activeTab is nil for the Specter entry, an unavailable target, or when there are no targets.
 func (r *Root) activeTab() tab {
-	if r.cursor >= len(r.tabs) || len(r.tabs[r.cursor]) == 0 {
+	if r.specterSelected || r.cursor >= len(r.tabs) || len(r.tabs[r.cursor]) == 0 {
 		return nil
 	}
 	r.tab = min(r.tab, len(r.tabs[r.cursor])-1)
@@ -175,7 +244,23 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			st.cancel = nil
 			return r, r.broadcast(dashboardReady{st: st})
 		}
+	case specterLoadedMsg:
+		if st := &r.specter; st.phase == loading && st.gen == msg.gen {
+			st.phase, st.facts, st.loaded = ready, msg.facts, true
+			st.cancel()
+			st.cancel = nil
+		}
+	case validatedMsg:
+		r.specter.finishValidation(msg)
+	case plannedMsg:
+		cmds := []tea.Cmd{r.broadcast(msg)}
+		if r.specterFlow != nil {
+			cmds = append(cmds, r.specterFlow.Update(msg))
+		}
+		return r, tea.Batch(cmds...)
 	case runRequest:
+		// An accepted select flow rests on its list again; the Specter flow must not reappear after the run.
+		r.specterFlow = nil
 		return r, r.startRun(msg.plan)
 	case applyStarted:
 		if r.run != nil {
@@ -239,8 +324,9 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	case len(r.targets) == 0:
-	case key.Matches(msg, k.Install) && available(r.targets[r.cursor]):
-		r.wizard = newWizard(r.svc, r.targets[r.cursor])
+	case key.Matches(msg, k.Install) && r.installable():
+		t, _ := r.currentTarget()
+		r.wizard = newWizard(r.svc, t)
 	case r.focus == focusSidebar:
 		return r.handleSidebarKey(msg)
 	default:
@@ -267,7 +353,7 @@ func (r *Root) handleRunKey(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Quit
 	case key.Matches(msg, k.Cancel):
 		r.run = nil
-		return tea.Batch(r.compute(r.cursor, true), r.broadcast(runDismissed{}))
+		return tea.Batch(r.refreshSelected(), r.broadcast(runDismissed{}))
 	}
 	return nil
 }
@@ -276,19 +362,56 @@ func (r *Root) handleSidebarKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
 	switch {
 	case key.Matches(msg, k.Up):
-		return r.selectTarget(r.cursor - 1)
+		return r.selectUp()
 	case key.Matches(msg, k.Down):
-		return r.selectTarget(r.cursor + 1)
+		return r.selectDown()
 	case key.Matches(msg, k.Focus):
-		if available(r.targets[r.cursor]) {
+		if t, ok := r.currentTarget(); r.specterSelected || ok && available(t) {
 			r.focus = focusPanel
 		}
 	}
 	return nil
 }
 
+// refreshSelected recomputes what the sidebar selects. The target dashboard is recomputed even under Specter,
+// because a Specter run changes the `specter` component status shown there.
+func (r *Root) refreshSelected() tea.Cmd {
+	if r.specterSelected {
+		return tea.Batch(r.loadSpecter(), r.compute(r.cursor, true))
+	}
+	return tea.Batch(r.compute(r.cursor, true), r.reloadManage())
+}
+
+func (r *Root) installable() bool {
+	t, ok := r.currentTarget()
+	return ok && available(t)
+}
+
+// selectUp enters the Specter entry from the first target; it also forces a load (screen entry).
+func (r *Root) selectUp() tea.Cmd {
+	switch {
+	case r.specterSelected:
+		return nil
+	case r.cursor == 0:
+		r.specterSelected = true
+		return r.loadSpecter()
+	}
+	return r.selectTarget(r.cursor - 1)
+}
+
+func (r *Root) selectDown() tea.Cmd {
+	if !r.specterSelected {
+		return r.selectTarget(r.cursor + 1)
+	}
+	r.specterSelected = false
+	return tea.Batch(r.compute(r.cursor, false), r.activate())
+}
+
 func (r *Root) handlePanelKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := r.svc.keys
+	if r.specterSelected {
+		return r.handleSpecterKey(msg)
+	}
 	if cur := r.activeTab(); cur != nil && key.Matches(msg, cur.Keys()...) {
 		var cmd tea.Cmd
 		r.tabs[r.cursor][r.tab], cmd = cur.Update(msg)
@@ -304,7 +427,11 @@ func (r *Root) handlePanelKey(msg tea.KeyPressMsg) tea.Cmd {
 		r.tab = (r.tab + 1) % len(r.tabs[r.cursor])
 		return r.activate()
 	case key.Matches(msg, k.Refresh):
-		return r.compute(r.cursor, true)
+		cmds := []tea.Cmd{r.compute(r.cursor, true), r.reloadManage()}
+		if r.tab == dashboardTabIndex {
+			cmds = append(cmds, r.loadSpecter())
+		}
+		return tea.Batch(cmds...)
 	}
 	return nil
 }
@@ -379,12 +506,13 @@ func (r *Root) render() string {
 	if r.w < minWidth || r.h < minHeight {
 		return tooSmallText
 	}
+	// The Specter entry is reachable only through a target; this is safe because main registers Claude statically, so targets is never empty.
 	if len(r.targets) == 0 {
 		return noTargetsText
 	}
 	th := r.svc.th
 	l := r.layout()
-	sidebar := renderBox(th, sidebarTitle, sidebarLines(th, r.targets, r.cursor, contentWidth(l.sidebarW)), l.sidebarW, l.bodyH, r.focus == focusSidebar)
+	sidebar := renderBox(th, sidebarTitle, sidebarLines(th, r.targets, r.cursor, r.specterSelected, contentWidth(l.sidebarW)), l.sidebarW, l.bodyH, r.focus == focusSidebar)
 	title, lines := r.panel()
 	panel := renderBox(th, title, lines, l.panelW, l.bodyH, r.focus == focusPanel || r.wizard != nil)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, panel)
@@ -392,7 +520,7 @@ func (r *Root) render() string {
 		body = overlayCentered(body, outputPopup(th, r.run, r.w, l.bodyH), r.w, l.bodyH)
 	}
 	if r.showHelp {
-		body = overlayCentered(body, helpPopup(th, r.help, r.helpIntro(), r.svc.keys.helpGroups(r.tabKeys()), r.w, l.bodyH), r.w, l.bodyH)
+		body = overlayCentered(body, helpPopup(th, r.help, r.helpIntro(), r.svc.keys.helpGroups(r.tabKeys(), r.specterSelected), r.w, l.bodyH), r.w, l.bodyH)
 	}
 	for _, line := range r.warningLines() {
 		body += "\n" + line
@@ -403,12 +531,14 @@ func (r *Root) render() string {
 
 // panel returns the title and lines of the right-hand box: the wizard, a tab, or why there is none.
 func (r *Root) panel() (string, []string) {
-	t := r.targets[r.cursor]
 	contentW, h := contentWidth(r.layout().panelW), r.viewportHeight()
 	th := r.svc.th
+	t, isTarget := r.currentTarget()
 	switch {
 	case r.wizard != nil:
 		return wizardTitle, clip(strings.Split(r.wizard.View(contentW, h+panelChrome), "\n"), h+panelChrome)
+	case !isTarget:
+		return specterName, r.specterPanel(contentW, h+panelChrome)
 	case t.Err != nil:
 		return t.Spec.Name, styleAll(th.err, wrap(statusGlyph(check.StatusError)+" "+t.Err.Error(), contentW))
 	case !available(t):
@@ -433,6 +563,10 @@ func (r *Root) keybarKeys() (keys, pinned []key.Binding) {
 		return nil, k.pinnedKeys()
 	case r.wizard != nil:
 		return r.wizard.Keys(), k.pinnedKeys()
+	case r.specterSelected && r.focus == focusPanel:
+		return r.specterKeys(), k.pinnedKeys()
+	case r.specterSelected:
+		return []key.Binding{k.Focus, k.Move}, k.pinnedKeys()
 	case r.focus == focusPanel:
 		return k.panelKeys(r.tabKeys()), k.pinnedKeys()
 	}
@@ -448,8 +582,10 @@ func (r *Root) tabKeys() []key.Binding {
 
 func (r *Root) helpIntro() string {
 	var titles []string
-	for _, t := range r.tabs[r.cursor] {
-		titles = append(titles, t.Title())
+	if _, ok := r.currentTarget(); ok {
+		for _, t := range r.tabs[r.cursor] {
+			titles = append(titles, t.Title())
+		}
 	}
 	return helpIntro(titles)
 }

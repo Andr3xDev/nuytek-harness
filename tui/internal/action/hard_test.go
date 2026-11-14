@@ -119,6 +119,49 @@ func TestPlanHardInstallShapes(t *testing.T) {
 			},
 		},
 		{
+			name: "blocked component is skipped and named in the confirmation while the rest is hard-installed",
+			setup: func(f *fixture) []manifest.Component {
+				f.missingTools = []string{"openspec"}
+				hardAgentsFixture(f)
+				f.special = map[manifest.Kind]plan.KindOps{"specter": fakeOps([]plan.Step{plan.Exec{Argv: []string{"register"}}}, nil, nil)}
+				return []manifest.Component{component("agents", manifest.KindDir), needing(component("specter", "specter"), "openspec")}
+			},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				if want := []plan.Skip{{Name: "specter", Reason: "missing: openspec"}}; !slices.Equal(p.Skipped, want) {
+					t.Errorf("skipped = %v, want %v", p.Skipped, want)
+				}
+				if len(stepsOf[plan.Exec](p)) != 0 {
+					t.Errorf("steps = %v, want no step of the skipped component", p.Steps)
+				}
+				onlyStep[plan.RemoveTree](t, p)
+				if !strings.Contains(p.Confirm, "specter: skipped, missing: openspec") || !strings.Contains(p.Confirm, "custom.md") {
+					t.Errorf("Confirm %q must name the skipped specter and the custom.md deletion", p.Confirm)
+				}
+			},
+		},
+		{
+			name: "skipped component is absent from steps and snapshot",
+			setup: func(f *fixture) []manifest.Component {
+				f.missingTools = []string{"node"}
+				hardAgentsFixture(f)
+				f.special = map[manifest.Kind]plan.KindOps{"mcp": mcpOps(f)}
+				return []manifest.Component{component("agents", manifest.KindDir), needing(component("mcp", "mcp"), "node")}
+			},
+			check: func(t *testing.T, f *fixture, p plan.Plan, err error) {
+				requireNoError(t, err)
+				if len(stepsOf[plan.Edit](p)) != 0 {
+					t.Errorf("steps = %v, want no edit of ~/.claude.json", p.Steps)
+				}
+				if paths := snapshotPaths(p); slices.Contains(paths, filepath.Join(f.home, ".claude.json")) {
+					t.Errorf("snapshot paths %v hold the skipped mcp file", paths)
+				}
+				if want := []plan.Skip{{Name: "mcp", Reason: "missing: node"}}; !slices.Equal(p.Skipped, want) {
+					t.Errorf("skipped = %v, want %v", p.Skipped, want)
+				}
+			},
+		},
+		{
 			name: "in-sync component adds no step",
 			setup: func(f *fixture) []manifest.Component {
 				f.writeRepo("claude/agents/a.md", "same", 0o644)

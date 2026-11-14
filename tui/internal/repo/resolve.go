@@ -28,6 +28,18 @@ func isRepo(fsys FS, dir, marker string) bool {
 	return err == nil
 }
 
+// FindUp returns the nearest directory at or above from that contains marker.
+func FindUp(fsys FS, from, marker string) (string, bool) {
+	for dir := from; ; dir = filepath.Dir(dir) {
+		if isRepo(fsys, dir, marker) {
+			return dir, true
+		}
+		if filepath.Dir(dir) == dir {
+			return "", false
+		}
+	}
+}
+
 // resolveExplicit validates a flag or env repo path and makes it absolute so it is never saved relative.
 func resolveExplicit(label, path, source, marker string, fsys FS) (Resolution, error) {
 	abs, err := filepath.Abs(path)
@@ -57,13 +69,8 @@ func Resolve(flag, env, statePath, cwd, marker string, fsys FS) (Resolution, err
 		}
 		warning = fmt.Sprintf("saved repo_path %s is no longer a harness repo; ignoring it", statePath)
 	}
-	for dir := cwd; ; dir = filepath.Dir(dir) {
-		if isRepo(fsys, dir, marker) {
-			return Resolution{Path: dir, Source: SourceCwd, Warning: warning}, nil
-		}
-		if filepath.Dir(dir) == dir {
-			break
-		}
+	if dir, ok := FindUp(fsys, cwd, marker); ok {
+		return Resolution{Path: dir, Source: SourceCwd, Warning: warning}, nil
 	}
 	return Resolution{}, fmt.Errorf("no harness repo found: pass --repo, set NUYTEK_HARNESS_REPO, set repo_path in the state file, or run from inside the repo (current directory %s)", cwd)
 }

@@ -150,7 +150,9 @@ func (b *backupsTab) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return b.startFlow(newDirectFlow(b.svc, "Restore "+e.Stamp, nothingToRestore, b.restorePlan(e)))
 	case key.Matches(msg, k.Delete):
 		e := b.rows[b.cursor].entry
-		return b.startFlow(newDirectFlow(b.svc, "Delete backup "+e.Stamp, nothingToDoText, b.deletePlan(e)))
+		f := newDirectFlow(b.svc, "Delete backup "+e.Stamp, nothingToDoText, b.deletePlan(e))
+		f.confirmFirst = true
+		return b.startFlow(f)
 	}
 	return nil
 }

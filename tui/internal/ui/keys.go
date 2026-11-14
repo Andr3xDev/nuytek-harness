@@ -15,6 +15,8 @@ type keyMap struct {
 	Toggle, All, Accept, Cancel key.Binding
 	Remove, Restore, Delete     key.Binding
 	Backup                      key.Binding
+	Validate, FastInit          key.Binding
+	Maintenance                 key.Binding
 	Yes, CancelRun              key.Binding
 }
 
@@ -41,6 +43,10 @@ func newKeyMap() keyMap {
 		Delete:  key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		Backup:  key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "backup now")),
 		Yes:     key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "confirm")),
+
+		Validate:    key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "validate")),
+		FastInit:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fast init")),
+		Maintenance: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "maintenance")),
 		// Outside a run ctrl+c quits through Quit; CancelRun only describes it while one is active.
 		CancelRun: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "cancel run")),
 	}
@@ -80,15 +86,20 @@ func (k keyMap) panelKeys(tabKeys []key.Binding) []key.Binding {
 }
 
 // helpGroups lists every key in three columns; r shows what it does in the focused tab.
-func (k keyMap) helpGroups(tabKeys []key.Binding) [][]key.Binding {
+// m means maintenance on the Specter screen and the install mode elsewhere, so each context lists only its own.
+func (k keyMap) helpGroups(tabKeys []key.Binding, onSpecter bool) [][]key.Binding {
 	r := k.Refresh
 	if claims(tabKeys, "r") {
 		r = k.Restore
 	}
 	tabs := key.NewBinding(key.WithKeys("[", "]", "h", "l", "left", "right"), key.WithHelp("[/] h/l", "tabs"))
+	middle := []key.Binding{tabs, r, k.Install, k.Mode}
+	if onSpecter {
+		middle = []key.Binding{tabs, r, k.Validate, k.FastInit, k.Maintenance}
+	}
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Focus, k.Back, k.Help, k.Quit, k.CancelRun},
-		{tabs, r, k.Install, k.Mode},
+		middle,
 		{k.Toggle, k.All, k.Accept, k.Yes, k.Cancel, k.Remove, k.Delete, k.Backup},
 	}
 }

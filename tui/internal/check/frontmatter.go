@@ -21,7 +21,7 @@ type Set struct {
 	Skip          []string
 }
 
-type frontmatterFields struct {
+type FrontmatterFields struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
 }
@@ -44,10 +44,8 @@ func Frontmatter(id string, sets []Set) Check {
 				if ok, _ := path.Match(set.Pattern, rel); !ok || slices.Contains(set.Skip, path.Base(rel)) {
 					continue
 				}
-				r := Result{CheckID: id, Subject: rel, Status: StatusOK}
-				if err := validateFrontmatter(env.FS, filepath.Join(root, filepath.FromSlash(rel))); err != nil {
-					r.Status, r.Message = StatusError, err.Error()
-				}
+				r := validateFrontmatter(env.FS, filepath.Join(root, filepath.FromSlash(rel)))
+				r.CheckID, r.Subject = id, rel
 				results = append(results, r)
 			}
 		}
@@ -79,28 +77,36 @@ func listFiles(fsys FS, dir, prefix string, depth int) ([]string, error) {
 	return files, nil
 }
 
-func validateFrontmatter(fsys FS, file string) error {
+// ParseFrontmatter reads the YAML block between the --- fences; empty fields are not an error.
+func ParseFrontmatter(fsys FS, file string) (FrontmatterFields, error) {
+	var fields FrontmatterFields
 	data, err := fsys.ReadFile(file)
 	if err != nil {
-		return err
+		return fields, err
 	}
 	lines := strings.Split(string(data), "\n")
 	if strings.TrimRight(lines[0], "\r") != frontmatterFence {
-		return errors.New("missing opening --- fence")
+		return fields, errors.New("missing opening --- fence")
 	}
 	end := slices.IndexFunc(lines[1:], func(l string) bool { return strings.TrimRight(l, "\r") == frontmatterFence })
 	if end < 0 {
-		return errors.New("missing closing --- fence")
+		return fields, errors.New("missing closing --- fence")
 	}
-	var fields frontmatterFields
 	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:1+end], "\n")), &fields); err != nil {
-		return fmt.Errorf("invalid YAML: %w", err)
+		return fields, fmt.Errorf("invalid YAML: %w", err)
 	}
-	if fields.Name == "" {
-		return errors.New("missing name")
+	return fields, nil
+}
+
+func validateFrontmatter(fsys FS, file string) Result {
+	fields, err := ParseFrontmatter(fsys, file)
+	switch {
+	case err != nil:
+		return Result{Status: StatusError, Message: err.Error()}
+	case fields.Name == "":
+		return Result{Status: StatusError, Message: "missing name"}
+	case fields.Description == "":
+		return Result{Status: StatusError, Message: "missing description", Suggestion: "add a description: field to the frontmatter"}
 	}
-	if fields.Description == "" {
-		return errors.New("missing description")
-	}
-	return nil
+	return Result{Status: StatusOK}
 }

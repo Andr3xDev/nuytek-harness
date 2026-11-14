@@ -40,6 +40,12 @@ func TestPlanBackup(t *testing.T) {
 			wantPaths:  []string{".claude.json"},
 		},
 		{
+			name:       "component without a target is skipped",
+			components: []manifest.Component{{Name: "specter", Kind: "specter"}, component("agents", manifest.KindDir)},
+			home:       map[string]string{".claude/agents/a.md": "A"},
+			wantPaths:  []string{".claude/agents"},
+		},
+		{
 			name: "path nested below another backed-up path is dropped",
 			components: []manifest.Component{
 				component("agents", manifest.KindDir),

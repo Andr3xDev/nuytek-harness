@@ -2,7 +2,7 @@
 name: specter-ops
 description: |
   Maintains the specter specs repo (~/dev/specter): OpenSpec store setup/registration, repos.yaml, store references and READMEs, optional local store pointers and `.engram/config.json` project names, and read-only spec health reports.
-  Sole owner of `openspec store setup|register|unregister`. Never commits; `git-ops` commits specter only on explicit user request.
+  Sole owner among agents of `openspec store setup|register|unregister`; the user or the harness TUI may also run them. Never commits; `git-ops` commits specter only on explicit user request.
   Use only for explicit /specter requests or orchestrator delegations about stores and repos.yaml.
 model: claude-sonnet-5-5
 tools:

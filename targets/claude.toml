@@ -108,6 +108,12 @@ source = "claude/claude-mcp.json"
 target = ".claude.json"
 needs  = ["node"]
 
+# specter: not deployed from the repo; installing registers the stores under the specter root.
+[[component]]
+name  = "specter"
+kind  = "specter"
+needs = ["openspec"]
+
 [[component]]
 name   = "plugins"
 kind   = "plugins"

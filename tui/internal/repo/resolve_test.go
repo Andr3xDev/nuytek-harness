@@ -40,6 +40,32 @@ func TestResolve_Precedence(t *testing.T) {
 	}
 }
 
+func TestFindUp(t *testing.T) {
+	root := mkRepo(t)
+	deep := filepath.Join(root, "a", "b")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name, from, marker string
+		want               string
+		wantOK             bool
+	}{
+		{"hit at from", root, testMarker, root, true},
+		{"hit in a parent", deep, testMarker, root, true},
+		{"miss up to the filesystem root", deep, "no-such-marker-nuytek", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := repo.FindUp(osfs.FS{}, tt.from, tt.marker)
+			if got != tt.want || ok != tt.wantOK {
+				t.Fatalf("FindUp = %q, %v, want %q, %v", got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestResolve_RelativeFlagAndEnvBecomeAbsolute(t *testing.T) {
 	dir := mkRepo(t)
 	t.Chdir(filepath.Dir(dir))

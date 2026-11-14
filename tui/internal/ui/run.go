@@ -13,7 +13,10 @@ import (
 
 const (
 	outputMargin      = 2 // cells the pane leaves free on each axis, so the outer borders stay visible
+	maxOutputWidth    = 72
+	runningFloorRows  = 3 // content rows a running pane keeps while little output has arrived
 	maxOutputLines    = 2000
+	closeHintText     = "Press esc to close."
 	runInProgressText = "a run is in progress"
 	notExecutedText   = "not executed"
 	noSnapshotText    = "snapshot: none (nothing existed)"
@@ -154,7 +157,7 @@ func (r *run) boxTitle() string {
 	title := sanitizeLine(r.title)
 	switch {
 	case r.done:
-		return runTitle + " - " + title + " (esc to close)"
+		return runTitle + " - " + title
 	case r.cancelling:
 		return runTitle + " - " + title + " (cancelling...)"
 	}
@@ -193,9 +196,18 @@ func (r *run) view(th theme, w, h int) []string {
 	return r.scroll.window(lines, h)
 }
 
-// outputPopup sizes the pane to the body, leaving the targets visible around it.
+// outputPopup keeps the targets visible around the pane. Its height follows the content up to the
+// body height; a running pane keeps a small floor so it does not jitter, a finished one ends with the close hint.
 func outputPopup(th theme, r *run, w, bodyH int) popup {
-	popupW, popupH := w-outputMargin, bodyH-outputMargin
-	lines := r.view(th, contentWidth(popupW), popupH-borderCells)
+	popupW := min(w-outputMargin, maxOutputWidth)
+	inner := max(bodyH-outputMargin-borderCells, 0)
+	if !r.done {
+		lines := r.view(th, contentWidth(popupW), inner)
+		popupH := min(max(len(lines), runningFloorRows), inner) + borderCells
+		return popup{box: renderBox(th, r.boxTitle(), lines, popupW, popupH, true), w: popupW, h: popupH}
+	}
+	lines := r.view(th, contentWidth(popupW), max(inner-1, 0))
+	lines = append(lines, th.muted.Render(closeHintText))
+	popupH := min(len(lines), inner) + borderCells
 	return popup{box: renderBox(th, r.boxTitle(), lines, popupW, popupH, true), w: popupW, h: popupH}
 }

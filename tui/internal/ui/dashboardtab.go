@@ -13,13 +13,14 @@ const dashboardTitle = "Dashboard"
 
 // dashboardTab shows the cached dashboard of its target; the previous one stays while a refresh runs.
 type dashboardTab struct {
-	svc    *services
-	st     *targetState
-	scroll scroller
+	svc     *services
+	st      *targetState
+	specter func() *specterState
+	scroll  scroller
 }
 
-func newDashboardTab(svc *services, st *targetState) *dashboardTab {
-	return &dashboardTab{svc: svc, st: st}
+func newDashboardTab(svc *services, st *targetState, specter func() *specterState) *dashboardTab {
+	return &dashboardTab{svc: svc, st: st, specter: specter}
 }
 
 func (d *dashboardTab) Title() string { return dashboardTitle }
@@ -42,10 +43,13 @@ func (d *dashboardTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 }
 
 func (d *dashboardTab) View(w, h int) string {
+	th := d.svc.th
+	head := []string{specterLine(th, d.specter(), w), separatorLine(th, w)}
 	if !d.st.loaded {
-		return d.svc.th.muted.Render(computingText)
+		return strings.Join(append(head, th.muted.Render(computingText)), "\n")
 	}
-	return strings.Join(d.scroll.window(dashboardLines(d.svc.th, d.st.dash, w), h), "\n")
+	body := d.scroll.window(dashboardLines(th, d.st.dash, w), max(h-len(head), 0))
+	return strings.Join(append(head, body...), "\n")
 }
 
 func (d *dashboardTab) Keys() []key.Binding { return []key.Binding{d.svc.keys.Move} }

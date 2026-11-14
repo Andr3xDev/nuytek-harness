@@ -35,6 +35,10 @@ func (fakeExec) Output(context.Context, string, ...string) ([]byte, error) {
 	return nil, errors.New("action must not probe tool versions")
 }
 
+func (fakeExec) Run(context.Context, string, ...string) (check.ExecResult, error) {
+	return check.ExecResult{}, errors.New("action must not run tools")
+}
+
 // fixture is a temp HOME and repo; component Source resolves under repo, Target under home.
 type fixture struct {
 	t            *testing.T

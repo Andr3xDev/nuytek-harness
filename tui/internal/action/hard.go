@@ -16,22 +16,28 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
-// PlanHardInstall refuses before any step when a tool is missing, then runs every component's Hard part.
+// PlanHardInstall skips components blocked by a missing tool like Install, runs the Hard part of the rest,
+// and refuses before any step only when every component is blocked.
 func PlanHardInstall(ctx context.Context, env check.Env, t target.Target) (plan.Plan, error) {
-	if missing := MissingTools(env.Exec, t.Manifest); len(missing) > 0 {
-		return plan.Plan{}, ErrMissingTools{Tools: missing}
+	runnable, skipped := splitBlocked(env, t.Manifest.Components)
+	if len(runnable) == 0 && len(skipped) > 0 {
+		return plan.Plan{}, ErrMissingTools{Tools: MissingTools(env.Exec, t.Manifest)}
 	}
 	store, err := storeOf(t, env, backup.StoreHome)
 	if err != nil {
 		return plan.Plan{}, err
 	}
-	parts, err := partsOf(ctx, env, t, t.Manifest.Components, hardOrInstall)
+	parts, err := partsOf(ctx, env, t, runnable, hardOrInstall)
 	if err != nil {
 		return plan.Plan{}, err
 	}
 	p := assemble("Hard install", store, parts)
+	p.Skipped = append(skipped, p.Skipped...)
 	if !p.Empty() {
 		p.Confirm = confirmDeletions("Hard install", parts)
+		for _, s := range skipped {
+			p.Confirm += s.Name + ": skipped, " + s.Reason + "\n"
+		}
 	}
 	return p, nil
 }

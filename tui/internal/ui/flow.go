@@ -50,6 +50,10 @@ type flow struct {
 	emptyText string
 	planFn    planFunc
 	selects   bool
+	limit     int  // 1 keeps a single pick; 0 is unlimited
+	optional  bool // enter plans with no pick, passing nil names
+	// confirmFirst opens the confirmation right after planning, without a preview, and esc closes the flow.
+	confirmFirst bool
 
 	choices []choice
 	picked  map[string]bool
@@ -93,7 +97,21 @@ func (f *flow) setChoices(choices []choice) {
 			delete(f.seen, name)
 		}
 	}
+	if f.limit == 1 {
+		f.keepFirstPick()
+	}
 	f.cursor = max(min(f.cursor, len(choices)-1), 0)
+}
+
+// keepFirstPick enforces limit 1 against several preselected choices.
+func (f *flow) keepFirstPick() {
+	kept := false
+	for _, c := range f.choices {
+		if f.picked[c.name] {
+			f.picked[c.name] = !kept
+			kept = true
+		}
+	}
 }
 
 func (f *flow) highlighted() (choice, bool) {
@@ -147,7 +165,7 @@ func (f *flow) reset() {
 }
 
 func (f *flow) back() {
-	if f.stage == stageConfirm {
+	if f.stage == stageConfirm && !f.confirmFirst {
 		f.stage = stagePreview
 		f.body.reset()
 		return
@@ -166,6 +184,9 @@ func (f *flow) Update(msg tea.Msg) tea.Cmd {
 		if msg.f == f && msg.gen == f.gen && f.stage == stagePlanning {
 			f.p, f.err, f.stage = msg.p, msg.err, stagePreview
 			f.body.reset()
+			if f.confirmFirst && f.canApply() && f.p.Confirm != "" {
+				f.stage = stageConfirm
+			}
 		}
 	case tea.KeyPressMsg:
 		return f.handleKey(msg)
@@ -207,13 +228,17 @@ func (f *flow) selectKey(msg tea.KeyPressMsg) tea.Cmd {
 		f.cursor = max(min(f.cursor+1, len(f.choices)-1), 0)
 	case key.Matches(msg, k.Toggle):
 		if c, ok := f.highlighted(); ok && !c.disabled {
-			f.picked[c.name] = !f.picked[c.name]
+			was := f.picked[c.name]
+			if f.limit == 1 {
+				clear(f.picked)
+			}
+			f.picked[c.name] = !was
 		}
-	case key.Matches(msg, k.All):
+	case key.Matches(msg, k.All) && f.limit != 1:
 		f.toggleAll()
 	case key.Matches(msg, k.Accept):
 		names := f.names()
-		if len(names) == 0 {
+		if len(names) == 0 && !f.optional {
 			f.notice = selectOneText
 			return nil
 		}
@@ -254,7 +279,11 @@ func (f *flow) Keys() []key.Binding {
 	k := f.svc.keys
 	switch f.stage {
 	case stageSelect:
-		return []key.Binding{k.Toggle, k.All, described(k.Accept, "preview"), k.Move}
+		keys := []key.Binding{k.Toggle}
+		if f.limit != 1 {
+			keys = append(keys, k.All)
+		}
+		return append(keys, described(k.Accept, "preview"), k.Move)
 	case stagePlanning:
 		return []key.Binding{k.Cancel}
 	case stagePreview:

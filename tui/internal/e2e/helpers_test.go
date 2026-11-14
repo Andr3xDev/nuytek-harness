@@ -33,6 +33,10 @@ func (foundExec) Output(context.Context, string, ...string) ([]byte, error) {
 	return nil, errors.New("e2e must not probe tool versions")
 }
 
+func (foundExec) Run(context.Context, string, ...string) (check.ExecResult, error) {
+	return check.ExecResult{}, errors.New("e2e must not run tools")
+}
+
 // world is a temp HOME and repo with a small hand-built Claude manifest.
 type world struct {
 	t          *testing.T

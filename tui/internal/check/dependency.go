@@ -29,8 +29,7 @@ func Dependencies(id string, tools func() []string, timeout time.Duration) Check
 						results[i] = Result{CheckID: id, Subject: name, Status: StatusUnknown, Message: fmt.Sprintf("probe panicked: %v", p)}
 					}
 				}()
-				status, message := probeDependency(ctx, env.Exec, name, timeout)
-				results[i] = Result{CheckID: id, Subject: name, Status: status, Message: message}
+				results[i] = ProbeResult(ctx, env.Exec, id, name, timeout)
 			})
 		}
 		wg.Wait()
@@ -38,9 +37,20 @@ func Dependencies(id string, tools func() []string, timeout time.Duration) Check
 	}}
 }
 
-func probeDependency(ctx context.Context, exec Exec, name string, timeout time.Duration) (Status, string) {
+// ProbeResult checks that name is on PATH and reads its version.
+func ProbeResult(ctx context.Context, exec Exec, id, name string, timeout time.Duration) Result {
+	r := probeDependency(ctx, exec, name, timeout)
+	r.CheckID, r.Subject = id, name
+	return r
+}
+
+func probeDependency(ctx context.Context, exec Exec, name string, timeout time.Duration) Result {
 	if _, err := exec.LookPath(name); err != nil {
-		return StatusError, fmt.Sprintf("%s not found on PATH", name)
+		return Result{
+			Status:     StatusError,
+			Message:    fmt.Sprintf("%s not found on PATH", name),
+			Suggestion: fmt.Sprintf("install %s and make it available on PATH", name),
+		}
 	}
 	args, ok := versionArgs[name]
 	if !ok {
@@ -51,14 +61,14 @@ func probeDependency(ctx context.Context, exec Exec, name string, timeout time.D
 	out, _ := exec.Output(probeCtx, name, args...)
 	switch {
 	case ctx.Err() != nil:
-		return StatusUnknown, fmt.Sprintf("%s version probe cancelled", name)
+		return Result{Status: StatusUnknown, Message: fmt.Sprintf("%s version probe cancelled", name)}
 	case errors.Is(probeCtx.Err(), context.DeadlineExceeded):
-		return StatusWarning, fmt.Sprintf("%s version probe timed out after %s", name, timeout)
+		return Result{Status: StatusWarning, Message: fmt.Sprintf("%s version probe timed out after %s", name, timeout)}
 	}
 	// A failed probe still counts as installed: only the version is unknown.
 	version := versionPattern.Find(out)
 	if version == nil {
-		return StatusOK, "found, version unknown"
+		return Result{Status: StatusOK, Message: "found, version unknown"}
 	}
-	return StatusOK, "found, version " + string(version)
+	return Result{Status: StatusOK, Message: "found, version " + string(version)}
 }

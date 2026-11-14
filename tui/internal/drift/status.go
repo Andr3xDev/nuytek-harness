@@ -7,6 +7,7 @@ const (
 	StateDrift        State = "drift"
 	StateNotInstalled State = "not_installed"
 	StateUnknown      State = "unknown"
+	StateSkipped      State = "skipped"
 )
 
 type Status struct {

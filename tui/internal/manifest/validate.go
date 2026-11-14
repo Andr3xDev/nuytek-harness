@@ -16,10 +16,14 @@ func Validate(m Manifest, allowedKinds []Kind) error {
 			return fmt.Errorf("component %d: empty name", i)
 		case c.Kind == "":
 			return fmt.Errorf("component %q: empty kind", c.Name)
-		case c.Source == "":
+		case c.Kind.Deploys() && c.Source == "":
 			return fmt.Errorf("component %q: empty source", c.Name)
-		case c.Target == "":
+		case c.Kind.Deploys() && c.Target == "":
 			return fmt.Errorf("component %q: empty target", c.Name)
+		case !c.Kind.Deploys() && c.Source != "":
+			return fmt.Errorf("component %q: kind %q takes no source", c.Name, c.Kind)
+		case !c.Kind.Deploys() && c.Target != "":
+			return fmt.Errorf("component %q: kind %q takes no target", c.Name, c.Kind)
 		case !slices.Contains(allowedKinds, c.Kind):
 			return fmt.Errorf("component %q: unknown kind %q", c.Name, c.Kind)
 		case seen[c.Name]:
@@ -28,10 +32,10 @@ func Validate(m Manifest, allowedKinds []Kind) error {
 			return fmt.Errorf("component %q: pull is not allowed on kind %q", c.Name, c.Kind)
 		}
 		seen[c.Name] = true
-		if !isRelativeInside(c.Source) {
+		if c.Kind.Deploys() && !isRelativeInside(c.Source) {
 			return fmt.Errorf("component %q: source %q must be relative without \"..\"", c.Name, c.Source)
 		}
-		if !isRelativeInside(c.Target) {
+		if c.Kind.Deploys() && !isRelativeInside(c.Target) {
 			return fmt.Errorf("component %q: target %q must be relative without \"..\"", c.Name, c.Target)
 		}
 		if slices.Contains(c.Needs, "") {

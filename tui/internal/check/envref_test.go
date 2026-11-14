@@ -76,3 +76,16 @@ func TestEnvRefs_NeverLeaksValue(t *testing.T) {
 		t.Fatalf("secret value leaked into results: %s", dump)
 	}
 }
+
+func TestEnvRefs_UnsetSuggestsSettingVariable(t *testing.T) {
+	env := check.Env{LookupEnv: func(string) (string, bool) { return "", false }}
+	extract := func(check.Env) ([]check.TextSource, error) {
+		return []check.TextSource{{Subject: "github", Text: "${EXAMPLE_TOKEN}"}}, nil
+	}
+
+	got := runCheck(t, check.EnvRefs("mcp-env", envRefPattern, extract), env)
+
+	if len(got) != 1 || !strings.Contains(got[0].Suggestion, "set EXAMPLE_TOKEN") {
+		t.Fatalf("got %+v, want one warning suggesting to set EXAMPLE_TOKEN", got)
+	}
+}

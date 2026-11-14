@@ -173,3 +173,30 @@ func TestDependencies_ParentCancelIsNotTimeout(t *testing.T) {
 		t.Errorf("slow = %+v, want unknown and not a timeout", r)
 	}
 }
+
+func TestDependencies_MissingToolSuggestsInstall(t *testing.T) {
+	exec := &fakeExec{onPath: map[string]bool{"jq": true}, outputs: map[string]string{"jq": "jq-1.7.1"}}
+
+	got := runCheck(t, depsCheck("ghost", "jq"), newHome(t, exec))
+
+	if s := resultFor(t, got, "ghost").Suggestion; !strings.Contains(s, "install ghost") {
+		t.Errorf("ghost suggestion = %q, want it to say to install ghost", s)
+	}
+	if s := resultFor(t, got, "jq").Suggestion; s != "" {
+		t.Errorf("jq suggestion = %q, want none for a found tool", s)
+	}
+}
+
+func TestProbeResult_BuildsFullResult(t *testing.T) {
+	exec := &fakeExec{onPath: map[string]bool{"jq": true}, outputs: map[string]string{"jq": "jq-1.7.1"}}
+
+	found := check.ProbeResult(context.Background(), exec, "doctor", "jq", testProbeTimeout)
+	missing := check.ProbeResult(context.Background(), exec, "doctor", "ghost", testProbeTimeout)
+
+	if found.CheckID != "doctor" || found.Subject != "jq" || found.Status != check.StatusOK || !strings.Contains(found.Message, "1.7.1") {
+		t.Errorf("found = %+v, want ok doctor/jq with version 1.7.1", found)
+	}
+	if missing.Status != check.StatusError || missing.Subject != "ghost" || missing.Suggestion == "" {
+		t.Errorf("missing = %+v, want error ghost with a suggestion", missing)
+	}
+}
