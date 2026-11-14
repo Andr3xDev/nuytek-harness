@@ -19,6 +19,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP" "$dest.new"' EXIT
 
 (cd "$ROOT/tui" && go build -o "$TMP/nuytek-harness" ./cmd/nuytek-harness)
+# install under a temp name, then rename: an atomic replace never leaves a half-written binary in place
 install -Dm0755 "$TMP/nuytek-harness" "$dest.new"
 mv -f "$dest.new" "$dest"
 

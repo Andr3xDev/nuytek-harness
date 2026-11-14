@@ -12,7 +12,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
-// confirmStampLimit caps the stamps named in a multi-delete confirmation; the count always shows the rest.
+// confirmStampLimit caps the stamps named in a multi-delete confirmation; the rest show as "and N more".
 const confirmStampLimit = 3
 
 // PlanDeleteBackup needs env.FS for the symlink guards and the size in the confirmation.

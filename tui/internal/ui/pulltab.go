@@ -18,7 +18,7 @@ const (
 	noPullableText = "No component can be pulled."
 )
 
-// pullTab lists the pull-enabled components; its select flow doubles as the list.
+// pullTab lists the components with changes to pull; its select flow doubles as the list.
 type pullTab struct {
 	svc  *services
 	st   *targetState

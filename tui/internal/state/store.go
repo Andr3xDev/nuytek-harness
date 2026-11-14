@@ -70,8 +70,8 @@ func (s *Store) warning(err error) string {
 }
 
 // Save writes via a temp file in the same directory, then renames, so readers never see a partial file.
-// It merges into the existing file so keys it does not know survive; an empty value removes its key, and a
-// target table left with no keys is dropped. A corrupt file is renamed to state.toml.corrupt-<timestamp>, then replaced.
+// It merges into the existing file so unknown keys survive; an empty value removes its key, and a target
+// table left empty is dropped.
 func (s *Store) Save(st State) error {
 	doc, err := s.readDoc()
 	if err != nil {
@@ -132,8 +132,8 @@ func (s *Store) Save(st State) error {
 }
 
 // readDoc returns the file as a generic map; a missing file is an empty document and any other read error
-// aborts. A corrupt file is moved aside to a timestamped corruptSuffix name first, so replacing it never
-// destroys what the user wrote, nor an earlier backup.
+// aborts. A corrupt file is moved aside under a timestamped corruptSuffix name, so replacing it never
+// destroys what the user wrote nor an earlier backup.
 func (s *Store) readDoc() (map[string]any, error) {
 	data, err := os.ReadFile(s.path)
 	if errors.Is(err, fs.ErrNotExist) {

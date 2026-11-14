@@ -18,7 +18,7 @@ nuytek-harness --repo <repo-root>
 
 ## Flags
 
-- `--repo <path>`: path to the harness repo. When it resolves, it is saved to `~/.local/state/nuytek-harness/state.toml`.
+- `--repo <path>`: path to the harness repo. When it resolves, it is saved to `~/.local/state/nuytek-harness/state.toml`, which also holds the Config values.
 - `--dry-run`: apply no step, write no files and save no state; read-only health checks still run. Every step is listed as not executed.
 
 The TUI needs a terminal on both stdin and stdout. Otherwise it prints `nuytek-harness: a terminal is required` to stderr and exits with code 1, before it reads or writes any state.
@@ -29,15 +29,15 @@ Each CLI target has these five tabs, switched with `[` and `]`, or `h` and `l` (
 
 - Dashboard: installed components and health checks.
 - Update: changes the repo has that the machine does not, then applies them.
-- Pull: copies machine changes back into the repo.
-- Backups: lists backups, with backup now (`b`), restore (`r`) and delete (`d`).
+- Pull: copies machine changes back into the repo. It lists only components with changes.
+- Backups: lists backups, with backup now (`b`), restore (`r`), mark (`space`, all with `a`) and delete (`d`, which deletes the marked backups).
 - Manage: read-only list of the target's MCPs, Plugins and Skills. Skills that are not in the harness carry a `local` tag.
 
-Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. Like Install, Hard install skips the components whose tool (`openspec`, `node`, ...) is missing, leaves them untouched and names them in the confirmation; it refuses to start only when every component is blocked. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view.
+Press `i` on the dashboard to open the install wizard. `m` switches between Install (pick components with `space`, all or none with `a`) and Hard install (resets every directory component and prunes MCP servers and plugins the repo does not declare). Each action shows a plan, goes to confirmation with `enter` and runs on `y`, snapshots to a backup first, then streams the step output. Like Install, Hard install skips the components whose tool (`openspec`, `node`, ...) is missing, leaves them untouched and names them in the confirmation; it refuses to start only when every component is blocked. `ctrl+c` cancels a running action (`q` is refused during a run). `esc` goes back to the sidebar (or `tab`) and `?` lists the keys of the current view. `J` and `K` move down and up 5 rows in lists and in the sidebar's target list.
 
 ## Specter
 
-The first sidebar entry, above the CLI targets, is the global Specter screen. It is read-only except for the actions below and shows these sections:
+The first sidebar entry, above Config and the CLI targets, is the global Specter screen. It is read-only except for the actions below and shows these sections:
 
 - Root: the resolved specter root and where it came from. When the root is missing it shows a `git clone` command as text; the TUI never runs git. Set `NUYTEK_SPECTER_REPO` to fill the repo URL into that hint.
 - Stores: each registered store with its repos, Engram projects and active, archived and spec counts.
@@ -54,7 +54,11 @@ Keys on this screen:
 
 Fast init and maintenance take no snapshot and never delete anything. They need the root under `$HOME`.
 
-The specter root is set in the Config tab (default `~/dev/specter`). Only the TUI reads it; the shell CLI (`scripts/`) and agents always use `~/dev/specter` and `~/.claude-backups` and ignore the Config tab, and a Checks row warns when the two differ. Full alignment is tracked in Linear IO-421.
+The specter root is set in the Config entry of the sidebar (default `~/dev/specter`). Only the TUI reads the Config values; the shell CLI (`scripts/`) always uses `~/dev/specter` and `~/.claude-backups`. When a non-default root is set, a Checks row warns if the harness agent files still reference the default root.
+
+## Config
+
+The second sidebar entry, Config, edits the Specter root and each target's home backups dir. Keys: `e` or `enter` edit, `r` reset to default, `u` pull the repo and rebuild the TUI.
 
 A check that cannot run, such as one that needs a missing `openspec`, has status `skipped` (glyph `-`). It never counts as a failure.
 
@@ -93,6 +97,7 @@ Packages under `tui/internal` each own their types and logic.
 | `state` | State file; the only package that writes files |
 | `osfs`, `osexec` | OS implementations of `check.FS` and `check.Exec` |
 | `specter` | Specter root, stores, checks, drift, validation and write plans |
+| `config` | Validates and formats user-configured paths (Specter root, backups dir) |
 | `targets/claude` | Claude Code composition: `Spec()` and its extractors |
 | `ui` | Bubble Tea presentation |
 
@@ -100,14 +105,16 @@ Packages under `tui/internal` each own their types and logic.
 
 Dependency rule: interfaces are declared by the consumer, and each package imports only what it needs.
 
-- `manifest`, `check`, `backup`, `repo`, `state` import no internal package.
-- `drift` imports `check`, `manifest`.
-- `target` imports `backup`, `check`, `drift`, `manifest`.
+- `manifest`, `backup`, `repo`, `state` import no internal package.
+- `check` imports `state`.
+- `config` imports `check`.
+- `drift` imports `check`, `manifest`, `plan`.
+- `target` imports `backup`, `check`, `drift`, `manifest`, `plan`.
 - `dashboard` imports `target` and what `target` imports.
 - `specter` imports `check`, `drift`, `manifest`, `plan`, `repo`. It imports no target, action, or ui.
 - `osfs`, `osexec` import `check`.
-- `targets/<cli>` imports `target`, `check`, `drift`, `manifest`, `backup`.
-- `ui` imports `action`, `backup`, `check`, `dashboard`, `drift`, `plan`, `specter`, `target`. It never imports `targets/*`, `osfs`, `osexec`, or `state`.
+- `targets/<cli>` imports `target`, `check`, `config`, `drift`, `manifest`, `backup`.
+- `ui` imports `action`, `backup`, `check`, `config`, `dashboard`, `drift`, `plan`, `specter`, `state`, `target`. It never imports `targets/*`, `osfs`, or `osexec`.
 
 ## Adding a new CLI target
 

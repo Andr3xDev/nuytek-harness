@@ -275,7 +275,7 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return r, tea.Batch(cmds...)
 	case runRequest:
-		// An accepted select flow rests on its list again; the Specter flow must not reappear after the run.
+		// An accepted select flow rests on its list again; the Specter and Config flows must not reappear after the run.
 		r.specterFlow, r.configFlow = nil, nil
 		return r, r.startRun(msg.plan)
 	case applyStarted:
@@ -413,8 +413,8 @@ func (r *Root) installable() bool {
 	return ok && available(t)
 }
 
-// moveSidebar steps the target cursor, clamped; the Specter and Config entries sit above the first target.
-// A jump that starts on or reaches past the entries moves one entry only.
+// moveSidebar steps the target cursor by delta, clamped to the targets. From an entry, or going up from the
+// first target, it moves one entry instead; a jump never crosses the Specter and Config entries.
 func (r *Root) moveSidebar(delta int) tea.Cmd {
 	switch {
 	case delta < 0 && (r.entry != entryTarget || r.cursor == 0):

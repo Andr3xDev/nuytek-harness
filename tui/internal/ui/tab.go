@@ -30,6 +30,7 @@ type Deps struct {
 	// SaveState persists the saved config; nil applies edits in memory only.
 	SaveState func(state.State) error
 
+	// ConfigPlanUpdate plans the self-update; nil hides the update key.
 	ConfigPlanUpdate func(ctx context.Context, env check.Env) (plan.Plan, error)
 }
 
