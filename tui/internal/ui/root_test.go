@@ -117,6 +117,29 @@ func TestRoot_PlannedTargetHasNoComputeAndKeepsSidebarFocus(t *testing.T) {
 	}
 }
 
+func TestRoot_ComputedReloadsDirtyPullTabOnlyWhenActive(t *testing.T) {
+	const pullTabIndex = 2
+	for _, active := range []bool{true, false} {
+		r := newRoot(t, availableTarget())
+		r.Init()
+		if active {
+			r.tab = pullTabIndex
+		}
+		p := r.tabs[0][pullTabIndex].(*pullTab)
+
+		cmd := func() tea.Cmd {
+			_, cmd := r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
+			return cmd
+		}()
+		if active && (cmd == nil || p.dirty) {
+			t.Errorf("active: cmd nil = %v, dirty = %v; want a load cmd and a clean tab", cmd == nil, p.dirty)
+		}
+		if !active && (cmd != nil || !p.dirty) {
+			t.Errorf("inactive: cmd nil = %v, dirty = %v; want no load and a dirty tab", cmd == nil, p.dirty)
+		}
+	}
+}
+
 func TestRoot_RunActiveRefusesKeysAndOnlySetsNotice(t *testing.T) {
 	for _, k := range []string{"i", "r", "x", "d", "[", "h", "l"} {
 		t.Run(k, func(t *testing.T) {
