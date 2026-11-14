@@ -55,13 +55,14 @@ type backupsTab struct {
 	loaded bool
 	cursor int
 	epoch  int
-	files  *fileView // set while a snapshot is open
-	flow   *flow     // set while a restore or delete flow runs
+	files  *fileView       // set while a snapshot is open
+	flow   *flow           // set while a restore or delete flow runs
+	marks  map[string]bool // backup paths marked for deletion
 	notice string
 }
 
 func newBackupsTab(svc *services, t target.Target) *backupsTab {
-	return &backupsTab{svc: svc, t: t}
+	return &backupsTab{svc: svc, t: t, marks: map[string]bool{}}
 }
 
 func (b *backupsTab) Title() string { return backupsTitle }
@@ -94,6 +95,7 @@ func (b *backupsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if msg.b == b && msg.epoch == b.epoch {
 			b.rows, b.loaded = msg.rows, true
 			b.cursor = max(min(b.cursor, len(b.rows)-1), 0)
+			b.dropVanishedMarks()
 		}
 	case filesLoaded:
 		if msg.b == b && b.files != nil && b.files.entry.Path == msg.entry.Path {
@@ -101,6 +103,7 @@ func (b *backupsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		}
 	case runDismissed:
 		b.flow, b.files = nil, nil
+		clear(b.marks)
 		if b.loaded {
 			return b, b.load()
 		}
@@ -144,13 +147,51 @@ func (b *backupsTab) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, k.Restore):
 		e := b.rows[b.cursor].entry
 		return b.startFlow(newDirectFlow(b.svc, "Restore "+e.Stamp, nothingToRestore, b.restorePlan(e)))
+	case key.Matches(msg, k.Toggle):
+		path := b.rows[b.cursor].entry.Path
+		b.marks[path] = !b.marks[path]
+	case key.Matches(msg, k.All):
+		all := len(b.markedEntries()) == len(b.rows)
+		for _, r := range b.rows {
+			b.marks[r.entry.Path] = !all
+		}
 	case key.Matches(msg, k.Delete):
-		e := b.rows[b.cursor].entry
-		f := newDirectFlow(b.svc, "Delete backup "+e.Stamp, nothingToDoText, b.deletePlan(e))
+		entries := b.markedEntries()
+		if len(entries) == 0 {
+			entries = []backup.Entry{b.rows[b.cursor].entry}
+		}
+		title := "Delete backup " + entries[0].Stamp
+		if len(entries) > 1 {
+			title = fmt.Sprintf("Delete %d backups", len(entries))
+		}
+		f := newDirectFlow(b.svc, title, nothingToDoText, b.deletePlan(entries))
 		f.confirmFirst = true
 		return b.startFlow(f)
 	}
 	return nil
+}
+
+// markedEntries returns the marked backups in list order.
+func (b *backupsTab) markedEntries() []backup.Entry {
+	var entries []backup.Entry
+	for _, r := range b.rows {
+		if b.marks[r.entry.Path] {
+			entries = append(entries, r.entry)
+		}
+	}
+	return entries
+}
+
+func (b *backupsTab) dropVanishedMarks() {
+	present := map[string]bool{}
+	for _, r := range b.rows {
+		present[r.entry.Path] = true
+	}
+	for path := range b.marks {
+		if !present[path] {
+			delete(b.marks, path)
+		}
+	}
 }
 
 func (b *backupsTab) startFlow(f *flow) tea.Cmd {
@@ -172,10 +213,10 @@ func (b *backupsTab) backupPlan() planFunc {
 	}
 }
 
-func (b *backupsTab) deletePlan(e backup.Entry) planFunc {
+func (b *backupsTab) deletePlan(entries []backup.Entry) planFunc {
 	svc, t := b.svc, b.t
 	return func(context.Context, []string) (plan.Plan, error) {
-		return action.PlanDeleteBackup(svc.Env, t, e)
+		return action.PlanDeleteBackup(svc.Env, t, entries...)
 	}
 }
 
@@ -195,7 +236,7 @@ func (b *backupsTab) Keys() []key.Binding {
 	case len(b.rows) == 0:
 		return []key.Binding{k.Backup}
 	}
-	return []key.Binding{described(k.Accept, "view files"), k.Backup, k.Restore, k.Delete, k.Move}
+	return []key.Binding{k.Toggle, k.All, described(k.Accept, "view files"), k.Backup, k.Restore, k.Delete, k.Move}
 }
 
 func (b *backupsTab) View(w, h int) string {
@@ -212,7 +253,11 @@ func (b *backupsTab) View(w, h int) string {
 	}
 	rows := make([]listRow, len(b.rows))
 	for i, r := range b.rows {
-		rows[i] = listRow{text: backupText(r)}
+		mark := "[ ]"
+		if b.marks[r.entry.Path] {
+			mark = "[x]"
+		}
+		rows[i] = listRow{text: mark + " " + backupText(r)}
 	}
 	lines, at := listLines(th, rows, b.cursor, w)
 	return strings.Join(windowAround(lines, at, h), "\n")

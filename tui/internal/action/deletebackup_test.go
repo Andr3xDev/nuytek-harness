@@ -95,3 +95,25 @@ func TestPlanDeleteBackup(t *testing.T) {
 		})
 	}
 }
+
+func TestPlanDeleteBackup_SeveralEntries(t *testing.T) {
+	const first, second = "20240101-000000", "20240102-000000"
+	f := newFixture(t)
+	var entries []backup.Entry
+	for _, stamp := range []string{first, second} {
+		f.write(filepath.Join(f.homeStore(), stamp), ".claude/a.md", "x", 0o644)
+		entries = append(entries, backup.Entry{Stamp: stamp, Path: filepath.Join(f.homeStore(), stamp)})
+	}
+
+	p, err := action.PlanDeleteBackup(f.env(), f.target(), entries...)
+
+	requireNoError(t, err)
+	if len(p.Steps) != 2 || !strings.Contains(p.Confirm, first) || !strings.Contains(p.Confirm, second) {
+		t.Errorf("plan steps %v confirm %q, want one RemoveTree per entry and both stamps listed", p.Steps, p.Confirm)
+	}
+
+	entries[1].Stamp = ".."
+	if p, err := action.PlanDeleteBackup(f.env(), f.target(), entries...); err == nil || len(p.Steps) != 0 {
+		t.Errorf("plan %v err %v, want one invalid entry to refuse the whole plan", p.Steps, err)
+	}
+}

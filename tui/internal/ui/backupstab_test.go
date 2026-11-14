@@ -179,6 +179,53 @@ func TestBackupsTab_DeleteThenYThenEscClosesTheRunAndReloadsTheList(t *testing.T
 	}
 }
 
+func TestBackupsTab_MarkedBackupsAreDeletedTogether(t *testing.T) {
+	r, b, home := deleteRoot(t)
+
+	pump(t, r, press(r, textKey("a")))
+	pump(t, r, press(r, textKey(" ")))
+	if got := b.markedEntries(); len(got) != 1 || got[0].Stamp != oldStamp {
+		t.Fatalf("marks = %+v, want only %s after a then space", got, oldStamp)
+	}
+	pump(t, r, press(r, textKey("a")))
+	pressDelete(t, r)
+	if b.flow == nil || b.flow.stage != stageConfirm || !strings.Contains(b.flow.p.Confirm, oldStamp) || !strings.Contains(b.flow.p.Confirm, newerStamp) {
+		t.Fatalf("flow = %+v, want a confirmation naming both backups", b.flow)
+	}
+	pump(t, r, press(r, textKey("y")))
+	pump(t, r, press(r, escKey))
+
+	for _, stamp := range []string{oldStamp, newerStamp} {
+		if _, err := os.Stat(filepath.Join(home, ".bk", stamp)); !os.IsNotExist(err) {
+			t.Errorf("%s still exists: %v", stamp, err)
+		}
+	}
+	if len(b.marks) != 0 {
+		t.Errorf("marks = %v, want them cleared after the run", b.marks)
+	}
+}
+
+func TestBackupsTab_OnlyTheMarkedBackupIsDeleted(t *testing.T) {
+	r, b, home := deleteRoot(t)
+
+	pump(t, r, press(r, downKey))
+	pump(t, r, press(r, textKey(" ")))
+	pump(t, r, press(r, upKey))
+	pressDelete(t, r)
+	pump(t, r, press(r, textKey("y")))
+	pump(t, r, press(r, escKey))
+
+	if _, err := os.Stat(filepath.Join(home, ".bk", oldStamp)); !os.IsNotExist(err) {
+		t.Errorf("marked %s still exists: %v", oldStamp, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".bk", newerStamp)); err != nil {
+		t.Errorf("unmarked %s was deleted: %v", newerStamp, err)
+	}
+	if len(b.rows) != 1 {
+		t.Errorf("rows = %+v, want one left", b.rows)
+	}
+}
+
 func TestBackupsTab_BackupKeyOnEmptyListAppliesWithoutY(t *testing.T) {
 	b := backupTab(t, true)
 	if !claims(b.Keys(), "b") {
