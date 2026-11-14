@@ -260,7 +260,9 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			st.cancel = nil
 		}
 	case validatedMsg:
-		r.specter.finishValidation(msg)
+		if msg.root == r.svc.Env.Saved.SpecterRoot {
+			r.specter.finishValidation(msg)
+		}
 	case configSaved:
 		return r, r.reloadFromConfig()
 	case plannedMsg:

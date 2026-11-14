@@ -20,9 +20,11 @@ const (
 	noDriftText      = "No drift."
 )
 
-// validatedMsg carries one store's validation back to Root; at is the instant the run was requested.
+// validatedMsg carries one store's validation back to Root; at is the instant the run was requested and
+// root the saved Specter root it ran against, so a result from before a root change is dropped.
 type validatedMsg struct {
 	store string
+	root  string
 	at    time.Time
 	v     specter.Validation
 	err   error
@@ -56,25 +58,26 @@ func (r *Root) validateStores() tea.Cmd {
 		return nil
 	}
 	var cmds []tea.Cmd
+	root := r.svc.Env.Saved.SpecterRoot
 	for _, s := range st.facts.Registered {
 		sv := st.storeValidation(s.ID)
 		if sv.running {
 			continue
 		}
 		sv.running = true
-		cmds = append(cmds, r.validateCmd(validate, s.ID, time.Now()))
+		cmds = append(cmds, r.validateCmd(validate, s.ID, root, time.Now()))
 	}
 	return tea.Batch(cmds...)
 }
 
-func (r *Root) validateCmd(validate func(context.Context, string) (specter.Validation, error), id string, at time.Time) tea.Cmd {
+func (r *Root) validateCmd(validate func(context.Context, string) (specter.Validation, error), id, root string, at time.Time) tea.Cmd {
 	ctx, slots := r.ctx, r.validateSlots
 	return func() tea.Msg {
 		// Blocking is safe: a holder always ends, its ctx is the root one.
 		slots <- struct{}{}
 		defer func() { <-slots }()
 		v, err := validate(ctx, id)
-		return validatedMsg{store: id, at: at, v: v, err: err}
+		return validatedMsg{store: id, root: root, at: at, v: v, err: err}
 	}
 }
 
