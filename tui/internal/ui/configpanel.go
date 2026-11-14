@@ -21,8 +21,6 @@ import (
 
 const (
 	specterRootLabel = "Specter root"
-	sourceDefault    = "default"
-	sourceSaved      = "saved"
 	configInputPad   = "    "
 	selfUpdateTitle  = "Update the TUI"
 )
@@ -68,9 +66,9 @@ func (c *configState) close() {
 
 func sourceOf(saved string) string {
 	if saved == "" {
-		return sourceDefault
+		return string(specter.RootSourceDefault)
 	}
-	return sourceSaved
+	return string(specter.RootSourceSaved)
 }
 
 // withSetting applies set to a copy of saved whose Targets map is not shared with the original.
@@ -193,7 +191,6 @@ func (r *Root) handleConfigKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// reloadFromConfig reloads everything that reads paths from the saved config.
 func (r *Root) reloadFromConfig() tea.Cmd {
 	cmds := []tea.Cmd{r.loadSpecter()}
 	for i := range r.targets {
