@@ -1,0 +1,105 @@
+[[component]]
+name   = "agents"
+kind   = "dir"
+source = "agents"
+target = ".claude/agents"
+needs  = ["claude"]
+
+[[component]]
+name   = "commands"
+kind   = "dir"
+source = "claude/commands"
+target = ".claude/commands"
+needs  = ["openspec"]
+
+[[component]]
+name   = "skills"
+kind   = "dir"
+source = "skills"
+target = ".claude/skills"
+needs  = ["claude"]
+
+# jq: hooks/stop-verify.sh skips its checks when jq is missing.
+[[component]]
+name   = "hooks"
+kind   = "dirx"
+source = "claude/hooks"
+target = ".claude/hooks"
+needs  = ["python3", "jq"]
+
+[[component]]
+name   = "sounds"
+kind   = "dir"
+source = "claude/sounds"
+target = ".claude/sounds"
+needs  = []
+
+[[component]]
+name   = "claude-md"
+kind   = "file"
+source = "claude/CLAUDE.md"
+target = ".claude/CLAUDE.md"
+needs  = []
+
+[[component]]
+name   = "settings"
+kind   = "file"
+source = "claude/claude-settings.json"
+target = ".claude/settings.json"
+needs  = ["node"]
+
+[[component]]
+name   = "claude-hud-config"
+kind   = "file"
+source = "claude/claude-hud-config.json"
+target = ".claude/plugins/claude-hud/config.json"
+needs  = ["node"]
+
+[[component]]
+name   = "common-sdd"
+kind   = "file"
+source = "shared/common-sdd.md"
+target = ".claude/common-sdd.md"
+needs  = []
+
+[[component]]
+name   = "engram-protocol"
+kind   = "file"
+source = "shared/engram-protocol.md"
+target = ".claude/engram-protocol.md"
+needs  = ["engram"]
+
+[[component]]
+name   = "context7"
+kind   = "file"
+source = "shared/rules/context7.md"
+target = ".claude/rules/context7.md"
+needs  = []
+
+[[component]]
+name   = "codegraph-health"
+kind   = "filex"
+source = "scripts/codegraph-health.sh"
+target = ".local/bin/codegraph-health"
+needs  = ["codegraph"]
+
+[[component]]
+name   = "claude-out-context"
+kind   = "filex"
+source = "claude/scripts/claude-out-context.sh"
+target = ".local/bin/claude-out-context"
+needs  = []
+
+[[component]]
+name   = "mcp"
+kind   = "mcp"
+source = "claude/claude-mcp.json"
+target = ".claude.json"
+needs  = ["node"]
+
+[[component]]
+name   = "plugins"
+kind   = "plugins"
+source = "claude/claude-settings.json"
+target = ".claude/settings.json"
+needs  = ["claude", "node"]
