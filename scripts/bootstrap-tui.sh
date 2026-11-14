@@ -18,7 +18,9 @@ TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
 
 (cd "$ROOT/tui" && go build -o "$TMP/nuytek-harness" ./cmd/nuytek-harness)
-install -Dm0755 "$TMP/nuytek-harness" "$HOME/.local/bin/nuytek-harness"
+dest="$HOME/.local/bin/nuytek-harness"
+install -Dm0755 "$TMP/nuytek-harness" "$dest.new"
+mv -f "$dest.new" "$dest"
 
-echo "installed: $HOME/.local/bin/nuytek-harness"
+echo "installed: $dest"
 echo "run: nuytek-harness --repo $ROOT"
