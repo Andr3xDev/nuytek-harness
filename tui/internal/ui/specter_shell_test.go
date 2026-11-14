@@ -29,6 +29,7 @@ func specterRoot(t *testing.T) *Root {
 
 func selectSpecter(r *Root) {
 	press(r, upKey)
+	press(r, upKey)
 }
 
 func TestRoot_InitStartsSpecterLoadAndResultMakesItReady(t *testing.T) {
@@ -150,19 +151,27 @@ func TestRoot_SidebarWalksBetweenSpecterAndTargets(t *testing.T) {
 	r := NewRoot([]target.Target{a, b}, Deps{SpecterLoad: func(context.Context) specter.Facts { return specter.Facts{} }}, nil)
 
 	press(r, upKey)
-	if !r.specterSelected || r.cursor != 0 {
-		t.Fatalf("up from target 0: specterSelected = %v, cursor = %d; want true, 0", r.specterSelected, r.cursor)
+	if r.entry != entryConfig || r.cursor != 0 {
+		t.Fatalf("up from target 0: entry = %v, cursor = %d; want config, 0", r.entry, r.cursor)
 	}
 	if _, ok := r.currentTarget(); ok {
-		t.Fatal("currentTarget reported a target while Specter is selected")
+		t.Fatal("currentTarget reported a target while Config is selected")
 	}
 	press(r, upKey)
-	if !r.specterSelected {
+	if r.entry != entrySpecter {
+		t.Fatalf("up from Config: entry = %v, want specter", r.entry)
+	}
+	press(r, upKey)
+	if r.entry != entrySpecter {
 		t.Fatal("up from Specter left the Specter entry")
 	}
 	press(r, downKey)
-	if r.specterSelected || r.cursor != 0 {
-		t.Fatalf("down from Specter: specterSelected = %v, cursor = %d; want false, 0", r.specterSelected, r.cursor)
+	if r.entry != entryConfig {
+		t.Fatalf("down from Specter: entry = %v, want config", r.entry)
+	}
+	press(r, downKey)
+	if r.entry != entryTarget || r.cursor != 0 {
+		t.Fatalf("down from Config: entry = %v, cursor = %d; want target, 0", r.entry, r.cursor)
 	}
 	if _, ok := r.currentTarget(); !ok {
 		t.Fatal("currentTarget reported none on a target")
@@ -170,6 +179,26 @@ func TestRoot_SidebarWalksBetweenSpecterAndTargets(t *testing.T) {
 	press(r, downKey)
 	if r.cursor != 1 {
 		t.Fatalf("cursor = %d, want 1", r.cursor)
+	}
+}
+
+func TestRoot_ConfigPanelFocusEscAndTabReturnToSidebar(t *testing.T) {
+	for name, k := range map[string]tea.KeyPressMsg{"esc": escKey, "tab": {Code: tea.KeyTab}} {
+		t.Run(name, func(t *testing.T) {
+			r := specterRoot(t)
+			press(r, upKey)
+			press(r, enterKey)
+			if r.entry != entryConfig || r.focus != focusPanel {
+				t.Fatalf("entry = %v, focus = %v; want config with the panel focused", r.entry, r.focus)
+			}
+			if got := plain(r.render()); !strings.Contains(got, "Config") {
+				t.Fatalf("Config panel did not render:\n%s", got)
+			}
+			press(r, k)
+			if r.focus != focusSidebar || r.entry != entryConfig {
+				t.Fatalf("focus = %v, entry = %v; want sidebar with Config still selected", r.focus, r.entry)
+			}
+		})
 	}
 }
 
@@ -183,8 +212,8 @@ func TestRoot_SpecterPanelFocusEscAndTabReturnToSidebar(t *testing.T) {
 				t.Fatal("enter did not focus the Specter panel")
 			}
 			press(r, k)
-			if r.focus != focusSidebar || !r.specterSelected {
-				t.Fatalf("focus = %v, specterSelected = %v; want sidebar with Specter still selected", r.focus, r.specterSelected)
+			if r.focus != focusSidebar || r.entry != entrySpecter {
+				t.Fatalf("focus = %v, entry = %v; want sidebar with Specter still selected", r.focus, r.entry)
 			}
 		})
 	}

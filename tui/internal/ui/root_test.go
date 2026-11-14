@@ -321,10 +321,10 @@ func TestRoot_MoveSidebarClampsAndEntersSpecterAtTheTop(t *testing.T) {
 	tests := []struct {
 		name         string
 		cursor       int
-		specter      bool
+		entry        entry
 		delta        int
 		wantCursor   int
-		wantSpecter  bool
+		wantEntry    entry
 		wantNoAction bool
 	}{
 		{name: "down one", cursor: 1, delta: 1, wantCursor: 2},
@@ -334,10 +334,12 @@ func TestRoot_MoveSidebarClampsAndEntersSpecterAtTheTop(t *testing.T) {
 		{name: "up one", cursor: 3, delta: -1, wantCursor: 2},
 		{name: "jump up", cursor: 6, delta: -jumpRows, wantCursor: 1},
 		{name: "jump up clamps at first target", cursor: 3, delta: -jumpRows, wantCursor: 0},
-		{name: "up from first target enters Specter", cursor: 0, delta: -1, wantCursor: 0, wantSpecter: true},
-		{name: "jump up from first target enters Specter", cursor: 0, delta: -jumpRows, wantCursor: 0, wantSpecter: true},
-		{name: "down from Specter returns to the first target", cursor: 0, specter: true, delta: 1, wantCursor: 0},
-		{name: "up on Specter stays", cursor: 0, specter: true, delta: -1, wantCursor: 0, wantSpecter: true, wantNoAction: true},
+		{name: "up from first target enters Config", cursor: 0, delta: -1, wantCursor: 0, wantEntry: entryConfig},
+		{name: "jump up from first target enters Config", cursor: 0, delta: -jumpRows, wantCursor: 0, wantEntry: entryConfig},
+		{name: "up from Config enters Specter", cursor: 0, entry: entryConfig, delta: -1, wantCursor: 0, wantEntry: entrySpecter},
+		{name: "down from Config returns to the first target", cursor: 0, entry: entryConfig, delta: 1, wantCursor: 0},
+		{name: "down from Specter enters Config", cursor: 0, entry: entrySpecter, delta: 1, wantCursor: 0, wantEntry: entryConfig},
+		{name: "up on Specter stays", cursor: 0, entry: entrySpecter, delta: -1, wantCursor: 0, wantEntry: entrySpecter, wantNoAction: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -346,12 +348,12 @@ func TestRoot_MoveSidebarClampsAndEntersSpecterAtTheTop(t *testing.T) {
 				ts[i] = target.Target{Spec: target.Planned("p", "P")}
 			}
 			r := newRoot(t, ts...)
-			r.cursor, r.specterSelected = tt.cursor, tt.specter
+			r.cursor, r.entry = tt.cursor, tt.entry
 
 			cmd := r.moveSidebar(tt.delta)
 
-			if r.cursor != tt.wantCursor || r.specterSelected != tt.wantSpecter {
-				t.Errorf("cursor %d specter %v, want %d %v", r.cursor, r.specterSelected, tt.wantCursor, tt.wantSpecter)
+			if r.cursor != tt.wantCursor || r.entry != tt.wantEntry {
+				t.Errorf("cursor %d entry %v, want %d %v", r.cursor, r.entry, tt.wantCursor, tt.wantEntry)
 			}
 			if tt.wantNoAction && cmd != nil {
 				t.Error("a move that changes nothing must not trigger a recompute")
