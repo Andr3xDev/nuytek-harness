@@ -15,8 +15,21 @@ const (
 	stateFileMode = 0o644
 )
 
+const (
+	keyRepoPath    = "repo_path"
+	keySpecterRoot = "specter_root"
+	keyTargets     = "targets"
+	keyBackupsDir  = "backups_dir"
+)
+
 type fileFormat struct {
-	RepoPath string `toml:"repo_path"`
+	RepoPath    string                      `toml:"repo_path"`
+	SpecterRoot string                      `toml:"specter_root"`
+	Targets     map[string]targetFileFormat `toml:"targets"`
+}
+
+type targetFileFormat struct {
+	BackupsDir string `toml:"backups_dir"`
 }
 
 // Store is the only writer of files in the TUI.
@@ -37,7 +50,14 @@ func (s *Store) Load() (State, string) {
 	if err := toml.Unmarshal(data, &f); err != nil {
 		return State{}, s.warning(err)
 	}
-	return State{RepoPath: f.RepoPath}, ""
+	st := State{RepoPath: f.RepoPath, SpecterRoot: f.SpecterRoot}
+	for id, t := range f.Targets {
+		if st.Targets == nil {
+			st.Targets = map[string]TargetState{}
+		}
+		st.Targets[id] = TargetState{BackupsDir: t.BackupsDir}
+	}
+	return st, ""
 }
 
 func (s *Store) warning(err error) string {
@@ -45,9 +65,34 @@ func (s *Store) warning(err error) string {
 }
 
 // Save writes via a temp file in the same directory, then renames, so readers never see a partial file.
-// It replaces a corrupt file that Load only warned about: the caller passes Save an explicit repo.
+// It merges into the existing file so keys it does not know survive; an empty value removes its key, and a
+// target table left with no keys is dropped. A corrupt file is replaced: Load only warned about it.
 func (s *Store) Save(st State) error {
-	data, err := toml.Marshal(fileFormat{RepoPath: st.RepoPath})
+	doc := s.readDoc()
+	setOrDelete(doc, keyRepoPath, st.RepoPath)
+	setOrDelete(doc, keySpecterRoot, st.SpecterRoot)
+	targets, _ := doc[keyTargets].(map[string]any)
+	if targets == nil {
+		targets = map[string]any{}
+	}
+	for id, t := range st.Targets {
+		table, _ := targets[id].(map[string]any)
+		if table == nil {
+			table = map[string]any{}
+		}
+		setOrDelete(table, keyBackupsDir, t.BackupsDir)
+		if len(table) == 0 {
+			delete(targets, id)
+		} else {
+			targets[id] = table
+		}
+	}
+	if len(targets) == 0 {
+		delete(doc, keyTargets)
+	} else {
+		doc[keyTargets] = targets
+	}
+	data, err := toml.Marshal(doc)
 	if err != nil {
 		return err
 	}
@@ -76,6 +121,23 @@ func (s *Store) Save(st State) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), s.path)
+}
+
+// readDoc returns the file as a generic map; a missing or corrupt file is an empty document.
+func (s *Store) readDoc() map[string]any {
+	doc := map[string]any{}
+	if data, err := os.ReadFile(s.path); err == nil && toml.Unmarshal(data, &doc) != nil {
+		return map[string]any{}
+	}
+	return doc
+}
+
+func setOrDelete(m map[string]any, key, value string) {
+	if value == "" {
+		delete(m, key)
+		return
+	}
+	m[key] = value
 }
 
 type DiscardStore struct{ real *Store }

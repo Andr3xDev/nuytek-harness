@@ -83,7 +83,7 @@ func run() int {
 		warnings = append(warnings, res.Warning)
 	}
 	if res.Source == repo.SourceFlag {
-		if err := store.Save(state.State{RepoPath: res.Path}); err != nil {
+		if err := saveRepoPath(store, saved, res.Path); err != nil {
 			warnings = append(warnings, fmt.Sprintf("saving state: %v", err))
 		}
 	}
