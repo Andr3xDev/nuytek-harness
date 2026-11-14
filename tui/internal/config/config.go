@@ -61,16 +61,21 @@ func ValidateBackupsDir(home, raw, ownTree string, reserved ...string) (string, 
 		return "", errors.New("too broad: choose a dedicated directory")
 	}
 	for _, r := range reserved {
-		if path == filepath.Clean(r) {
+		if isWithin(r, path) {
 			return "", fmt.Errorf("%s is already a backup store", r)
 		}
 	}
-	// Segment-wise via Rel: a string prefix would wrongly reject "~/.claudeX" for "~/.claude".
-	rel, err := filepath.Rel(filepath.Clean(ownTree), path)
-	if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if isWithin(ownTree, path) {
 		return "", fmt.Errorf("inside %s", ownTree)
 	}
 	return path, nil
+}
+
+// isWithin is true when path is root or below it. Segment-wise via Rel: a string prefix would wrongly
+// match "~/.claudeX" for "~/.claude".
+func isWithin(root, path string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // PathLabel shows a path under home as "~/...", anything else unchanged.
