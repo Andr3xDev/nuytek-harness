@@ -208,6 +208,74 @@ func TestConfigPanel_RejectedPathKeepsFieldOpenWithReason(t *testing.T) {
 	}
 }
 
+func TestConfigPanel_UnsetValuesShowTheDefaultSource(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, nil)
+
+	got := view(r)
+
+	for _, want := range []string{"Specter root  ~/dev/specter  (default)", "T backups     ~/.bk  (default)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Config panel lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "(saved)") {
+		t.Errorf("Config panel shows a saved source with nothing saved:\n%s", got)
+	}
+}
+
+func TestConfigPanel_SavedValueShowsItsHomeRelativeLabelAndSavedSource(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, func(home string) state.State {
+		return state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+	})
+
+	if got := view(r); !strings.Contains(got, "T backups     ~/bk  (saved)") {
+		t.Errorf("Config panel lacks the saved ~/bk row:\n%s", got)
+	}
+}
+
+func TestConfigPanel_UnavailableTargetHasNoBackupsRow(t *testing.T) {
+	broken := target.Target{Err: errors.New("manifest broken"), Spec: target.Spec{ID: "u", Name: "Broken", DefaultBackupsRel: ".bk"}}
+	r := NewRoot([]target.Target{availableTarget(), broken}, Deps{}, nil)
+	r.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	enterConfig(r)
+
+	for _, row := range r.settingRows() {
+		if strings.Contains(row.label, "Broken") {
+			t.Errorf("rows include %q for an unavailable target", row.label)
+		}
+	}
+}
+
+func TestConfigPanel_EscClosesTheFieldAndSavesNothing(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	editRow(r, backupsRow, filepath.Join(home, "bk"))
+
+	press(r, escKey)
+
+	if r.configPanel.editing || len(f.saves) != 0 || len(r.svc.Env.Saved.Targets) != 0 {
+		t.Errorf("editing = %v, saves = %d, saved targets = %v; want closed field and nothing saved", r.configPanel.editing, len(f.saves), r.svc.Env.Saved.Targets)
+	}
+}
+
+func TestConfigPanel_DryRunEditAppliesInMemoryAndWritesNoStore(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.toml")
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	r.svc.SaveState = state.Discard(state.NewStore(statePath)).Save
+	newDir := filepath.Join(home, "bk")
+
+	editRow(r, backupsRow, newDir)
+	pump(t, r, press(r, enterKey))
+
+	if got := r.svc.Env.Saved.Targets["t"].BackupsDir; got != newDir {
+		t.Errorf("Env.Saved backups dir = %q, want %q applied in memory", got, newDir)
+	}
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Errorf("state file stat err = %v, want it not to exist under dry-run", err)
+	}
+}
+
 func updateRoot(t *testing.T, deps Deps) *Root {
 	t.Helper()
 	r := NewRoot([]target.Target{availableTarget()}, deps, nil)
