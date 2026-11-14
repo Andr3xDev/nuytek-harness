@@ -31,7 +31,7 @@ Run it in a terminal for an interactive menu. Actions:
 - `clean-backups`: delete old snapshots
 - `pull`: import local config into the repo
 
-Every change takes a snapshot in `~/.claude-backups/`.
+Every change takes a snapshot in `~/.claude-backups/`. The shell CLI always uses `~/dev/specter` and `~/.claude-backups` and ignores the paths set in the TUI Config tab (alignment tracked in Linear IO-421).
 
 Available for: Claude Code.
 

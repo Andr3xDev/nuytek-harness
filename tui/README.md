@@ -54,7 +54,7 @@ Keys on this screen:
 
 Fast init and maintenance take no snapshot and never delete anything. They need the root under `$HOME`.
 
-The specter root is set in the Config tab (default `~/dev/specter`). Only the TUI reads it; the scripts and agents keep using `~/dev/specter`, and a Checks row warns when the two differ.
+The specter root is set in the Config tab (default `~/dev/specter`). Only the TUI reads it; the shell CLI (`scripts/`) and agents always use `~/dev/specter` and `~/.claude-backups` and ignore the Config tab, and a Checks row warns when the two differ. Full alignment is tracked in Linear IO-421.
 
 A check that cannot run, such as one that needs a missing `openspec`, has status `skipped` (glyph `-`). It never counts as a failure.
 
