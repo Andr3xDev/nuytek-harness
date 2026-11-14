@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,11 +20,15 @@ type statusExec struct {
 	fakeExec
 	result check.ExecResult
 	err    error
+	branch string
 	calls  [][]string
 }
 
 func (s *statusExec) Run(_ context.Context, name string, args ...string) (check.ExecResult, error) {
 	s.calls = append(s.calls, append([]string{name}, args...))
+	if slices.Contains(args, "rev-parse") {
+		return check.ExecResult{Stdout: []byte(s.branch + "\n")}, nil
+	}
 	return s.result, s.err
 }
 
@@ -35,15 +40,15 @@ func selfUpdateEnv(f *fixture, ex *statusExec) check.Env {
 
 func TestPlanSelfUpdateClean(t *testing.T) {
 	f := newFixture(t)
-	ex := &statusExec{}
+	ex := &statusExec{branch: "feat/x"}
 	p, err := action.PlanSelfUpdate(context.Background(), selfUpdateEnv(f, ex))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	wantProbe := []string{"git", "-C", f.repo, "status", "--porcelain", "--untracked-files=no"}
-	if len(ex.calls) != 1 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
-		t.Errorf("probe calls = %v, want [%v]", ex.calls, wantProbe)
+	if len(ex.calls) != 2 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
+		t.Errorf("probe calls = %v, want status probe first", ex.calls)
 	}
 
 	execs := stepsOf[plan.Exec](p)
@@ -51,7 +56,7 @@ func TestPlanSelfUpdateClean(t *testing.T) {
 		t.Fatalf("plan has %d exec steps, want 2 (steps: %v)", len(execs), p.Steps)
 	}
 	wantArgv := [][]string{
-		{"env", "GIT_TERMINAL_PROMPT=0", "git", "-C", f.repo, "pull", "--ff-only"},
+		{"env", "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -o BatchMode=yes", "git", "-C", f.repo, "pull", "--ff-only"},
 		{"bash", filepath.Join(f.repo, "scripts", "bootstrap-tui.sh")},
 	}
 	wantTimeouts := []time.Duration{2 * time.Minute, 5 * time.Minute}
@@ -67,10 +72,27 @@ func TestPlanSelfUpdateClean(t *testing.T) {
 		t.Error("Confirm is empty, want a confirmation prompt")
 	}
 	notes := strings.Join(p.Notes, "\n")
-	for _, want := range []string{f.repo, "restart the TUI afterwards"} {
+	for _, want := range []string{f.repo, "(branch feat/x)", "restart the TUI afterwards"} {
 		if !strings.Contains(notes, want) {
 			t.Errorf("notes %q missing %q", notes, want)
 		}
+	}
+}
+
+func TestPlanSelfUpdateKeepsConfiguredSSHCommandAndOmitsUnknownBranch(t *testing.T) {
+	f := newFixture(t)
+	env := selfUpdateEnv(f, &statusExec{})
+	env.LookupEnv = func(k string) (string, bool) { return "ssh -i key", k == "GIT_SSH_COMMAND" }
+	p, err := action.PlanSelfUpdate(context.Background(), env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"env", "GIT_TERMINAL_PROMPT=0", "git", "-C", f.repo, "pull", "--ff-only"}
+	if got := stepsOf[plan.Exec](p)[0].Argv; !reflect.DeepEqual(got, want) {
+		t.Errorf("pull argv = %v, want %v", got, want)
+	}
+	if notes := strings.Join(p.Notes, "\n"); strings.Contains(notes, "branch") {
+		t.Errorf("notes %q mention a branch, want none when unreadable", notes)
 	}
 }
 

@@ -29,10 +29,16 @@ func PlanSelfUpdate(ctx context.Context, env check.Env) (plan.Plan, error) {
 		return plan.Plan{}, fmt.Errorf("harness repo has uncommitted changes")
 	}
 
-	// GIT_TERMINAL_PROMPT=0 makes a credential prompt fail instead of hanging the run.
+	// GIT_TERMINAL_PROMPT=0 makes a credential prompt fail instead of hanging the run; BatchMode does the
+	// same for ssh, unless the user already configured GIT_SSH_COMMAND.
+	pullArgv := []string{"env", "GIT_TERMINAL_PROMPT=0"}
+	if _, set := env.LookupEnv("GIT_SSH_COMMAND"); !set {
+		pullArgv = append(pullArgv, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	}
+	pullArgv = append(pullArgv, "git", "-C", env.Repo, "pull", "--ff-only")
 	p := plan.New("Update the TUI", nil, []plan.Step{
 		plan.Exec{
-			Argv:    []string{"env", "GIT_TERMINAL_PROMPT=0", "git", "-C", env.Repo, "pull", "--ff-only"},
+			Argv:    pullArgv,
 			Timeout: selfUpdatePullTimeout,
 		},
 		plan.Exec{
@@ -42,8 +48,20 @@ func PlanSelfUpdate(ctx context.Context, env check.Env) (plan.Plan, error) {
 	})
 	p.Confirm = "Pull the latest harness and rebuild the TUI?"
 	p.Notes = []string{
-		fmt.Sprintf("Updates the harness repo at %s", env.Repo),
+		fmt.Sprintf("Updates the harness repo at %s%s", env.Repo, currentBranch(ctx, env)),
 		"restart the TUI afterwards to run the new build",
 	}
 	return p, nil
+}
+
+// currentBranch returns " (branch <name>)", or "" when the branch cannot be read: it is only informational.
+func currentBranch(ctx context.Context, env check.Env) string {
+	res, err := env.Exec.Run(ctx, "git", "-C", env.Repo, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil || res.ExitCode != 0 {
+		return ""
+	}
+	if branch := strings.TrimSpace(string(res.Stdout)); branch != "" {
+		return fmt.Sprintf(" (branch %s)", branch)
+	}
+	return ""
 }
