@@ -121,7 +121,7 @@ Example: OpenCode. Up to four files: a manifest, a Spec, a one-line swap in main
 For the actions, also:
 
 - Set `pull = true` on each component that `Pull` should copy back into the repo.
-- Return two unique entries from `BackupDirs`: one under home and one under the repo.
+- Return two unique entries from `BackupDirs(home, repo, homeStore)`: one at `homeStore` and one under the repo. Set `DefaultBackupsRel` and `OwnTreeRel` so the home store is configurable in the Config tab.
 - Add `Special` kind operations (`map[manifest.Kind]plan.KindOps`) only for kinds that are not plain files or directories.
 - Add a `.gitignore` pattern for the repo backup store, like the existing `backups/`.
 

@@ -9,6 +9,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -25,6 +26,11 @@ type Deps struct {
 	SpecterValidate        func(ctx context.Context, storeID string) (specter.Validation, error)
 	SpecterPlanFastInit    func(ctx context.Context, env check.Env, mapTo string) (plan.Plan, error)
 	SpecterPlanMaintenance func(ctx context.Context, env check.Env) (plan.Plan, error)
+
+	// SaveState persists the saved config; nil applies edits in memory only.
+	SaveState func(state.State) error
+
+	ConfigPlanUpdate func(ctx context.Context, env check.Env) (plan.Plan, error)
 }
 
 // services is what every tab and flow shares.
@@ -50,3 +56,6 @@ type dashboardReady struct{ st *targetState }
 
 // runDismissed tells the tabs that the output pane was closed and files may have changed.
 type runDismissed struct{}
+
+// configChanged tells the tabs that the saved config changed, so paths they read may differ.
+type configChanged struct{}

@@ -24,6 +24,7 @@ type keyMap struct {
 	Backup                      key.Binding
 	Validate, FastInit          key.Binding
 	Maintenance                 key.Binding
+	Edit, Reset, UpdateTUI      key.Binding
 	Yes, CancelRun              key.Binding
 }
 
@@ -57,6 +58,9 @@ func newKeyMap() keyMap {
 		Validate:    key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "validate")),
 		FastInit:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fast init")),
 		Maintenance: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "maintenance")),
+		Edit:        key.NewBinding(key.WithKeys("e", "enter"), key.WithHelp("e/enter", "edit")),
+		Reset:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reset to default")),
+		UpdateTUI:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update TUI")),
 		// Outside a run ctrl+c quits through Quit; CancelRun only describes it while one is active.
 		CancelRun: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "cancel run")),
 	}

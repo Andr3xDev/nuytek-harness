@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"golang.org/x/term"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/action"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osexec"
@@ -85,6 +86,8 @@ func run() int {
 		if err := saveRepoPath(store, saved, res.Path); err != nil {
 			warnings = append(warnings, fmt.Sprintf("saving state: %v", err))
 		}
+		// Config saves are load-modify-save on this copy; a stale repo_path would overwrite the one just saved.
+		saved.RepoPath = res.Path
 	}
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
@@ -99,6 +102,8 @@ func run() int {
 		},
 		SpecterPlanFastInit:    specter.PlanFastInit,
 		SpecterPlanMaintenance: specter.PlanMaintenance,
+		SaveState:              store.Save,
+		ConfigPlanUpdate:       action.PlanSelfUpdate,
 	}
 	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)

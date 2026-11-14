@@ -103,6 +103,10 @@ func (b *backupsTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 		if b.loaded {
 			return b, b.load()
 		}
+	case configChanged:
+		if b.loaded {
+			return b, b.load()
+		}
 	case plannedMsg:
 		if b.flow != nil {
 			return b, b.flow.Update(msg)

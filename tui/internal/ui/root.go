@@ -93,6 +93,8 @@ type Root struct {
 	states        []targetState
 	specter       specterState
 	entry         entry // what the sidebar selects; cursor itself stays on a target
+	configPanel   configState
+	configFlow    *flow // the self-update, from preview to the accepted run
 	specterFlow   *flow // fast init or maintenance, from selection to the accepted run
 	specterReport bool  // the open flow shows the drift report above its preview
 	validateSlots chan struct{}
@@ -119,6 +121,8 @@ func NewRoot(targets []target.Target, deps Deps, warnings []string) *Root {
 		help:     help.New(),
 		states:   make([]targetState, len(targets)),
 		tabs:     make([][]tab, len(targets)),
+
+		configPanel: newConfigState(),
 
 		validateSlots: make(chan struct{}, specter.MaxConcurrentOpenspec),
 	}
@@ -253,15 +257,20 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case validatedMsg:
 		r.specter.finishValidation(msg)
+	case configSaved:
+		return r, r.applySavedConfig(msg.state)
 	case plannedMsg:
 		cmds := []tea.Cmd{r.broadcast(msg)}
 		if r.specterFlow != nil {
 			cmds = append(cmds, r.specterFlow.Update(msg))
 		}
+		if r.configFlow != nil {
+			cmds = append(cmds, r.configFlow.Update(msg))
+		}
 		return r, tea.Batch(cmds...)
 	case runRequest:
 		// An accepted select flow rests on its list again; the Specter flow must not reappear after the run.
-		r.specterFlow = nil
+		r.specterFlow, r.configFlow = nil, nil
 		return r, r.startRun(msg.plan)
 	case applyStarted:
 		if r.run != nil {
@@ -305,6 +314,9 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return r.handleRunKey(msg)
 	}
 	k := r.svc.keys
+	if r.inputActive() && msg.String() != "ctrl+c" {
+		return r.handleConfigKey(msg)
+	}
 	if key.Matches(msg, k.Quit) {
 		r.cancel()
 		return tea.Quit
@@ -436,10 +448,7 @@ func (r *Root) handlePanelKey(msg tea.KeyPressMsg) tea.Cmd {
 	case entrySpecter:
 		return r.handleSpecterKey(msg)
 	case entryConfig:
-		if key.Matches(msg, k.Back) {
-			r.focus = focusSidebar
-		}
-		return nil
+		return r.handleConfigKey(msg)
 	}
 	if cur := r.activeTab(); cur != nil && key.Matches(msg, cur.Keys()...) {
 		var cmd tea.Cmd
@@ -567,7 +576,7 @@ func (r *Root) panel() (string, []string) {
 	case r.wizard != nil:
 		return wizardTitle, clip(strings.Split(r.wizard.View(contentW, h+panelChrome), "\n"), h+panelChrome)
 	case r.entry == entryConfig:
-		return configName, []string{th.muted.Render(configName)}
+		return configName, clip(r.configLines(contentW, h+panelChrome), h+panelChrome)
 	case !isTarget:
 		return specterName, r.specterPanel(contentW, h+panelChrome)
 	case t.Err != nil:
@@ -597,7 +606,7 @@ func (r *Root) keybarKeys() (keys, pinned []key.Binding) {
 	case r.entry == entrySpecter && r.focus == focusPanel:
 		return r.specterKeys(), k.pinnedKeys()
 	case r.entry == entryConfig && r.focus == focusPanel:
-		return []key.Binding{k.Back}, k.pinnedKeys()
+		return r.configKeys(), k.pinnedKeys()
 	case r.entry != entryTarget:
 		return []key.Binding{k.Focus, k.Move}, k.pinnedKeys()
 	case r.focus == focusPanel:
