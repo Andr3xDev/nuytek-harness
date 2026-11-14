@@ -29,7 +29,7 @@ func Compute(ctx context.Context, env check.Env, t target.Target) Dashboard {
 	d.MissingDeps = t.Manifest.MissingDeps(missingTools)
 	d.Components = evaluateComponents(ctx, env, t)
 	if t.Spec.BackupDirs != nil {
-		d.LastBackup = backup.Latest(env.FS, t.Spec.BackupDirs(env.Home, env.Repo))
+		d.LastBackup = backup.Latest(env.FS, t.Spec.Stores(env))
 	}
 	return d
 }

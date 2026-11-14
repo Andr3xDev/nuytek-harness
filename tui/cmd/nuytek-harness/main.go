@@ -89,7 +89,7 @@ func run() int {
 	}
 
 	targets := target.Load(res.Path, specs, manifest.Load, fsys)
-	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path, Cwd: cwd}
+	env := check.Env{FS: fsys, Exec: osexec.Exec{}, LookupEnv: os.LookupEnv, Home: home, Repo: res.Path, Cwd: cwd, Saved: saved}
 	deps := ui.Deps{
 		Env:         env,
 		Runner:      runner,

@@ -127,7 +127,7 @@ func (w *world) stamps(store string) []string {
 
 // snapshots lists the entries of both stores, newest first.
 func (w *world) snapshots() []backup.Entry {
-	return backup.List(osfs.FS{}, w.target.Spec.BackupDirs(w.home, w.repo))
+	return backup.List(osfs.FS{}, w.target.Spec.BackupDirs(w.home, w.repo, w.target.Spec.HomeStore(w.home, "")))
 }
 
 // files maps the relative path of every regular file under root to its content.

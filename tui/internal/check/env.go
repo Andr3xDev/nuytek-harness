@@ -3,6 +3,8 @@ package check
 import (
 	"context"
 	"io/fs"
+
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 )
 
 // FS has no write method: the read-only guarantee is compile-time.
@@ -34,4 +36,5 @@ type Env struct {
 	LookupEnv  func(string) (string, bool)
 	Home, Repo string
 	Cwd        string
+	Saved      state.State
 }

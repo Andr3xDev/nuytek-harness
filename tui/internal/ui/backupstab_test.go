@@ -11,9 +11,11 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -31,7 +33,7 @@ func backupTab(t *testing.T, installed bool) *backupsTab {
 	}
 	tg := target.Target{
 		Manifest: manifest.Manifest{Components: []manifest.Component{{Name: "agents", Kind: manifest.KindDir, Source: "claude/agents", Target: ".claude/agents"}}},
-		Spec: target.Spec{ID: "t", Name: "T", BackupDirs: func(home, repo string) []backup.Dir {
+		Spec: target.Spec{ID: "t", Name: "T", BackupDirs: func(home, repo, _ string) []backup.Dir {
 			return []backup.Dir{{Path: filepath.Join(home, ".bk"), Label: "home", Kind: backup.StoreHome, Base: home}}
 		}},
 	}
@@ -223,6 +225,28 @@ func TestBackupsTab_OnlyTheMarkedBackupIsDeleted(t *testing.T) {
 	}
 	if len(b.rows) != 1 {
 		t.Errorf("rows = %+v, want one left", b.rows)
+	}
+}
+
+func TestBackupsTab_ListsFromTheConfiguredPathWithItsLabel(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "bk", newerStamp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tg := target.Target{Spec: target.Spec{
+		ID: "t", Name: "T", DefaultBackupsRel: ".bk",
+		BackupDirs: func(home, _, homeStore string) []backup.Dir {
+			return []backup.Dir{{Path: homeStore, Label: config.PathLabel(home, homeStore), Kind: backup.StoreHome, Base: home}}
+		},
+	}}
+	env := check.Env{FS: osfs.FS{}, Home: home, Repo: t.TempDir()}
+	env.Saved = state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+	b := newBackupsTab(NewRoot([]target.Target{tg}, Deps{Env: env}, nil).svc, tg)
+
+	b.Update(b.Activate(tg)())
+
+	if view := b.View(80, 20); !strings.Contains(view, "~/bk") || !strings.Contains(view, newerStamp) {
+		t.Fatalf("view = %q, want the snapshot from the configured dir labelled ~/bk", view)
 	}
 }
 

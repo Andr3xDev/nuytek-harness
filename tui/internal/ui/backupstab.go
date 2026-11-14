@@ -77,12 +77,8 @@ func (b *backupsTab) load() tea.Cmd {
 	b.epoch++
 	epoch, env, t := b.epoch, b.svc.Env, b.t
 	return func() tea.Msg {
-		var dirs []backup.Dir
-		if t.Spec.BackupDirs != nil {
-			dirs = t.Spec.BackupDirs(env.Home, env.Repo)
-		}
 		var rows []backupRow
-		for _, e := range backup.List(env.FS, dirs) {
+		for _, e := range backup.List(env.FS, t.Spec.Stores(env)) {
 			rows = append(rows, backupRow{entry: e, size: backup.Size(env.FS, e)})
 		}
 		return backupsLoaded{b: b, epoch: epoch, rows: rows}
