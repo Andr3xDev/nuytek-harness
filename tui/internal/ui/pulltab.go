@@ -24,8 +24,9 @@ type pullTab struct {
 	st   *targetState
 	t    target.Target
 	pick *flow
-	// listed is false until the first setChoices, so an untouched tab does not claim nothing can be pulled.
+	// listed is false until the first listing arrives, so an untouched tab does not claim nothing can be pulled.
 	listed bool
+	epoch  int
 }
 
 func newPullTab(svc *services, st *targetState, t target.Target) *pullTab {
@@ -36,27 +37,40 @@ func newPullTab(svc *services, st *targetState, t target.Target) *pullTab {
 	return p
 }
 
-func (p *pullTab) setChoices() {
-	p.listed = true
-	var choices []choice
-	for _, name := range action.PullChanges(p.svc.ctx, p.svc.Env, p.t) {
-		choices = append(choices, choice{name: name})
+// pullListed carries the components with pending changes; epoch drops a result a newer listing superseded.
+type pullListed struct {
+	p     *pullTab
+	epoch int
+	names []string
+}
+
+// load diffs every component off the UI loop.
+func (p *pullTab) load() tea.Cmd {
+	p.epoch++
+	epoch, ctx, env, t := p.epoch, p.svc.ctx, p.svc.Env, p.t
+	return func() tea.Msg {
+		return pullListed{p: p, epoch: epoch, names: action.PullChanges(ctx, env, t)}
 	}
-	p.pick.setChoices(choices)
 }
 
 func (p *pullTab) Title() string { return pullTitle }
 
-func (p *pullTab) Activate(target.Target) tea.Cmd {
-	p.setChoices()
-	return nil
-}
+func (p *pullTab) Activate(target.Target) tea.Cmd { return p.load() }
 
 func (p *pullTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 	switch msg := msg.(type) {
 	case dashboardReady:
 		if msg.st == p.st {
-			p.setChoices()
+			return p, p.load()
+		}
+	case pullListed:
+		if msg.p == p && msg.epoch == p.epoch {
+			p.listed = true
+			var choices []choice
+			for _, name := range msg.names {
+				choices = append(choices, choice{name: name})
+			}
+			p.pick.setChoices(choices)
 		}
 	case plannedMsg, tea.KeyPressMsg:
 		return p, p.pick.Update(msg)

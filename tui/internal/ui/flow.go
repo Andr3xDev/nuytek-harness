@@ -82,6 +82,11 @@ func newDirectFlow(svc *services, title, emptyText string, planFn planFunc) *flo
 
 // setChoices replaces the list, keeping the picks of names that stay.
 func (f *flow) setChoices(choices []choice) {
+	if c, ok := f.highlighted(); ok {
+		if i := slices.IndexFunc(choices, func(n choice) bool { return n.name == c.name }); i >= 0 {
+			f.cursor = i
+		}
+	}
 	f.choices = choices
 	present := map[string]bool{}
 	for _, c := range choices {
