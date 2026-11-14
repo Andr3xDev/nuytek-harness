@@ -14,11 +14,14 @@ if ! command -v go >/dev/null 2>&1; then
   exit 1
 fi
 
+dest="$HOME/.local/bin/nuytek-harness"
 TMP="$(mktemp -d)"
-trap 'rm -rf -- "$TMP"' EXIT
+trap 'rm -rf -- "$TMP" "$dest.new"' EXIT
 
 (cd "$ROOT/tui" && go build -o "$TMP/nuytek-harness" ./cmd/nuytek-harness)
-install -Dm0755 "$TMP/nuytek-harness" "$HOME/.local/bin/nuytek-harness"
+# install under a temp name, then rename: an atomic replace never leaves a half-written binary in place
+install -Dm0755 "$TMP/nuytek-harness" "$dest.new"
+mv -f "$dest.new" "$dest"
 
-echo "installed: $HOME/.local/bin/nuytek-harness"
+echo "installed: $dest"
 echo "run: nuytek-harness --repo $ROOT"

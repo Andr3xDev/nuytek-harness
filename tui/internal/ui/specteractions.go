@@ -20,9 +20,11 @@ const (
 	noDriftText      = "No drift."
 )
 
-// validatedMsg carries one store's validation back to Root; at is the instant the run was requested.
+// validatedMsg carries one store's validation back to Root; at is the instant the run was requested and
+// root the saved Specter root it ran against, so a result from before a root change is dropped.
 type validatedMsg struct {
 	store string
+	root  string
 	at    time.Time
 	v     specter.Validation
 	err   error
@@ -56,25 +58,26 @@ func (r *Root) validateStores() tea.Cmd {
 		return nil
 	}
 	var cmds []tea.Cmd
+	root := r.svc.Env.Saved.SpecterRoot
 	for _, s := range st.facts.Registered {
 		sv := st.storeValidation(s.ID)
 		if sv.running {
 			continue
 		}
 		sv.running = true
-		cmds = append(cmds, r.validateCmd(validate, s.ID, time.Now()))
+		cmds = append(cmds, r.validateCmd(validate, s.ID, root, time.Now()))
 	}
 	return tea.Batch(cmds...)
 }
 
-func (r *Root) validateCmd(validate func(context.Context, string) (specter.Validation, error), id string, at time.Time) tea.Cmd {
+func (r *Root) validateCmd(validate func(context.Context, string) (specter.Validation, error), id, root string, at time.Time) tea.Cmd {
 	ctx, slots := r.ctx, r.validateSlots
 	return func() tea.Msg {
 		// Blocking is safe: a holder always ends, its ctx is the root one.
 		slots <- struct{}{}
 		defer func() { <-slots }()
 		v, err := validate(ctx, id)
-		return validatedMsg{store: id, at: at, v: v, err: err}
+		return validatedMsg{store: id, root: root, at: at, v: v, err: err}
 	}
 }
 
@@ -85,7 +88,7 @@ func (r *Root) openFastInit() tea.Cmd {
 		if len(names) > 0 {
 			mapTo = names[0]
 		}
-		return svc.SpecterPlanFastInit(ctx, mapTo)
+		return svc.SpecterPlanFastInit(ctx, r.svc.Env, mapTo)
 	}
 	candidates := specter.CandidateStores(r.specter.facts.Registration)
 	if len(candidates) == 0 {
@@ -107,7 +110,7 @@ func (r *Root) openFastInit() tea.Cmd {
 func (r *Root) openMaintenance() tea.Cmd {
 	svc := r.svc
 	r.specterFlow = newDirectFlow(svc, maintenanceTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
-		return svc.SpecterPlanMaintenance(ctx)
+		return svc.SpecterPlanMaintenance(ctx, r.svc.Env)
 	})
 	r.specterReport = true
 	return r.specterFlow.start()
@@ -132,10 +135,8 @@ func (r *Root) handleSpecterKey(msg tea.KeyPressMsg) tea.Cmd {
 		r.focus = focusSidebar
 	case key.Matches(msg, k.Refresh):
 		return r.loadSpecter()
-	case key.Matches(msg, k.Up):
-		st.scroll.by(-1)
-	case key.Matches(msg, k.Down):
-		st.scroll.by(1)
+	case k.step(msg) != 0:
+		st.scroll.by(k.step(msg))
 	case key.Matches(msg, k.Validate):
 		return r.validateStores()
 	case key.Matches(msg, k.FastInit) && st.writable() && r.svc.SpecterPlanFastInit != nil:

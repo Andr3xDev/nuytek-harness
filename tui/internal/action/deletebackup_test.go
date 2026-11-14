@@ -95,3 +95,34 @@ func TestPlanDeleteBackup(t *testing.T) {
 		})
 	}
 }
+
+func homeStoreEntries(f *fixture, stamps ...string) []backup.Entry {
+	var entries []backup.Entry
+	for _, stamp := range stamps {
+		f.write(filepath.Join(f.homeStore(), stamp), ".claude/a.md", "x", 0o644)
+		entries = append(entries, backup.Entry{Stamp: stamp, Path: filepath.Join(f.homeStore(), stamp)})
+	}
+	return entries
+}
+
+func TestPlanDeleteBackup_ConfirmCapsTheNamedStamps(t *testing.T) {
+	stamps := []string{"20240101-000000", "20240102-000000", "20240103-000000", "20240104-000000", "20240105-000000"}
+	f := newFixture(t)
+	entries := homeStoreEntries(f, stamps...)
+
+	p, err := action.PlanDeleteBackup(f.env(), f.target(), entries...)
+
+	requireNoError(t, err)
+	if len(p.Steps) != len(stamps) {
+		t.Errorf("plan steps %v, want one RemoveTree per entry", p.Steps)
+	}
+	if !strings.Contains(p.Confirm, "Delete 5 backups") || !strings.Contains(p.Confirm, "and 2 more") ||
+		!strings.Contains(p.Confirm, stamps[2]) || strings.Contains(p.Confirm, stamps[3]) {
+		t.Errorf("Confirm %q, want the count, the first 3 stamps and \"and 2 more\"", p.Confirm)
+	}
+
+	entries[1].Stamp = ".."
+	if p, err := action.PlanDeleteBackup(f.env(), f.target(), entries...); err == nil || len(p.Steps) != 0 {
+		t.Errorf("plan %v err %v, want one invalid entry to refuse the whole plan", p.Steps, err)
+	}
+}

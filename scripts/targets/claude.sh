@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code target for nuytek-harness. Sourced after ROOT and lib.sh are set.
 
-SPECTER_ROOT="${NUYTEK_SPECTER_ROOT:-$HOME/dev/specter}"
+SPECTER_ROOT="$HOME/dev/specter"
 MCP_SOURCE="$ROOT/claude/claude-mcp.json"
 MCP_TARGET="$HOME/.claude.json"
 SETTINGS_SOURCE="$ROOT/claude/claude-settings.json"

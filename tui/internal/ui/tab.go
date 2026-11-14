@@ -9,6 +9,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -19,12 +20,18 @@ type Deps struct {
 	DryRun bool
 
 	// SpecterLoad gathers the Specter facts; nil leaves the Specter state unloaded.
-	SpecterLoad func(context.Context) specter.Facts
+	SpecterLoad func(context.Context, check.Env) specter.Facts
 
 	// The Specter actions; a nil one leaves its key unavailable.
 	SpecterValidate        func(ctx context.Context, storeID string) (specter.Validation, error)
-	SpecterPlanFastInit    func(ctx context.Context, mapTo string) (plan.Plan, error)
-	SpecterPlanMaintenance func(ctx context.Context) (plan.Plan, error)
+	SpecterPlanFastInit    func(ctx context.Context, env check.Env, mapTo string) (plan.Plan, error)
+	SpecterPlanMaintenance func(ctx context.Context, env check.Env) (plan.Plan, error)
+
+	// SaveState persists the saved config; nil applies edits in memory only.
+	SaveState func(state.State) error
+
+	// ConfigPlanUpdate plans the self-update; nil hides the update key.
+	ConfigPlanUpdate func(ctx context.Context, env check.Env) (plan.Plan, error)
 }
 
 // services is what every tab and flow shares.
@@ -50,3 +57,6 @@ type dashboardReady struct{ st *targetState }
 
 // runDismissed tells the tabs that the output pane was closed and files may have changed.
 type runDismissed struct{}
+
+// configChanged tells the tabs that the saved config changed, so paths they read may differ.
+type configChanged struct{}

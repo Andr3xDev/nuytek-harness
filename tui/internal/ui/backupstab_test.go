@@ -11,9 +11,11 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -31,7 +33,7 @@ func backupTab(t *testing.T, installed bool) *backupsTab {
 	}
 	tg := target.Target{
 		Manifest: manifest.Manifest{Components: []manifest.Component{{Name: "agents", Kind: manifest.KindDir, Source: "claude/agents", Target: ".claude/agents"}}},
-		Spec: target.Spec{ID: "t", Name: "T", BackupDirs: func(home, repo string) []backup.Dir {
+		Spec: target.Spec{ID: "t", Name: "T", BackupDirs: func(home, repo, _ string) []backup.Dir {
 			return []backup.Dir{{Path: filepath.Join(home, ".bk"), Label: "home", Kind: backup.StoreHome, Base: home}}
 		}},
 	}
@@ -176,6 +178,75 @@ func TestBackupsTab_DeleteThenYThenEscClosesTheRunAndReloadsTheList(t *testing.T
 	}
 	if len(b.rows) != 1 || b.rows[0].entry.Stamp != oldStamp {
 		t.Fatalf("rows = %+v, want only %s after the reload", b.rows, oldStamp)
+	}
+}
+
+func TestBackupsTab_MarkedBackupsAreDeletedTogether(t *testing.T) {
+	r, b, home := deleteRoot(t)
+
+	pump(t, r, press(r, textKey("a")))
+	pump(t, r, press(r, textKey(" ")))
+	if got := b.markedEntries(); len(got) != 1 || got[0].Stamp != oldStamp {
+		t.Fatalf("marks = %+v, want only %s after a then space", got, oldStamp)
+	}
+	pump(t, r, press(r, textKey("a")))
+	pressDelete(t, r)
+	if b.flow == nil || b.flow.stage != stageConfirm || !strings.Contains(b.flow.p.Confirm, oldStamp) || !strings.Contains(b.flow.p.Confirm, newerStamp) {
+		t.Fatalf("flow = %+v, want a confirmation naming both backups", b.flow)
+	}
+	pump(t, r, press(r, textKey("y")))
+	pump(t, r, press(r, escKey))
+
+	for _, stamp := range []string{oldStamp, newerStamp} {
+		if _, err := os.Stat(filepath.Join(home, ".bk", stamp)); !os.IsNotExist(err) {
+			t.Errorf("%s still exists: %v", stamp, err)
+		}
+	}
+	if len(b.marks) != 0 {
+		t.Errorf("marks = %v, want them cleared after the run", b.marks)
+	}
+}
+
+func TestBackupsTab_OnlyTheMarkedBackupIsDeleted(t *testing.T) {
+	r, b, home := deleteRoot(t)
+
+	pump(t, r, press(r, downKey))
+	pump(t, r, press(r, textKey(" ")))
+	pump(t, r, press(r, upKey))
+	pressDelete(t, r)
+	pump(t, r, press(r, textKey("y")))
+	pump(t, r, press(r, escKey))
+
+	if _, err := os.Stat(filepath.Join(home, ".bk", oldStamp)); !os.IsNotExist(err) {
+		t.Errorf("marked %s still exists: %v", oldStamp, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".bk", newerStamp)); err != nil {
+		t.Errorf("unmarked %s was deleted: %v", newerStamp, err)
+	}
+	if len(b.rows) != 1 {
+		t.Errorf("rows = %+v, want one left", b.rows)
+	}
+}
+
+func TestBackupsTab_ListsFromTheConfiguredPathWithItsLabel(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "bk", newerStamp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tg := target.Target{Spec: target.Spec{
+		ID: "t", Name: "T", DefaultBackupsRel: ".bk",
+		BackupDirs: func(home, _, homeStore string) []backup.Dir {
+			return []backup.Dir{{Path: homeStore, Label: config.PathLabel(home, homeStore), Kind: backup.StoreHome, Base: home}}
+		},
+	}}
+	env := check.Env{FS: osfs.FS{}, Home: home, Repo: t.TempDir()}
+	env.Saved = state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+	b := newBackupsTab(NewRoot([]target.Target{tg}, Deps{Env: env}, nil).svc, tg)
+
+	b.Update(b.Activate(tg)())
+
+	if view := b.View(80, 20); !strings.Contains(view, "~/bk") || !strings.Contains(view, newerStamp) {
+		t.Fatalf("view = %q, want the snapshot from the configured dir labelled ~/bk", view)
 	}
 }
 

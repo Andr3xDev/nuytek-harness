@@ -82,6 +82,12 @@ func newDirectFlow(svc *services, title, emptyText string, planFn planFunc) *flo
 
 // setChoices replaces the list, keeping the picks of names that stay.
 func (f *flow) setChoices(choices []choice) {
+	// keep the highlighted choice across a reload
+	if c, ok := f.highlighted(); ok {
+		if i := slices.IndexFunc(choices, func(n choice) bool { return n.name == c.name }); i >= 0 {
+			f.cursor = i
+		}
+	}
 	f.choices = choices
 	present := map[string]bool{}
 	for _, c := range choices {
@@ -208,10 +214,8 @@ func (f *flow) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		switch {
 		case key.Matches(msg, k.Cancel):
 			f.back()
-		case key.Matches(msg, k.Up):
-			f.body.by(-1)
-		case key.Matches(msg, k.Down):
-			f.body.by(1)
+		case k.step(msg) != 0:
+			f.body.by(k.step(msg))
 		case f.stage == stagePreview && key.Matches(msg, k.Accept), f.stage == stageConfirm && key.Matches(msg, k.Yes):
 			return f.accept()
 		}
@@ -222,10 +226,8 @@ func (f *flow) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 func (f *flow) selectKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := f.svc.keys
 	switch {
-	case key.Matches(msg, k.Up):
-		f.cursor = max(f.cursor-1, 0)
-	case key.Matches(msg, k.Down):
-		f.cursor = max(min(f.cursor+1, len(f.choices)-1), 0)
+	case k.step(msg) != 0:
+		f.cursor = max(min(f.cursor+k.step(msg), len(f.choices)-1), 0)
 	case key.Matches(msg, k.Toggle):
 		if c, ok := f.highlighted(); ok && !c.disabled {
 			was := f.picked[c.name]

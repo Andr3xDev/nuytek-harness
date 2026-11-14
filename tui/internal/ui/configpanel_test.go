@@ -1,0 +1,431 @@
+package ui
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/dryrun"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
+)
+
+const (
+	typedPath      = "/data/q?i"
+	backupsRow     = 1
+	updateConfirm  = "Pull the latest harness and rebuild the TUI?"
+	updatePullStep = "pull --ff-only"
+	updateBuild    = "bootstrap-tui.sh"
+)
+
+type configFakes struct {
+	saves        []state.State
+	saveErr      error
+	specterLoads int
+}
+
+func (f *configFakes) save(s state.State) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saves = append(f.saves, s)
+	return nil
+}
+
+// configRoot has the Config panel focused over one target whose backups dir is configurable, its Backups tab loaded.
+func configRoot(t *testing.T, f *configFakes, saved func(home string) state.State) (*Root, *backupsTab, string) {
+	t.Helper()
+	home := t.TempDir()
+	tg := target.Target{Spec: target.Spec{
+		ID: "t", Name: "T", DefaultBackupsRel: ".bk", OwnTreeRel: ".claude",
+		Checks: availableTarget().Spec.Checks,
+		BackupDirs: func(home, _, homeStore string) []backup.Dir {
+			return []backup.Dir{{Path: homeStore, Label: config.PathLabel(home, homeStore), Kind: backup.StoreHome, Base: home}}
+		},
+	}}
+	env := check.Env{FS: osfs.FS{}, Home: home, Repo: t.TempDir()}
+	if saved != nil {
+		env.Saved = saved(home)
+	}
+	deps := Deps{
+		Env:       env,
+		SaveState: f.save,
+		SpecterLoad: func(context.Context, check.Env) specter.Facts {
+			f.specterLoads++
+			return specter.Facts{}
+		},
+	}
+	r := NewRoot([]target.Target{tg}, deps, nil)
+	r.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	var bt *backupsTab
+	for _, tb := range r.tabs[0] {
+		if b, ok := tb.(*backupsTab); ok {
+			bt = b
+		}
+	}
+	if bt == nil {
+		t.Fatal("no Backups tab")
+	}
+	pump(t, r, bt.load())
+	enterConfig(r)
+	return r, bt, home
+}
+
+func enterConfig(r *Root) {
+	press(r, upKey)
+	press(r, enterKey)
+}
+
+// editRow opens the field on the given row and replaces its prefilled value.
+func editRow(r *Root, row int, value string) {
+	for range row {
+		press(r, downKey)
+	}
+	press(r, textKey("e"))
+	r.configPanel.input.SetValue(value)
+}
+
+func TestConfigPanel_ShortcutLettersTypeIntoTheOpenField(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, nil)
+	editRow(r, 0, "")
+
+	for _, c := range typedPath {
+		if cmd := press(r, textKey(string(c))); isQuit(cmd) {
+			t.Fatalf("key %q quit the TUI while the field was open", c)
+		}
+	}
+
+	if got := r.configPanel.input.Value(); got != typedPath {
+		t.Errorf("field = %q, want %q", got, typedPath)
+	}
+	if r.showHelp || r.wizard != nil || !r.configPanel.editing {
+		t.Errorf("showHelp = %v, wizard open = %v, editing = %v; want no help, no wizard, field still open", r.showHelp, r.wizard != nil, r.configPanel.editing)
+	}
+}
+
+func TestConfigPanel_PasteGoesIntoTheOpenField(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, nil)
+	editRow(r, 0, "")
+
+	r.Update(tea.PasteMsg{Content: typedPath})
+
+	if got := r.configPanel.input.Value(); got != typedPath {
+		t.Errorf("field = %q, want the pasted %q", got, typedPath)
+	}
+}
+
+func TestConfigPanel_CtrlCQuitsWhileEditing(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, nil)
+	editRow(r, 0, "")
+
+	if !isQuit(press(r, ctrlC)) {
+		t.Fatal("ctrl+c did not quit while the field was open")
+	}
+}
+
+func TestConfigPanel_SaveAppliesToEnvAndReloadsSpecterAndBackups(t *testing.T) {
+	f := &configFakes{}
+	r, bt, home := configRoot(t, f, nil)
+	newDir := filepath.Join(home, "bk")
+	if err := os.MkdirAll(filepath.Join(newDir, newerStamp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	loadsBefore := f.specterLoads
+
+	editRow(r, backupsRow, newDir)
+	pump(t, r, press(r, enterKey))
+
+	if got := r.svc.Env.Saved.Targets["t"].BackupsDir; got != newDir || len(f.saves) != 1 {
+		t.Errorf("Env.Saved backups dir = %q, saves = %d; want %q, 1", got, len(f.saves), newDir)
+	}
+	if f.specterLoads != loadsBefore+1 {
+		t.Errorf("Specter loads = %d, want %d: a save must reload Specter", f.specterLoads, loadsBefore+1)
+	}
+	if view := bt.View(80, 20); !strings.Contains(view, newerStamp) {
+		t.Errorf("Backups view = %q, want the snapshot from the newly configured dir", view)
+	}
+	if r.configPanel.editing {
+		t.Error("field still open after a successful save")
+	}
+}
+
+func TestConfigPanel_FailedSaveKeepsFieldOpenAndAppliesNothing(t *testing.T) {
+	f := &configFakes{saveErr: errors.New("disk full")}
+	r, _, home := configRoot(t, f, nil)
+	loadsBefore := f.specterLoads
+
+	editRow(r, backupsRow, filepath.Join(home, "bk"))
+	pump(t, r, press(r, enterKey))
+
+	if !r.configPanel.editing || !strings.Contains(view(r), "disk full") {
+		t.Errorf("editing = %v, want the field open with the save error shown", r.configPanel.editing)
+	}
+	if len(r.svc.Env.Saved.Targets) != 0 || f.specterLoads != loadsBefore {
+		t.Errorf("Saved targets = %v, Specter loads = %d; want nothing applied", r.svc.Env.Saved.Targets, f.specterLoads-loadsBefore)
+	}
+}
+
+func TestConfigPanel_ResetClearsTheSavedValue(t *testing.T) {
+	f := &configFakes{}
+	r, _, _ := configRoot(t, f, func(home string) state.State {
+		return state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+	})
+	press(r, downKey)
+
+	pump(t, r, press(r, textKey("r")))
+
+	if len(f.saves) != 1 || f.saves[0].Targets["t"].BackupsDir != "" {
+		t.Errorf("saves = %+v, want one save with the backups dir empty", f.saves)
+	}
+	if got := r.svc.Env.Saved.Targets["t"].BackupsDir; got != "" {
+		t.Errorf("Env.Saved backups dir = %q, want empty", got)
+	}
+}
+
+func TestConfigPanel_RejectedPathKeepsFieldOpenWithReason(t *testing.T) {
+	f := &configFakes{}
+	r, _, _ := configRoot(t, f, nil)
+
+	editRow(r, 0, "relative/dir")
+	pump(t, r, press(r, enterKey))
+
+	if !r.configPanel.editing || r.configPanel.err == "" || !strings.Contains(view(r), r.configPanel.err) {
+		t.Errorf("editing = %v, err = %q; want the field open with the reason rendered", r.configPanel.editing, r.configPanel.err)
+	}
+	if len(f.saves) != 0 {
+		t.Errorf("saves = %d, want none for a rejected path", len(f.saves))
+	}
+}
+
+func TestConfigPanel_RowsShowLabelValueAndSource(t *testing.T) {
+	tests := []struct {
+		name  string
+		saved func(home string) state.State
+		want  []string
+		never string
+	}{
+		{
+			name:  "unset values show the default source",
+			want:  []string{"Specter root ~/dev/specter (default)", "T backups ~/.bk (default)"},
+			never: "(saved)",
+		},
+		{
+			name: "saved value shows its home-relative label and saved source",
+			saved: func(home string) state.State {
+				return state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+			},
+			want:  []string{"T backups ~/bk (saved)", "Specter root ~/dev/specter (default)"},
+			never: "~/.bk",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _, _ := configRoot(t, &configFakes{}, tt.saved)
+
+			got := strings.Join(strings.Fields(view(r)), " ")
+
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("Config panel lacks %q:\n%s", want, got)
+				}
+			}
+			if strings.Contains(got, tt.never) {
+				t.Errorf("Config panel shows %q:\n%s", tt.never, got)
+			}
+		})
+	}
+}
+
+func TestConfigPanel_UnavailableTargetHasNoBackupsRow(t *testing.T) {
+	configurable := availableTarget()
+	configurable.Spec.DefaultBackupsRel = ".bk"
+	broken := target.Target{Err: errors.New("manifest broken"), Spec: target.Spec{ID: "u", Name: "Broken", DefaultBackupsRel: ".bk"}}
+	r := NewRoot([]target.Target{configurable, broken}, Deps{}, nil)
+	r.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	enterConfig(r)
+
+	rows := r.settingRows()
+	if len(rows) == 0 {
+		t.Fatal("no setting rows")
+	}
+	var labels []string
+	for _, row := range rows {
+		labels = append(labels, row.label)
+	}
+	if !slices.Contains(labels, "T backups") {
+		t.Errorf("rows %v lack the available target's backups row", labels)
+	}
+	if slices.Contains(labels, "Broken backups") {
+		t.Errorf("rows %v include a row for an unavailable target", labels)
+	}
+}
+
+func TestConfigPanel_SpecterRootSaveAppliesAndReloadsSpecter(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	nextRoot := filepath.Join(home, "specter")
+	if err := os.MkdirAll(nextRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	loadsBefore := f.specterLoads
+
+	editRow(r, 0, nextRoot)
+	pump(t, r, press(r, enterKey))
+
+	if got := r.svc.Env.Saved.SpecterRoot; got != nextRoot || len(f.saves) != 1 {
+		t.Errorf("Env.Saved specter root = %q, saves = %d; want %q, 1", got, len(f.saves), nextRoot)
+	}
+	if f.specterLoads != loadsBefore+1 {
+		t.Errorf("Specter loads = %d, want %d: a root save must reload Specter once", f.specterLoads, loadsBefore+1)
+	}
+}
+
+func TestConfigPanel_SpecterRootResetClearsTheSavedValue(t *testing.T) {
+	f := &configFakes{}
+	r, _, _ := configRoot(t, f, func(home string) state.State {
+		return state.State{SpecterRoot: filepath.Join(home, "specter")}
+	})
+	loadsBefore := f.specterLoads
+
+	pump(t, r, press(r, textKey("r")))
+
+	if len(f.saves) != 1 || f.saves[0].SpecterRoot != "" || r.svc.Env.Saved.SpecterRoot != "" {
+		t.Errorf("saves = %+v, Env.Saved root = %q; want one save with the root cleared", f.saves, r.svc.Env.Saved.SpecterRoot)
+	}
+	if f.specterLoads != loadsBefore+1 {
+		t.Errorf("Specter loads = %d, want %d after reset", f.specterLoads, loadsBefore+1)
+	}
+}
+
+func TestConfigPanel_RootChangeDropsValidationAndItsStaleResult(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	nextRoot := filepath.Join(home, "specter")
+	if err := os.MkdirAll(nextRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.specter.validation = map[string]*storeValidation{"s": {running: true}}
+
+	editRow(r, 0, nextRoot)
+	pump(t, r, press(r, enterKey))
+	r.Update(validatedMsg{store: "s", root: ""})
+
+	if r.specter.validation != nil {
+		t.Errorf("validation = %v, want it dropped by the root change and the stale result ignored", r.specter.validation)
+	}
+	r.Update(validatedMsg{store: "s", root: nextRoot})
+	if sv := r.specter.validation["s"]; sv == nil || sv.running {
+		t.Errorf("validation = %v, want the result for the current root recorded", r.specter.validation)
+	}
+}
+
+func TestConfigPanel_EscClosesTheFieldAndSavesNothing(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	editRow(r, backupsRow, filepath.Join(home, "bk"))
+
+	press(r, escKey)
+
+	if r.configPanel.editing || len(f.saves) != 0 || len(r.svc.Env.Saved.Targets) != 0 {
+		t.Errorf("editing = %v, saves = %d, saved targets = %v; want closed field and nothing saved", r.configPanel.editing, len(f.saves), r.svc.Env.Saved.Targets)
+	}
+}
+
+func TestConfigPanel_DryRunEditAppliesInMemoryAndWritesNoStore(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.toml")
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	r.svc.SaveState = state.Discard(state.NewStore(statePath)).Save
+	newDir := filepath.Join(home, "bk")
+
+	editRow(r, backupsRow, newDir)
+	pump(t, r, press(r, enterKey))
+
+	if got := r.svc.Env.Saved.Targets["t"].BackupsDir; got != newDir {
+		t.Errorf("Env.Saved backups dir = %q, want %q applied in memory", got, newDir)
+	}
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Errorf("state file stat err = %v, want it not to exist under dry-run", err)
+	}
+}
+
+func updateRoot(t *testing.T, deps Deps) *Root {
+	t.Helper()
+	r := NewRoot([]target.Target{availableTarget()}, deps, nil)
+	r.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
+	enterConfig(r)
+	return r
+}
+
+func execStep(argv ...string) plan.Step { return plan.Exec{Argv: argv} }
+
+func selfUpdatePlan() plan.Plan {
+	p := plan.New("Update the TUI", nil, []plan.Step{
+		execStep("env", "GIT_TERMINAL_PROMPT=0", "git", "-C", "/repo", "pull", "--ff-only"),
+		execStep("bash", "/repo/scripts/bootstrap-tui.sh"),
+	})
+	p.Confirm = updateConfirm
+	p.Notes = []string{"Updates the harness repo at /repo", "restart the TUI afterwards to run the new build"}
+	return p
+}
+
+func TestConfigPanel_UpdateKeyOpensTheSelfUpdateFlow(t *testing.T) {
+	r := updateRoot(t, Deps{ConfigPlanUpdate: func(context.Context, check.Env) (plan.Plan, error) { return selfUpdatePlan(), nil }})
+
+	pump(t, r, press(r, textKey("u")))
+
+	got := view(r)
+	for _, want := range []string{updatePullStep, updateBuild, "/repo", "restart"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("preview lacks %q:\n%s", want, got)
+		}
+	}
+	pump(t, r, press(r, enterKey))
+	if got := view(r); !strings.Contains(got, updateConfirm) {
+		t.Fatalf("enter did not open the confirmation:\n%s", got)
+	}
+}
+
+func TestConfigPanel_UpdatePlannerErrorShowsInPreviewWithoutConfirm(t *testing.T) {
+	r := updateRoot(t, Deps{ConfigPlanUpdate: func(context.Context, check.Env) (plan.Plan, error) {
+		return plan.Plan{}, errors.New("harness repo has uncommitted changes")
+	}})
+
+	pump(t, r, press(r, textKey("u")))
+
+	if got := view(r); !strings.Contains(got, "harness repo has uncommitted changes") || strings.Contains(got, updateConfirm) {
+		t.Errorf("want the planner error and no confirmation:\n%s", got)
+	}
+	if isRunRequest(press(r, textKey("y"))) || isRunRequest(press(r, enterKey)) {
+		t.Error("a refused update offered a run")
+	}
+}
+
+func TestConfigPanel_UpdateUnderDryRunListsBothStepsNotExecuted(t *testing.T) {
+	r := updateRoot(t, Deps{
+		DryRun:           true,
+		Runner:           dryrun.New(),
+		ConfigPlanUpdate: func(context.Context, check.Env) (plan.Plan, error) { return selfUpdatePlan(), nil },
+	})
+	pump(t, r, press(r, textKey("u")))
+	pump(t, r, press(r, enterKey))
+
+	pump(t, r, press(r, textKey("y")))
+
+	got := view(r)
+	if !strings.Contains(got, updatePullStep) || !strings.Contains(got, updateBuild) || strings.Count(got, notExecutedText) < 2 {
+		t.Errorf("want both update steps reported %q:\n%s", notExecutedText, got)
+	}
+}

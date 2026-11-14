@@ -8,6 +8,7 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
@@ -27,7 +28,6 @@ const (
 	checkMCPEnv       = "mcp-env"
 	checkMCPCommands  = "mcp-commands"
 	checkFrontmatter  = "frontmatter"
-	backupDirHome     = ".claude-backups"
 	backupDirRepo     = ".refresh-backups"
 	componentSettings = "settings"
 	componentHUD      = "claude-hud-config"
@@ -53,11 +53,13 @@ func Spec() target.Spec {
 			kindMCP:              {Install: installMCP, Remove: removeMCP, Hard: hardInstallMCP},
 			kindPlugins:          {Install: installPlugins, Hard: hardInstallPlugins, Late: true, ExplicitUpdate: true},
 		},
-		Checks: checks,
-		Manage: manage,
-		BackupDirs: func(home, repo string) []backup.Dir {
+		Checks:            checks,
+		Manage:            manage,
+		DefaultBackupsRel: ".claude-backups",
+		OwnTreeRel:        ".claude",
+		BackupDirs: func(home, repo, homeStore string) []backup.Dir {
 			return []backup.Dir{
-				{Path: filepath.Join(home, backupDirHome), Label: "~/" + backupDirHome, Kind: backup.StoreHome, Base: home},
+				{Path: homeStore, Label: config.PathLabel(home, homeStore), Kind: backup.StoreHome, Base: home},
 				{Path: filepath.Join(repo, backupDirRepo), Label: backupDirRepo, Kind: backup.StoreRepo, Base: repo},
 			}
 		},

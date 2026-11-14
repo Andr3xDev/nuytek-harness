@@ -11,9 +11,8 @@ import (
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 )
-
-const rootEnvVar = "NUYTEK_SPECTER_ROOT"
 
 // fakeExec answers Run by the space-joined command line and records every command it was asked to run.
 type fakeExec struct {
@@ -72,15 +71,11 @@ func commandLine(name string, args []string) string {
 func envWith(t *testing.T, exec check.Exec, root string) check.Env {
 	t.Helper()
 	return check.Env{
-		FS:   osfs.FS{},
-		Exec: exec,
-		Home: t.TempDir(),
-		LookupEnv: func(key string) (string, bool) {
-			if key == rootEnvVar && root != "" {
-				return root, true
-			}
-			return "", false
-		},
+		FS:        osfs.FS{},
+		Exec:      exec,
+		Home:      t.TempDir(),
+		LookupEnv: func(string) (string, bool) { return "", false },
+		Saved:     state.State{SpecterRoot: root},
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
@@ -74,6 +75,30 @@ func PlanPull(ctx context.Context, env check.Env, t target.Target, names []strin
 		}
 	}
 	return plan.New("Pull", store, steps), nil
+}
+
+// PullChanges lists the pull components that would copy at least one file into the repo.
+// A component whose plan fails other than by a missing deployed path stays listed, so its error shows when planned.
+func PullChanges(ctx context.Context, env check.Env, t target.Target) []string {
+	var names []string
+	for _, c := range t.Manifest.Components {
+		if !c.Pull {
+			continue
+		}
+		p, err := PlanPull(ctx, env, t, []string{c.Name})
+		if errors.As(err, &ErrMissingDeployed{}) {
+			continue
+		}
+		if err != nil || slices.ContainsFunc(p.Steps, copiesFiles) {
+			names = append(names, c.Name)
+		}
+	}
+	return names
+}
+
+func copiesFiles(s plan.Step) bool {
+	cp, ok := s.(plan.Copy)
+	return ok && len(cp.Files) > 0
 }
 
 // pullCopy turns Overwrite rows into one Copy; Create rows (deployed-only) and deployed symlinks

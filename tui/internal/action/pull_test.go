@@ -238,3 +238,24 @@ func TestPlanPull(t *testing.T) {
 		})
 	}
 }
+
+func TestPullChanges(t *testing.T) {
+	f := newFixture(t)
+	f.writeRepo("claude/agents/a.md", "old", 0o644)
+	f.writeHome(".claude/agents/a.md", "new", 0o644)
+	f.writeRepo("claude/rules/r.md", "same", 0o644)
+	f.writeHome(".claude/rules/r.md", "same", 0o644)
+	f.writeHome(".claude/commands/only.md", "mine", 0o644)
+	components := []manifest.Component{
+		pullable(component("agents", manifest.KindDir)),
+		pullable(component("rules", manifest.KindDir)),
+		pullable(component("commands", manifest.KindDir)),
+		pullable(component("hooks", manifest.KindDirX)),
+	}
+
+	got := action.PullChanges(context.Background(), f.env(), f.target(components...))
+
+	if !slices.Equal(got, []string{"agents"}) {
+		t.Errorf("PullChanges = %v, want [agents]: identical, deployed-only and missing are hidden", got)
+	}
+}

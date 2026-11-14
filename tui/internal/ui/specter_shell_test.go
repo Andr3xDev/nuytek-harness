@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
@@ -22,12 +23,13 @@ func specterRoot(t *testing.T) *Root {
 	t.Helper()
 	tgt := availableTarget()
 	tgt.Spec.Name = "Alpha"
-	r := NewRoot([]target.Target{tgt}, Deps{SpecterLoad: func(context.Context) specter.Facts { return specter.Facts{} }}, nil)
+	r := NewRoot([]target.Target{tgt}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
 	r.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return r
 }
 
 func selectSpecter(r *Root) {
+	press(r, upKey)
 	press(r, upKey)
 }
 
@@ -97,7 +99,7 @@ func TestRoot_CLIDashboardRefreshAlsoReloadsSpecter(t *testing.T) {
 
 func TestRoot_QuitCancelsInFlightSpecterLoad(t *testing.T) {
 	var loadCtx context.Context
-	r := NewRoot([]target.Target{availableTarget()}, Deps{SpecterLoad: func(ctx context.Context) specter.Facts {
+	r := NewRoot([]target.Target{availableTarget()}, Deps{SpecterLoad: func(ctx context.Context, _ check.Env) specter.Facts {
 		loadCtx = ctx
 		return specter.Facts{}
 	}}, nil)
@@ -146,30 +148,36 @@ func TestRoot_RunDismissalWithSpecterSelectedReloadsSpecter(t *testing.T) {
 }
 
 func TestRoot_SidebarWalksBetweenSpecterAndTargets(t *testing.T) {
-	a, b := availableTarget(), availableTarget()
-	r := NewRoot([]target.Target{a, b}, Deps{SpecterLoad: func(context.Context) specter.Facts { return specter.Facts{} }}, nil)
+	r := NewRoot([]target.Target{availableTarget(), availableTarget()}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
 
 	press(r, upKey)
-	if !r.specterSelected || r.cursor != 0 {
-		t.Fatalf("up from target 0: specterSelected = %v, cursor = %d; want true, 0", r.specterSelected, r.cursor)
-	}
-	if _, ok := r.currentTarget(); ok {
-		t.Fatal("currentTarget reported a target while Specter is selected")
-	}
-	press(r, upKey)
-	if !r.specterSelected {
-		t.Fatal("up from Specter left the Specter entry")
+	if _, ok := r.currentTarget(); r.entry != entryConfig || ok {
+		t.Fatalf("up from target 0: entry = %v, on a target = %v; want config, false", r.entry, ok)
 	}
 	press(r, downKey)
-	if r.specterSelected || r.cursor != 0 {
-		t.Fatalf("down from Specter: specterSelected = %v, cursor = %d; want false, 0", r.specterSelected, r.cursor)
-	}
-	if _, ok := r.currentTarget(); !ok {
-		t.Fatal("currentTarget reported none on a target")
-	}
 	press(r, downKey)
-	if r.cursor != 1 {
-		t.Fatalf("cursor = %d, want 1", r.cursor)
+	if r.entry != entryTarget || r.cursor != 1 {
+		t.Fatalf("down twice: entry = %v, cursor = %d; want target, 1", r.entry, r.cursor)
+	}
+}
+
+func TestRoot_ConfigPanelFocusEscAndTabReturnToSidebar(t *testing.T) {
+	for name, k := range map[string]tea.KeyPressMsg{"esc": escKey, "tab": {Code: tea.KeyTab}} {
+		t.Run(name, func(t *testing.T) {
+			r := specterRoot(t)
+			press(r, upKey)
+			press(r, enterKey)
+			if r.entry != entryConfig || r.focus != focusPanel {
+				t.Fatalf("entry = %v, focus = %v; want config with the panel focused", r.entry, r.focus)
+			}
+			if got := plain(r.render()); !strings.Contains(got, "Config") {
+				t.Fatalf("Config panel did not render:\n%s", got)
+			}
+			press(r, k)
+			if r.focus != focusSidebar || r.entry != entryConfig {
+				t.Fatalf("focus = %v, entry = %v; want sidebar with Config still selected", r.focus, r.entry)
+			}
+		})
 	}
 }
 
@@ -183,8 +191,8 @@ func TestRoot_SpecterPanelFocusEscAndTabReturnToSidebar(t *testing.T) {
 				t.Fatal("enter did not focus the Specter panel")
 			}
 			press(r, k)
-			if r.focus != focusSidebar || !r.specterSelected {
-				t.Fatalf("focus = %v, specterSelected = %v; want sidebar with Specter still selected", r.focus, r.specterSelected)
+			if r.focus != focusSidebar || r.entry != entrySpecter {
+				t.Fatalf("focus = %v, entry = %v; want sidebar with Specter still selected", r.focus, r.entry)
 			}
 		})
 	}

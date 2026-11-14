@@ -108,7 +108,7 @@ func (f *fixture) target(components ...manifest.Component) target.Target {
 		Manifest: manifest.Manifest{Components: components},
 		Spec: target.Spec{
 			ID: "t", Name: "t", Special: f.special,
-			BackupDirs: func(home, repo string) []backup.Dir {
+			BackupDirs: func(home, repo, _ string) []backup.Dir {
 				dirs := []backup.Dir{{Path: f.homeStore(), Label: "home", Kind: backup.StoreHome, Base: home}}
 				if !f.noRepoStore {
 					dirs = append(dirs, backup.Dir{Path: f.repoStore(), Label: "repo", Kind: backup.StoreRepo, Base: repo})

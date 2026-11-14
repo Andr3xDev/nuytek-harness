@@ -9,7 +9,30 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 )
+
+func TestPlanBackup_UsesTheConfiguredHomeStore(t *testing.T) {
+	f := newFixture(t)
+	f.writeHome(".claude/agents/a.md", "A", 0o644)
+	configured := filepath.Join(f.home, "bk")
+	tg := f.target(component("agents", manifest.KindDir))
+	tg.Spec.DefaultBackupsRel = homeStoreDir
+	tg.Spec.BackupDirs = func(home, _, homeStore string) []backup.Dir {
+		return []backup.Dir{{Path: homeStore, Label: "home", Kind: backup.StoreHome, Base: home}}
+	}
+	env := f.env()
+	env.Saved = state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: configured}}}
+
+	p, err := action.PlanBackup(env, tg)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := onlyStep[plan.Snapshot](t, p).Store.Path; got != configured {
+		t.Errorf("store path = %q, want the configured %q", got, configured)
+	}
+}
 
 func TestPlanBackup(t *testing.T) {
 	shared := func(name string) manifest.Component {

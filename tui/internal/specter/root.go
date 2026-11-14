@@ -7,15 +7,12 @@ import (
 	"strings"
 )
 
-const (
-	rootEnvVar     = "NUYTEK_SPECTER_ROOT"
-	defaultRootRel = "dev/specter"
-)
+const defaultRootRel = "dev/specter"
 
 type RootSource string
 
 const (
-	RootSourceEnv     RootSource = "env"
+	RootSourceSaved   RootSource = "saved"
 	RootSourceDefault RootSource = "default"
 )
 
@@ -26,15 +23,19 @@ type Root struct {
 	Relative    bool // a relative path is a missing root, never "outside home"
 }
 
-// ResolveRoot never touches the filesystem; an empty env value counts as unset.
-func ResolveRoot(lookupEnv func(string) (string, bool), home string) Root {
-	root := Root{Path: filepath.Join(home, defaultRootRel), Source: RootSourceDefault}
-	if v, ok := lookupEnv(rootEnvVar); ok && v != "" {
-		root = Root{Path: filepath.Clean(v), Source: RootSourceEnv}
+// ResolveRoot never touches the filesystem; an empty saved value counts as unset.
+func ResolveRoot(saved, home string) Root {
+	root := Root{Path: DefaultRoot(home), Source: RootSourceDefault}
+	if saved != "" {
+		root = Root{Path: filepath.Clean(saved), Source: RootSourceSaved}
 	}
 	root.Relative = !filepath.IsAbs(root.Path)
 	root.OutsideHome = !root.Relative && outsideHome(home, root.Path)
 	return root
+}
+
+func DefaultRoot(home string) string {
+	return filepath.Join(home, defaultRootRel)
 }
 
 func outsideHome(home, path string) bool {

@@ -12,10 +12,7 @@ import (
 var storeNames = map[backup.StoreKind]string{backup.StoreHome: "home", backup.StoreRepo: "repo"}
 
 func storeDirs(t target.Target, env check.Env) []backup.Dir {
-	if t.Spec.BackupDirs == nil {
-		return nil
-	}
-	return t.Spec.BackupDirs(env.Home, env.Repo)
+	return t.Spec.Stores(env)
 }
 
 // storeOf returns the target's backup store of the kind.

@@ -36,17 +36,17 @@ type specterFakes struct {
 func (f *specterFakes) deps(facts specter.Facts) Deps {
 	registerPlan := plan.Plan{Steps: []plan.Step{plan.Copy{Rows: []plan.Change{{Effect: plan.EffectRun, Path: registerDirRow}}}}}
 	return Deps{
-		SpecterLoad: func(context.Context) specter.Facts { return facts },
+		SpecterLoad: func(context.Context, check.Env) specter.Facts { return facts },
 		SpecterValidate: func(ctx context.Context, id string) (specter.Validation, error) {
 			f.validateCalls++
 			f.validateCtxErr = append(f.validateCtxErr, ctx.Err())
 			return f.validation, f.validateErr
 		},
-		SpecterPlanFastInit: func(_ context.Context, mapTo string) (plan.Plan, error) {
+		SpecterPlanFastInit: func(_ context.Context, _ check.Env, mapTo string) (plan.Plan, error) {
 			f.fastInitMapTo = append(f.fastInitMapTo, mapTo)
 			return registerPlan, nil
 		},
-		SpecterPlanMaintenance: func(context.Context) (plan.Plan, error) {
+		SpecterPlanMaintenance: func(context.Context, check.Env) (plan.Plan, error) {
 			f.maintenanceRuns++
 			return registerPlan, nil
 		},
@@ -151,10 +151,10 @@ func assertRendered(t *testing.T, got string, results []check.Result) {
 
 func TestSpecterScreen_RootBlockShowsPathAndSource(t *testing.T) {
 	facts := baseFacts()
-	facts.Root = specter.Root{Path: "/home/u/custom-root", Source: specter.RootSourceEnv}
+	facts.Root = specter.Root{Path: "/home/u/custom-root", Source: specter.RootSourceSaved}
 	got := view(screenRoot(t, facts, &specterFakes{}))
 
-	if !strings.Contains(got, "/home/u/custom-root") || !strings.Contains(got, string(specter.RootSourceEnv)) {
+	if !strings.Contains(got, "/home/u/custom-root") || !strings.Contains(got, string(specter.RootSourceSaved)) {
 		t.Fatalf("root path and source missing:\n%s", got)
 	}
 }
@@ -458,7 +458,7 @@ func TestSpecterScreen_MaintenanceShowsDriftReportAbovePreview(t *testing.T) {
 
 func TestSpecterScreen_ActionsHiddenWhenRootOutsideHome(t *testing.T) {
 	facts := baseFacts()
-	facts.Root = specter.Root{Path: "/srv/specter", Source: specter.RootSourceEnv, OutsideHome: true}
+	facts.Root = specter.Root{Path: "/srv/specter", Source: specter.RootSourceSaved, OutsideHome: true}
 	fakes := &specterFakes{}
 	r := screenRoot(t, facts, fakes)
 
@@ -476,7 +476,7 @@ func TestSpecterScreen_ActionsHiddenWhenRootOutsideHome(t *testing.T) {
 
 func TestSpecterScreen_RootOutsideHomeStillRendersOverviewAndChecks(t *testing.T) {
 	facts := baseFacts()
-	facts.Root = specter.Root{Path: "/srv/specter", Source: specter.RootSourceEnv, OutsideHome: true}
+	facts.Root = specter.Root{Path: "/srv/specter", Source: specter.RootSourceSaved, OutsideHome: true}
 	got := view(screenRoot(t, facts, &specterFakes{}))
 
 	for _, want := range []string{"/home/u/dev/specter/alpha", "git@example.test:org/widget.git", "widget-memory"} {

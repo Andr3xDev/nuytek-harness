@@ -26,7 +26,7 @@ func specterTarget() target.Target {
 		Spec: target.Spec{
 			ID: "t", Name: "t",
 			Special: map[manifest.Kind]plan.KindOps{manifest.KindSpecter: specter.Ops},
-			BackupDirs: func(home, _ string) []backup.Dir {
+			BackupDirs: func(home, _, _ string) []backup.Dir {
 				return []backup.Dir{{Path: filepath.Join(home, ".bk"), Label: "home", Kind: backup.StoreHome, Base: home}}
 			},
 		},

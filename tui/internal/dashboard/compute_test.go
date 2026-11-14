@@ -19,6 +19,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -183,13 +184,37 @@ func TestCompute_EvaluationIsBoundedAndParallel(t *testing.T) {
 	}
 }
 
+func TestCompute_LastBackupUsesConfiguredPath(t *testing.T) {
+	home := t.TempDir()
+	for _, dir := range []string{"bk/20240301-120000", ".default/20240101-120000"} {
+		if err := os.MkdirAll(filepath.Join(home, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tg := target.Target{Spec: target.Spec{
+		ID:                "t",
+		DefaultBackupsRel: ".default",
+		BackupDirs: func(home, _, homeStore string) []backup.Dir {
+			return []backup.Dir{{Path: homeStore, Label: "home"}}
+		},
+	}}
+	env := check.Env{FS: osfs.FS{}, Home: home}
+	env.Saved = state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+
+	got := dashboard.Compute(context.Background(), env, tg)
+
+	if got.LastBackup == nil || got.LastBackup.Time.Format("20060102-150405") != "20240301-120000" {
+		t.Fatalf("LastBackup = %+v, want the newer stamp from the configured dir", got.LastBackup)
+	}
+}
+
 func TestCompute_FeedsMissingDepsAndLastBackup(t *testing.T) {
 	backups := t.TempDir()
 	if err := os.Mkdir(filepath.Join(backups, "20240301-120000"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	tg := target.Target{
-		Spec: target.Spec{BackupDirs: func(home, repo string) []backup.Dir {
+		Spec: target.Spec{BackupDirs: func(home, repo, _ string) []backup.Dir {
 			return []backup.Dir{{Path: filepath.Join(home, filepath.Base(backups)), Label: "claude"}}
 		}},
 		Manifest: manifest.Manifest{Components: []manifest.Component{{Name: "hooks", Kind: manifest.KindDirX, Needs: []string{"jq"}}}},

@@ -32,12 +32,7 @@ func (d *dashboardTab) Activate(target.Target) tea.Cmd {
 
 func (d *dashboardTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok {
-		switch {
-		case key.Matches(k, d.svc.keys.Up):
-			d.scroll.by(-1)
-		case key.Matches(k, d.svc.keys.Down):
-			d.scroll.by(1)
-		}
+		d.scroll.by(d.svc.keys.step(k))
 	}
 	return d, nil
 }

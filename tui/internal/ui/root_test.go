@@ -117,6 +117,40 @@ func TestRoot_PlannedTargetHasNoComputeAndKeepsSidebarFocus(t *testing.T) {
 	}
 }
 
+func TestRoot_ComputedReloadsDirtyPullTabOnlyWhenActive(t *testing.T) {
+	for _, active := range []bool{true, false} {
+		name := "inactive"
+		if active {
+			name = "active"
+		}
+		t.Run(name, func(t *testing.T) {
+			r := newRoot(t, availableTarget())
+			r.Init()
+			var p *pullTab
+			for i, tb := range r.tabs[0] {
+				if pt, ok := tb.(*pullTab); ok {
+					p = pt
+					if active {
+						r.tab = i
+					}
+				}
+			}
+			if p == nil {
+				t.Fatal("no Pull tab")
+			}
+
+			_, cmd := r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
+
+			if active && (cmd == nil || p.dirty) {
+				t.Errorf("cmd nil = %v, dirty = %v; want a load cmd and a clean tab", cmd == nil, p.dirty)
+			}
+			if !active && (cmd != nil || !p.dirty) {
+				t.Errorf("cmd nil = %v, dirty = %v; want no load and a dirty tab", cmd == nil, p.dirty)
+			}
+		})
+	}
+}
+
 func TestRoot_RunActiveRefusesKeysAndOnlySetsNotice(t *testing.T) {
 	for _, k := range []string{"i", "r", "x", "d", "[", "h", "l"} {
 		t.Run(k, func(t *testing.T) {
@@ -292,6 +326,73 @@ func TestRoot_PanelTabKeyReturnsToSidebar(t *testing.T) {
 	press(r, tea.KeyPressMsg{Code: tea.KeyTab})
 	if r.focus != focusSidebar {
 		t.Fatal("tab did not return focus to the sidebar")
+	}
+}
+
+func TestKeyMap_StepMapsEveryMovementSpelling(t *testing.T) {
+	k := newKeyMap()
+	tests := []struct {
+		msg  tea.KeyPressMsg
+		want int
+	}{
+		{textKey("j"), 1},
+		{upKey, -1},
+		{textKey("J"), jumpRows},
+		{tea.KeyPressMsg{Code: 'j', Mod: tea.ModShift}, jumpRows},
+		{textKey("K"), -jumpRows},
+		{tea.KeyPressMsg{Code: 'k', Mod: tea.ModShift}, -jumpRows},
+		{textKey("x"), 0},
+	}
+	for _, tt := range tests {
+		if got := k.step(tt.msg); got != tt.want {
+			t.Errorf("step(%q) = %d, want %d", tt.msg.String(), got, tt.want)
+		}
+	}
+}
+
+func TestRoot_MoveSidebarClampsAndEntersSpecterAtTheTop(t *testing.T) {
+	const targets = 7
+	tests := []struct {
+		name         string
+		cursor       int
+		entry        entry
+		delta        int
+		wantCursor   int
+		wantEntry    entry
+		wantNoAction bool
+	}{
+		{name: "down one", cursor: 1, delta: 1, wantCursor: 2},
+		{name: "jump down", cursor: 1, delta: jumpRows, wantCursor: 6},
+		{name: "jump down clamps", cursor: 4, delta: jumpRows, wantCursor: 6},
+		{name: "no-op at last target", cursor: 6, delta: jumpRows, wantCursor: 6, wantNoAction: true},
+		{name: "up one", cursor: 3, delta: -1, wantCursor: 2},
+		{name: "jump up", cursor: 6, delta: -jumpRows, wantCursor: 1},
+		{name: "jump up clamps at first target", cursor: 3, delta: -jumpRows, wantCursor: 0},
+		{name: "up from first target enters Config", cursor: 0, delta: -1, wantCursor: 0, wantEntry: entryConfig},
+		{name: "jump up from first target enters Config", cursor: 0, delta: -jumpRows, wantCursor: 0, wantEntry: entryConfig},
+		{name: "up from Config enters Specter", cursor: 0, entry: entryConfig, delta: -1, wantCursor: 0, wantEntry: entrySpecter},
+		{name: "down from Config returns to the first target", cursor: 0, entry: entryConfig, delta: 1, wantCursor: 0},
+		{name: "down from Specter enters Config", cursor: 0, entry: entrySpecter, delta: 1, wantCursor: 0, wantEntry: entryConfig},
+		{name: "up on Specter stays", cursor: 0, entry: entrySpecter, delta: -1, wantCursor: 0, wantEntry: entrySpecter, wantNoAction: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := make([]target.Target, targets)
+			for i := range ts {
+				ts[i] = target.Target{Spec: target.Planned("p", "P")}
+			}
+			r := newRoot(t, ts...)
+			r.cursor, r.entry = tt.cursor, tt.entry
+
+			cmd := r.moveSidebar(tt.delta)
+
+			if r.cursor != tt.wantCursor || r.entry != tt.wantEntry {
+				t.Errorf("cursor %d entry %v, want %d %v", r.cursor, r.entry, tt.wantCursor, tt.wantEntry)
+			}
+			if tt.wantNoAction && cmd != nil {
+				t.Error("a move that changes nothing must not trigger a recompute")
+			}
+		})
 	}
 }
 

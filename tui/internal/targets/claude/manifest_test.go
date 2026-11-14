@@ -9,6 +9,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/testutil"
 )
 
@@ -103,6 +104,34 @@ func TestSpecChecks_RunningEveryCheckMutatesNothing(t *testing.T) {
 	}
 }
 
+func TestSpec_StoresFollowTheSavedHomeStore(t *testing.T) {
+	tests := []struct {
+		name      string
+		saved     string
+		wantPath  string
+		wantLabel string
+	}{
+		{"default", "", "/home/u/.claude-backups", "~/.claude-backups"},
+		{"saved inside home is shown with a tilde", "/home/u/bk", "/home/u/bk", "~/bk"},
+		{"saved outside home is shown absolute", "/data/bk", "/data/bk", "/data/bk"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := check.Env{Home: "/home/u", Repo: "/repo"}
+			env.Saved = state.State{Targets: map[string]state.TargetState{"claude": {BackupsDir: tt.saved}}}
+
+			dirs := Spec().Stores(env)
+
+			if len(dirs) != 2 || dirs[0].Kind != backup.StoreHome {
+				t.Fatalf("Stores = %+v, want the home store first of two", dirs)
+			}
+			if dirs[0].Path != tt.wantPath || dirs[0].Label != tt.wantLabel {
+				t.Errorf("home store = %q labelled %q, want %q labelled %q", dirs[0].Path, dirs[0].Label, tt.wantPath, tt.wantLabel)
+			}
+		})
+	}
+}
+
 func TestSpec_KindOpsAndBackupDirs(t *testing.T) {
 	spec := Spec()
 	for kind := range spec.Evaluators {
@@ -118,7 +147,7 @@ func TestSpec_KindOpsAndBackupDirs(t *testing.T) {
 		t.Errorf("plugins ops = Remove nil %v, Late %v, ExplicitUpdate %v; want true, true, true", plugins.Remove == nil, plugins.Late, plugins.ExplicitUpdate)
 	}
 
-	dirs := spec.BackupDirs("/home", "/repo")
+	dirs := spec.BackupDirs("/home", "/repo", spec.HomeStore("/home", ""))
 	if len(dirs) != 2 || dirs[0].Path == dirs[1].Path {
 		t.Fatalf("BackupDirs = %+v, want two distinct paths", dirs)
 	}
