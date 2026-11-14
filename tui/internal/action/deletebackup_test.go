@@ -96,6 +96,24 @@ func TestPlanDeleteBackup(t *testing.T) {
 	}
 }
 
+func TestPlanDeleteBackup_ConfirmCapsTheNamedStamps(t *testing.T) {
+	stamps := []string{"20240101-000000", "20240102-000000", "20240103-000000", "20240104-000000", "20240105-000000"}
+	f := newFixture(t)
+	var entries []backup.Entry
+	for _, stamp := range stamps {
+		f.write(filepath.Join(f.homeStore(), stamp), ".claude/a.md", "x", 0o644)
+		entries = append(entries, backup.Entry{Stamp: stamp, Path: filepath.Join(f.homeStore(), stamp)})
+	}
+
+	p, err := action.PlanDeleteBackup(f.env(), f.target(), entries...)
+
+	requireNoError(t, err)
+	if !strings.Contains(p.Confirm, "Delete 5 backups") || !strings.Contains(p.Confirm, "and 2 more") ||
+		!strings.Contains(p.Confirm, stamps[2]) || strings.Contains(p.Confirm, stamps[3]) {
+		t.Errorf("Confirm %q, want the count, the first 3 stamps and \"and 2 more\"", p.Confirm)
+	}
+}
+
 func TestPlanDeleteBackup_SeveralEntries(t *testing.T) {
 	const first, second = "20240101-000000", "20240102-000000"
 	f := newFixture(t)

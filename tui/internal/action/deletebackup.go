@@ -12,6 +12,9 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
+// confirmStampLimit caps the stamps named in a multi-delete confirmation; the count always shows the rest.
+const confirmStampLimit = 3
+
 // PlanDeleteBackup needs env.FS for the symlink guards and the size in the confirmation.
 // Every entry is validated on its own and one refusal fails the whole plan.
 // The plan has no store: a snapshot of a snapshot is never made.
@@ -34,7 +37,11 @@ func PlanDeleteBackup(env check.Env, t target.Target, entries ...backup.Entry) (
 		return p, nil
 	}
 	p := plan.New(fmt.Sprintf("Delete %d backups", len(entries)), nil, steps)
-	p.Confirm = fmt.Sprintf("Delete %d backups (%s; %d bytes)?", len(entries), strings.Join(stamps, ", "), total)
+	listed := strings.Join(stamps[:min(len(stamps), confirmStampLimit)], ", ")
+	if more := len(stamps) - confirmStampLimit; more > 0 {
+		listed += fmt.Sprintf(" and %d more", more)
+	}
+	p.Confirm = fmt.Sprintf("Delete %d backups (%s; %d bytes)?", len(entries), listed, total)
 	return p, nil
 }
 
