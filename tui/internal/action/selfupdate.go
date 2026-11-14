@@ -30,9 +30,9 @@ func PlanSelfUpdate(ctx context.Context, env check.Env) (plan.Plan, error) {
 	}
 
 	// GIT_TERMINAL_PROMPT=0 makes a credential prompt fail instead of hanging the run; BatchMode does the
-	// same for ssh, unless the user already configured GIT_SSH_COMMAND.
+	// same for ssh, unless the user already configured how git runs ssh.
 	pullArgv := []string{"env", "GIT_TERMINAL_PROMPT=0"}
-	if _, set := env.LookupEnv("GIT_SSH_COMMAND"); !set {
+	if !sshConfigured(ctx, env) {
 		pullArgv = append(pullArgv, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
 	}
 	pullArgv = append(pullArgv, "git", "-C", env.Repo, "pull", "--ff-only")
@@ -52,6 +52,17 @@ func PlanSelfUpdate(ctx context.Context, env check.Env) (plan.Plan, error) {
 		"restart the TUI afterwards to run the new build",
 	}
 	return p, nil
+}
+
+// sshConfigured is true when the user already chose the ssh command, which BatchMode injection would override.
+func sshConfigured(ctx context.Context, env check.Env) bool {
+	for _, name := range []string{"GIT_SSH_COMMAND", "GIT_SSH"} {
+		if _, set := env.LookupEnv(name); set {
+			return true
+		}
+	}
+	res, err := env.Exec.Run(ctx, "git", "-C", env.Repo, "config", "--get", "core.sshCommand")
+	return err == nil && res.ExitCode == 0 && strings.TrimSpace(string(res.Stdout)) != ""
 }
 
 // currentBranch returns " (branch <name>)", or "" when the branch cannot be read: it is only informational.

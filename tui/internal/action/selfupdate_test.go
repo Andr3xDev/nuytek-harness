@@ -21,11 +21,19 @@ type statusExec struct {
 	result check.ExecResult
 	err    error
 	branch string
-	calls  [][]string
+	// sshCommand is the core.sshCommand git config value; empty means unset.
+	sshCommand string
+	calls      [][]string
 }
 
 func (s *statusExec) Run(_ context.Context, name string, args ...string) (check.ExecResult, error) {
 	s.calls = append(s.calls, append([]string{name}, args...))
+	if slices.Contains(args, "config") {
+		if s.sshCommand == "" {
+			return check.ExecResult{ExitCode: 1}, nil
+		}
+		return check.ExecResult{Stdout: []byte(s.sshCommand + "\n")}, nil
+	}
 	if slices.Contains(args, "rev-parse") {
 		return check.ExecResult{Stdout: []byte(s.branch + "\n")}, nil
 	}
@@ -47,7 +55,7 @@ func TestPlanSelfUpdateClean(t *testing.T) {
 	}
 
 	wantProbe := []string{"git", "-C", f.repo, "status", "--porcelain", "--untracked-files=no"}
-	if len(ex.calls) != 2 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
+	if len(ex.calls) != 3 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
 		t.Errorf("probe calls = %v, want status probe first", ex.calls)
 	}
 
@@ -79,17 +87,37 @@ func TestPlanSelfUpdateClean(t *testing.T) {
 	}
 }
 
-func TestPlanSelfUpdateKeepsConfiguredSSHCommandAndOmitsUnknownBranch(t *testing.T) {
-	f := newFixture(t)
-	env := selfUpdateEnv(f, &statusExec{})
-	env.LookupEnv = func(k string) (string, bool) { return "ssh -i key", k == "GIT_SSH_COMMAND" }
-	p, err := action.PlanSelfUpdate(context.Background(), env)
+func TestPlanSelfUpdateKeepsConfiguredSSH(t *testing.T) {
+	tests := []struct {
+		name       string
+		setEnv     string
+		sshCommand string
+	}{
+		{name: "GIT_SSH_COMMAND", setEnv: "GIT_SSH_COMMAND"},
+		{name: "GIT_SSH", setEnv: "GIT_SSH"},
+		{name: "core.sshCommand", sshCommand: "ssh -i key"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			env := selfUpdateEnv(f, &statusExec{sshCommand: tt.sshCommand})
+			env.LookupEnv = func(k string) (string, bool) { return "ssh -i key", k == tt.setEnv }
+			p, err := action.PlanSelfUpdate(context.Background(), env)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"env", "GIT_TERMINAL_PROMPT=0", "git", "-C", f.repo, "pull", "--ff-only"}
+			if got := stepsOf[plan.Exec](p)[0].Argv; !reflect.DeepEqual(got, want) {
+				t.Errorf("pull argv = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestPlanSelfUpdateOmitsUnknownBranch(t *testing.T) {
+	p, err := action.PlanSelfUpdate(context.Background(), selfUpdateEnv(newFixture(t), &statusExec{}))
 	if err != nil {
 		t.Fatal(err)
-	}
-	want := []string{"env", "GIT_TERMINAL_PROMPT=0", "git", "-C", f.repo, "pull", "--ff-only"}
-	if got := stepsOf[plan.Exec](p)[0].Argv; !reflect.DeepEqual(got, want) {
-		t.Errorf("pull argv = %v, want %v", got, want)
 	}
 	if notes := strings.Join(p.Notes, "\n"); strings.Contains(notes, "branch") {
 		t.Errorf("notes %q mention a branch, want none when unreadable", notes)
