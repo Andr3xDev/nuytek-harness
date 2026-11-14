@@ -107,9 +107,28 @@ func TestStore_SaveMovesCorruptFileAsideAndWritesAValidOne(t *testing.T) {
 	if got.RepoPath != "/new" || warning != "" {
 		t.Fatalf("Load = %+v, %q; want RepoPath /new and no warning", got, warning)
 	}
-	kept, err := os.ReadFile(path + ".corrupt")
-	if err != nil || string(kept) != corrupt {
-		t.Errorf(".corrupt = %q, %v; want the replaced bytes", kept, err)
+	asides, err := filepath.Glob(path + ".corrupt-*")
+	if err != nil || len(asides) != 1 {
+		t.Fatalf("timestamped backups = %v, %v; want exactly one", asides, err)
+	}
+	if kept, err := os.ReadFile(asides[0]); err != nil || string(kept) != corrupt {
+		t.Errorf("%s = %q, %v; want the replaced bytes", asides[0], kept, err)
+	}
+	if older, err := os.ReadFile(path + ".corrupt"); err != nil || string(older) != "older corrupt" {
+		t.Errorf(".corrupt = %q, %v; want the earlier backup untouched", older, err)
+	}
+}
+
+func TestStore_SaveAbortsOnAnUnreadableFileWithoutReplacingIt(t *testing.T) {
+	path := statePath(t)
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.NewStore(path).Save(state.State{RepoPath: "/new"}); err == nil {
+		t.Fatal("Save succeeded over an unreadable state file")
+	}
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		t.Errorf("state path = %v, %v; want it left untouched", info, err)
 	}
 }
 

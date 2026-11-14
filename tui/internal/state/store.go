@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -14,6 +15,8 @@ const (
 	stateDirMode  = 0o755
 	stateFileMode = 0o644
 	corruptSuffix = ".corrupt"
+	// Nanoseconds keep two corrupt files moved aside in quick succession apart.
+	corruptStampLayout = "20060102T150405.000000000"
 )
 
 const (
@@ -68,7 +71,7 @@ func (s *Store) warning(err error) string {
 
 // Save writes via a temp file in the same directory, then renames, so readers never see a partial file.
 // It merges into the existing file so keys it does not know survive; an empty value removes its key, and a
-// target table left with no keys is dropped. A corrupt file is renamed to state.toml.corrupt, then replaced.
+// target table left with no keys is dropped. A corrupt file is renamed to state.toml.corrupt-<timestamp>, then replaced.
 func (s *Store) Save(st State) error {
 	doc, err := s.readDoc()
 	if err != nil {
@@ -128,17 +131,26 @@ func (s *Store) Save(st State) error {
 	return os.Rename(tmp.Name(), s.path)
 }
 
-// readDoc returns the file as a generic map; a missing file is an empty document. A corrupt file is moved
-// aside to corruptSuffix first, so replacing it never destroys what the user wrote.
+// readDoc returns the file as a generic map; a missing file is an empty document and any other read error
+// aborts. A corrupt file is moved aside to a timestamped corruptSuffix name first, so replacing it never
+// destroys what the user wrote, nor an earlier backup.
 func (s *Store) readDoc() (map[string]any, error) {
-	doc := map[string]any{}
-	if data, err := os.ReadFile(s.path); err == nil && toml.Unmarshal(data, &doc) != nil {
-		if err := os.Rename(s.path, s.path+corruptSuffix); err != nil {
-			return nil, fmt.Errorf("keep corrupt state file: %w", err)
-		}
+	data, err := os.ReadFile(s.path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return map[string]any{}, nil
 	}
-	return doc, nil
+	if err != nil {
+		return nil, fmt.Errorf("read state file: %w", err)
+	}
+	doc := map[string]any{}
+	if toml.Unmarshal(data, &doc) == nil {
+		return doc, nil
+	}
+	aside := s.path + corruptSuffix + "-" + time.Now().UTC().Format(corruptStampLayout)
+	if err := os.Rename(s.path, aside); err != nil {
+		return nil, fmt.Errorf("keep corrupt state file: %w", err)
+	}
+	return map[string]any{}, nil
 }
 
 func setOrDelete(m map[string]any, key, value string) {
