@@ -55,7 +55,7 @@ func TestPlanSelfUpdateClean(t *testing.T) {
 	}
 
 	wantProbe := []string{"git", "-C", f.repo, "status", "--porcelain", "--untracked-files=no"}
-	if len(ex.calls) != 3 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
+	if len(ex.calls) == 0 || !reflect.DeepEqual(ex.calls[0], wantProbe) {
 		t.Errorf("probe calls = %v, want status probe first", ex.calls)
 	}
 

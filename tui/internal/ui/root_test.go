@@ -118,25 +118,36 @@ func TestRoot_PlannedTargetHasNoComputeAndKeepsSidebarFocus(t *testing.T) {
 }
 
 func TestRoot_ComputedReloadsDirtyPullTabOnlyWhenActive(t *testing.T) {
-	const pullTabIndex = 2
 	for _, active := range []bool{true, false} {
-		r := newRoot(t, availableTarget())
-		r.Init()
+		name := "inactive"
 		if active {
-			r.tab = pullTabIndex
+			name = "active"
 		}
-		p := r.tabs[0][pullTabIndex].(*pullTab)
+		t.Run(name, func(t *testing.T) {
+			r := newRoot(t, availableTarget())
+			r.Init()
+			var p *pullTab
+			for i, tb := range r.tabs[0] {
+				if pt, ok := tb.(*pullTab); ok {
+					p = pt
+					if active {
+						r.tab = i
+					}
+				}
+			}
+			if p == nil {
+				t.Fatal("no Pull tab")
+			}
 
-		cmd := func() tea.Cmd {
 			_, cmd := r.Update(computedMsg{idx: 0, gen: r.states[0].gen})
-			return cmd
-		}()
-		if active && (cmd == nil || p.dirty) {
-			t.Errorf("active: cmd nil = %v, dirty = %v; want a load cmd and a clean tab", cmd == nil, p.dirty)
-		}
-		if !active && (cmd != nil || !p.dirty) {
-			t.Errorf("inactive: cmd nil = %v, dirty = %v; want no load and a dirty tab", cmd == nil, p.dirty)
-		}
+
+			if active && (cmd == nil || p.dirty) {
+				t.Errorf("cmd nil = %v, dirty = %v; want a load cmd and a clean tab", cmd == nil, p.dirty)
+			}
+			if !active && (cmd != nil || !p.dirty) {
+				t.Errorf("cmd nil = %v, dirty = %v; want no load and a dirty tab", cmd == nil, p.dirty)
+			}
+		})
 	}
 }
 

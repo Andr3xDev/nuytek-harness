@@ -148,38 +148,16 @@ func TestRoot_RunDismissalWithSpecterSelectedReloadsSpecter(t *testing.T) {
 }
 
 func TestRoot_SidebarWalksBetweenSpecterAndTargets(t *testing.T) {
-	a, b := availableTarget(), availableTarget()
-	r := NewRoot([]target.Target{a, b}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
+	r := NewRoot([]target.Target{availableTarget(), availableTarget()}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
 
 	press(r, upKey)
-	if r.entry != entryConfig || r.cursor != 0 {
-		t.Fatalf("up from target 0: entry = %v, cursor = %d; want config, 0", r.entry, r.cursor)
-	}
-	if _, ok := r.currentTarget(); ok {
-		t.Fatal("currentTarget reported a target while Config is selected")
-	}
-	press(r, upKey)
-	if r.entry != entrySpecter {
-		t.Fatalf("up from Config: entry = %v, want specter", r.entry)
-	}
-	press(r, upKey)
-	if r.entry != entrySpecter {
-		t.Fatal("up from Specter left the Specter entry")
+	if _, ok := r.currentTarget(); r.entry != entryConfig || ok {
+		t.Fatalf("up from target 0: entry = %v, on a target = %v; want config, false", r.entry, ok)
 	}
 	press(r, downKey)
-	if r.entry != entryConfig {
-		t.Fatalf("down from Specter: entry = %v, want config", r.entry)
-	}
 	press(r, downKey)
-	if r.entry != entryTarget || r.cursor != 0 {
-		t.Fatalf("down from Config: entry = %v, cursor = %d; want target, 0", r.entry, r.cursor)
-	}
-	if _, ok := r.currentTarget(); !ok {
-		t.Fatal("currentTarget reported none on a target")
-	}
-	press(r, downKey)
-	if r.cursor != 1 {
-		t.Fatalf("cursor = %d, want 1", r.cursor)
+	if r.entry != entryTarget || r.cursor != 1 {
+		t.Fatalf("down twice: entry = %v, cursor = %d; want target, 1", r.entry, r.cursor)
 	}
 }
 

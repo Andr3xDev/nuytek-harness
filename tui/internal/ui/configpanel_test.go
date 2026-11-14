@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -208,41 +209,125 @@ func TestConfigPanel_RejectedPathKeepsFieldOpenWithReason(t *testing.T) {
 	}
 }
 
-func TestConfigPanel_UnsetValuesShowTheDefaultSource(t *testing.T) {
-	r, _, _ := configRoot(t, &configFakes{}, nil)
-
-	got := view(r)
-
-	for _, want := range []string{"Specter root  ~/dev/specter  (default)", "T backups     ~/.bk  (default)"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("Config panel lacks %q:\n%s", want, got)
-		}
+func TestConfigPanel_RowsShowLabelValueAndSource(t *testing.T) {
+	tests := []struct {
+		name  string
+		saved func(home string) state.State
+		want  []string
+		never string
+	}{
+		{
+			name:  "unset values show the default source",
+			want:  []string{"Specter root ~/dev/specter (default)", "T backups ~/.bk (default)"},
+			never: "(saved)",
+		},
+		{
+			name: "saved value shows its home-relative label and saved source",
+			saved: func(home string) state.State {
+				return state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
+			},
+			want:  []string{"T backups ~/bk (saved)", "Specter root ~/dev/specter (default)"},
+			never: "~/.bk",
+		},
 	}
-	if strings.Contains(got, "(saved)") {
-		t.Errorf("Config panel shows a saved source with nothing saved:\n%s", got)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _, _ := configRoot(t, &configFakes{}, tt.saved)
 
-func TestConfigPanel_SavedValueShowsItsHomeRelativeLabelAndSavedSource(t *testing.T) {
-	r, _, _ := configRoot(t, &configFakes{}, func(home string) state.State {
-		return state.State{Targets: map[string]state.TargetState{"t": {BackupsDir: filepath.Join(home, "bk")}}}
-	})
+			got := strings.Join(strings.Fields(view(r)), " ")
 
-	if got := view(r); !strings.Contains(got, "T backups     ~/bk  (saved)") {
-		t.Errorf("Config panel lacks the saved ~/bk row:\n%s", got)
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("Config panel lacks %q:\n%s", want, got)
+				}
+			}
+			if strings.Contains(got, tt.never) {
+				t.Errorf("Config panel shows %q:\n%s", tt.never, got)
+			}
+		})
 	}
 }
 
 func TestConfigPanel_UnavailableTargetHasNoBackupsRow(t *testing.T) {
+	configurable := availableTarget()
+	configurable.Spec.DefaultBackupsRel = ".bk"
 	broken := target.Target{Err: errors.New("manifest broken"), Spec: target.Spec{ID: "u", Name: "Broken", DefaultBackupsRel: ".bk"}}
-	r := NewRoot([]target.Target{availableTarget(), broken}, Deps{}, nil)
+	r := NewRoot([]target.Target{configurable, broken}, Deps{}, nil)
 	r.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	enterConfig(r)
 
-	for _, row := range r.settingRows() {
-		if strings.Contains(row.label, "Broken") {
-			t.Errorf("rows include %q for an unavailable target", row.label)
-		}
+	rows := r.settingRows()
+	if len(rows) == 0 {
+		t.Fatal("no setting rows")
+	}
+	var labels []string
+	for _, row := range rows {
+		labels = append(labels, row.label)
+	}
+	if !slices.Contains(labels, "T backups") {
+		t.Errorf("rows %v lack the available target's backups row", labels)
+	}
+	if slices.Contains(labels, "Broken backups") {
+		t.Errorf("rows %v include a row for an unavailable target", labels)
+	}
+}
+
+func TestConfigPanel_SpecterRootSaveAppliesAndReloadsSpecter(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	nextRoot := filepath.Join(home, "specter")
+	if err := os.MkdirAll(nextRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	loadsBefore := f.specterLoads
+
+	editRow(r, 0, nextRoot)
+	pump(t, r, press(r, enterKey))
+
+	if got := r.svc.Env.Saved.SpecterRoot; got != nextRoot || len(f.saves) != 1 {
+		t.Errorf("Env.Saved specter root = %q, saves = %d; want %q, 1", got, len(f.saves), nextRoot)
+	}
+	if f.specterLoads != loadsBefore+1 {
+		t.Errorf("Specter loads = %d, want %d: a root save must reload Specter once", f.specterLoads, loadsBefore+1)
+	}
+}
+
+func TestConfigPanel_SpecterRootResetClearsTheSavedValue(t *testing.T) {
+	f := &configFakes{}
+	r, _, _ := configRoot(t, f, func(home string) state.State {
+		return state.State{SpecterRoot: filepath.Join(home, "specter")}
+	})
+	loadsBefore := f.specterLoads
+
+	pump(t, r, press(r, textKey("r")))
+
+	if len(f.saves) != 1 || f.saves[0].SpecterRoot != "" || r.svc.Env.Saved.SpecterRoot != "" {
+		t.Errorf("saves = %+v, Env.Saved root = %q; want one save with the root cleared", f.saves, r.svc.Env.Saved.SpecterRoot)
+	}
+	if f.specterLoads != loadsBefore+1 {
+		t.Errorf("Specter loads = %d, want %d after reset", f.specterLoads, loadsBefore+1)
+	}
+}
+
+func TestConfigPanel_RootChangeDropsValidationAndItsStaleResult(t *testing.T) {
+	f := &configFakes{}
+	r, _, home := configRoot(t, f, nil)
+	nextRoot := filepath.Join(home, "specter")
+	if err := os.MkdirAll(nextRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r.specter.validation = map[string]*storeValidation{"s": {running: true}}
+
+	editRow(r, 0, nextRoot)
+	pump(t, r, press(r, enterKey))
+	r.Update(validatedMsg{store: "s", root: ""})
+
+	if r.specter.validation != nil {
+		t.Errorf("validation = %v, want it dropped by the root change and the stale result ignored", r.specter.validation)
+	}
+	r.Update(validatedMsg{store: "s", root: nextRoot})
+	if sv := r.specter.validation["s"]; sv == nil || sv.running {
+		t.Errorf("validation = %v, want the result for the current root recorded", r.specter.validation)
 	}
 }
 

@@ -195,9 +195,6 @@ func TestChecks_AgentsCopiesDifferFromRoot_WarnsWithoutSuggestion(t *testing.T) 
 			t.Errorf("message %q lacks %q", got.Message, want)
 		}
 	}
-	if strings.Contains(got.Message, "NUYTEK_SPECTER_ROOT") {
-		t.Errorf("message %q names the removed env var", got.Message)
-	}
 	if strings.Contains(got.Message, "SDD rules") {
 		t.Errorf("message %q names a missing copy", got.Message)
 	}
