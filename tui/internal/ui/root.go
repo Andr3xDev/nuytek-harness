@@ -258,7 +258,7 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case validatedMsg:
 		r.specter.finishValidation(msg)
 	case configSaved:
-		return r, r.applySavedConfig(msg.state)
+		return r, r.reloadFromConfig()
 	case plannedMsg:
 		cmds := []tea.Cmd{r.broadcast(msg)}
 		if r.specterFlow != nil {
@@ -291,6 +291,14 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		return r, r.handleKey(msg)
+	case tea.PasteMsg:
+		if r.run != nil || !r.inputActive() {
+			return r, nil
+		}
+		var cmd tea.Cmd
+		r.configPanel.input, cmd = r.configPanel.input.Update(msg)
+		r.configPanel.err = ""
+		return r, cmd
 	default:
 		return r, r.broadcast(msg)
 	}

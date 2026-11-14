@@ -76,10 +76,15 @@ func TestValidateBackupsDir(t *testing.T) {
 		{"dotdot back into own tree rejected", "~/x/../.claude/y", "", true},
 		{"relative rejected", "bk", "", true},
 		{"empty rejected", "", "", true},
+		{"blank rejected", "   ", "", true},
+		{"surrounding spaces trimmed", "  ~/bk \n", home + "/bk", false},
+		{"filesystem root rejected", "/", "", true},
+		{"HOME rejected", "~", "", true},
+		{"repo store rejected", "/repo/.refresh-backups", "", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := config.ValidateBackupsDir(home, c.raw, own)
+			got, err := config.ValidateBackupsDir(home, c.raw, own, "/repo/.refresh-backups")
 			if (err != nil) != c.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, c.wantErr)
 			}

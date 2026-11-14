@@ -10,10 +10,13 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
 const (
@@ -24,8 +27,8 @@ const (
 	selfUpdateTitle  = "Update the TUI"
 )
 
-// configSaved carries the state that SaveState accepted; Root adopts it as the saved config.
-type configSaved struct{ state state.State }
+// configSaved tells Root that the saved config changed, so it reloads what reads paths from it.
+type configSaved struct{}
 
 // settingRow is one editable setting. edit validates raw and returns the state to save; reset returns
 // the state with the value cleared. Both leave the current saved state untouched.
@@ -79,6 +82,17 @@ func withSetting(saved state.State, set func(*state.State)) state.State {
 	return next
 }
 
+// repoStores lists the target's stores inside the repo; the home store must not collide with them.
+func repoStores(spec target.Spec, env check.Env) []string {
+	var paths []string
+	for _, d := range spec.Stores(env) {
+		if d.Kind == backup.StoreRepo {
+			paths = append(paths, d.Path)
+		}
+	}
+	return paths
+}
+
 // settingRows is the Specter root plus one backups row per available target with a configurable home store.
 func (r *Root) settingRows() []settingRow {
 	env := r.svc.Env
@@ -116,7 +130,7 @@ func (r *Root) settingRows() []settingRow {
 			effective: spec.HomeStore(env.Home, saved),
 			source:    sourceOf(saved),
 			edit: func(raw string) (state.State, error) {
-				path, err := config.ValidateBackupsDir(env.Home, raw, spec.OwnTree(env.Home))
+				path, err := config.ValidateBackupsDir(env.Home, raw, spec.OwnTree(env.Home), repoStores(spec, env)...)
 				if err != nil {
 					return state.State{}, err
 				}
@@ -139,6 +153,7 @@ func (r *Root) handleConfigKey(msg tea.KeyPressMsg) tea.Cmd {
 		return cmd
 	}
 	rows := r.settingRows()
+	c.cursor = min(c.cursor, len(rows)-1)
 	row := rows[c.cursor]
 	if c.editing {
 		switch {
@@ -177,10 +192,8 @@ func (r *Root) handleConfigKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-// applySavedConfig adopts a saved state and reloads everything that reads paths from it.
-func (r *Root) applySavedConfig(saved state.State) tea.Cmd {
-	saved.Targets = maps.Clone(saved.Targets)
-	r.svc.Env.Saved = saved
+// reloadFromConfig reloads everything that reads paths from the saved config.
+func (r *Root) reloadFromConfig() tea.Cmd {
 	cmds := []tea.Cmd{r.loadSpecter()}
 	for i := range r.targets {
 		cmds = append(cmds, r.compute(i, true))
@@ -203,7 +216,12 @@ func (r *Root) saveConfig(next state.State) tea.Cmd {
 		}
 	}
 	c.close()
-	return func() tea.Msg { return configSaved{state: next} }
+	if next.SpecterRoot != r.svc.Env.Saved.SpecterRoot {
+		r.specter.validation = nil
+	}
+	next.Targets = maps.Clone(next.Targets)
+	r.svc.Env.Saved = next
+	return func() tea.Msg { return configSaved{} }
 }
 
 func (r *Root) configKeys() []key.Binding {

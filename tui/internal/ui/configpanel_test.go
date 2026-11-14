@@ -114,6 +114,17 @@ func TestConfigPanel_ShortcutLettersTypeIntoTheOpenField(t *testing.T) {
 	}
 }
 
+func TestConfigPanel_PasteGoesIntoTheOpenField(t *testing.T) {
+	r, _, _ := configRoot(t, &configFakes{}, nil)
+	editRow(r, 0, "")
+
+	r.Update(tea.PasteMsg{Content: typedPath})
+
+	if got := r.configPanel.input.Value(); got != typedPath {
+		t.Errorf("field = %q, want the pasted %q", got, typedPath)
+	}
+}
+
 func TestPullTab_ListsOffTheUILoopAndDropsStaleResults(t *testing.T) {
 	svc := newRoot(t, availableTarget()).svc
 	p := newPullTab(svc, &targetState{}, availableTarget())

@@ -22,6 +22,7 @@ func Expand(raw, home string) string {
 }
 
 func expandAbsolute(home, raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", errors.New("path is empty")
 	}
@@ -48,12 +49,21 @@ func ValidateSpecterRoot(fs check.FS, home, raw string) (string, error) {
 	return path, nil
 }
 
-// ValidateBackupsDir returns the expanded path, rejecting ownTree and anything inside it. The directory
+// ValidateBackupsDir returns the expanded path, rejecting ownTree and anything inside it, the filesystem
+// root, HOME itself and any reserved path (such as the repo's own store). Checks are lexical. The directory
 // need not exist: the backup run creates it.
-func ValidateBackupsDir(home, raw, ownTree string) (string, error) {
+func ValidateBackupsDir(home, raw, ownTree string, reserved ...string) (string, error) {
 	path, err := expandAbsolute(home, raw)
 	if err != nil {
 		return "", err
+	}
+	if path == string(filepath.Separator) || path == filepath.Clean(home) {
+		return "", errors.New("too broad: choose a dedicated directory")
+	}
+	for _, r := range reserved {
+		if path == filepath.Clean(r) {
+			return "", fmt.Errorf("%s is already a backup store", r)
+		}
 	}
 	// Segment-wise via Rel: a string prefix would wrongly reject "~/.claudeX" for "~/.claude".
 	rel, err := filepath.Rel(filepath.Clean(ownTree), path)
