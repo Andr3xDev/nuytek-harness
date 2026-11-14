@@ -125,7 +125,7 @@ func NewRoot(targets []target.Target, deps Deps, warnings []string) *Root {
 	for i, t := range targets {
 		if available(t) {
 			st := &r.states[i]
-			r.tabs[i] = []tab{newDashboardTab(svc, st, func() *specterState { return &r.specter }), newUpdateTab(svc, st, t), newPullTab(svc, t), newBackupsTab(svc, t)}
+			r.tabs[i] = []tab{newDashboardTab(svc, st, func() *specterState { return &r.specter }), newUpdateTab(svc, st, t), newPullTab(svc, st, t), newBackupsTab(svc, t)}
 			if t.Spec.Manage != nil {
 				r.tabs[i] = append(r.tabs[i], newManageTab(svc, st))
 			}

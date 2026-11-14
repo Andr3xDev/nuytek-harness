@@ -21,25 +21,26 @@ const (
 // pullTab lists the pull-enabled components; its select flow doubles as the list.
 type pullTab struct {
 	svc  *services
+	st   *targetState
 	t    target.Target
 	pick *flow
+	// listed is false until the first setChoices, so an untouched tab does not claim nothing can be pulled.
+	listed bool
 }
 
-func newPullTab(svc *services, t target.Target) *pullTab {
-	p := &pullTab{svc: svc, t: t}
+func newPullTab(svc *services, st *targetState, t target.Target) *pullTab {
+	p := &pullTab{svc: svc, st: st, t: t}
 	p.pick = newSelectFlow(svc, pullTitle, pullPrompt, nothingToPull, func(ctx context.Context, names []string) (plan.Plan, error) {
 		return action.PlanPull(ctx, svc.Env, t, names)
 	})
-	p.setChoices()
 	return p
 }
 
 func (p *pullTab) setChoices() {
+	p.listed = true
 	var choices []choice
-	for _, c := range p.t.Manifest.Components {
-		if c.Pull {
-			choices = append(choices, choice{name: c.Name})
-		}
+	for _, name := range action.PullChanges(p.svc.ctx, p.svc.Env, p.t) {
+		choices = append(choices, choice{name: name})
 	}
 	p.pick.setChoices(choices)
 }
@@ -52,7 +53,11 @@ func (p *pullTab) Activate(target.Target) tea.Cmd {
 }
 
 func (p *pullTab) Update(msg tea.Msg) (tab, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
+	case dashboardReady:
+		if msg.st == p.st {
+			p.setChoices()
+		}
 	case plannedMsg, tea.KeyPressMsg:
 		return p, p.pick.Update(msg)
 	}
@@ -67,6 +72,9 @@ func (p *pullTab) Keys() []key.Binding {
 }
 
 func (p *pullTab) View(w, h int) string {
+	if !p.listed {
+		return p.svc.th.muted.Render(computingText)
+	}
 	if len(p.pick.choices) == 0 {
 		return p.svc.th.muted.Render(noPullableText)
 	}
