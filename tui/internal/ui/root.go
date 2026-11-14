@@ -144,6 +144,7 @@ func (r *Root) loadSpecter() tea.Cmd {
 	if load == nil {
 		return nil
 	}
+	env := r.svc.Env
 	st := &r.specter
 	if st.cancel != nil {
 		st.cancel()
@@ -153,7 +154,7 @@ func (r *Root) loadSpecter() tea.Cmd {
 	st.phase = loading
 	st.gen++
 	gen := st.gen
-	return func() tea.Msg { return specterLoadedMsg{gen: gen, facts: load(ctx)} }
+	return func() tea.Msg { return specterLoadedMsg{gen: gen, facts: load(ctx, env)} }
 }
 
 // currentTarget is false while the Specter or Config entry is selected or there are no targets.

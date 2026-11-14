@@ -41,7 +41,7 @@ func TestLoadRootRefs_MatchesEveryEquivalentRootForm(t *testing.T) {
 			root := filepath.Join(env.Home, "dev", "specter")
 			writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), tt.content(env.Home, root))
 
-			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.LookupEnv, env.Home)), "global instructions")
+			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
 			if !ref.Found || !ref.References || string(ref.Copy) != "repo" {
 				t.Errorf("ref = %+v, want found, referencing, read from the repo copy", ref)
@@ -69,7 +69,7 @@ func TestLoadRootRefs_RootMustEndOnABoundary(t *testing.T) {
 			env.Repo = t.TempDir()
 			writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), tt.content)
 
-			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.LookupEnv, env.Home)), "global instructions")
+			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
 			if ref.References != tt.want {
 				t.Errorf("References = %v, want %v", ref.References, tt.want)
@@ -83,7 +83,7 @@ func TestLoadRootRefs_FileWithoutRootDoesNotReference(t *testing.T) {
 	env.Repo = t.TempDir()
 	writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), "mentions ~/dev/other only")
 
-	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.LookupEnv, env.Home)), "global instructions")
+	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
 	if !ref.Found || ref.References {
 		t.Errorf("ref = %+v, want found and not referencing", ref)
@@ -95,7 +95,7 @@ func TestLoadRootRefs_FallsBackToDeployedCopy(t *testing.T) {
 	env.Repo = t.TempDir()
 	writeFile(t, filepath.Join(env.Home, ".claude", "common-sdd.md"), "root ~/dev/specter")
 
-	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.LookupEnv, env.Home)), "SDD rules")
+	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "SDD rules")
 
 	if !ref.Found || !ref.References || string(ref.Copy) != "deployed" {
 		t.Errorf("ref = %+v, want found, referencing, read from the deployed copy", ref)
@@ -106,7 +106,7 @@ func TestLoadRootRefs_MissingCopyIsNotFoundAndEveryEntryStillListed(t *testing.T
 	env := envWith(t, &fakeExec{}, "")
 	env.Repo = t.TempDir()
 
-	refs := specter.LoadRootRefs(env, specter.ResolveRoot(env.LookupEnv, env.Home))
+	refs := specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home))
 
 	if len(refs) != len(specter.RootFiles) {
 		t.Fatalf("got %d refs, want %d", len(refs), len(specter.RootFiles))

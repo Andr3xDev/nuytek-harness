@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultRootDisplay = "~/dev/specter"
-	agentsRootNotice   = "only the TUI supports NUYTEK_SPECTER_ROOT; the rest of the harness uses " + defaultRootDisplay
+	agentsRootNotice   = "the rest of the harness uses " + defaultRootDisplay
 
 	checkOpenspec = "specter.openspec"
 	checkRepo     = "specter.repo"

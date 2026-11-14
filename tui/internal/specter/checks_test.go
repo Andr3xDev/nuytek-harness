@@ -175,7 +175,7 @@ func TestChecks_ReposYAMLUnreadable_YieldsOneUnknown(t *testing.T) {
 
 func TestChecks_AgentsCopiesDifferFromRoot_WarnsWithoutSuggestion(t *testing.T) {
 	f := healthyFacts(t)
-	f.Root = specter.Root{Path: "/data/specs", Source: specter.RootSourceEnv, OutsideHome: true}
+	f.Root = specter.Root{Path: "/data/specs", Source: specter.RootSourceSaved, OutsideHome: true}
 	f.RootRefs = []specter.RootRef{
 		{Label: "global instructions", Copy: specter.CopyRepo, Found: true, References: false},
 		{Label: "guard hook", Copy: specter.CopyDeployed, Found: true, References: false},
@@ -189,11 +189,14 @@ func TestChecks_AgentsCopiesDifferFromRoot_WarnsWithoutSuggestion(t *testing.T) 
 	}
 	for _, want := range []string{
 		"/data/specs", "~/dev/specter", "global instructions", "guard hook",
-		"only the TUI supports NUYTEK_SPECTER_ROOT; the rest of the harness uses ~/dev/specter",
+		"the rest of the harness uses ~/dev/specter",
 	} {
 		if !strings.Contains(got.Message, want) {
 			t.Errorf("message %q lacks %q", got.Message, want)
 		}
+	}
+	if strings.Contains(got.Message, "NUYTEK_SPECTER_ROOT") {
+		t.Errorf("message %q names the removed env var", got.Message)
 	}
 	if strings.Contains(got.Message, "SDD rules") {
 		t.Errorf("message %q names a missing copy", got.Message)

@@ -15,7 +15,6 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osexec"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/osfs"
-	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/repo"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
@@ -94,16 +93,12 @@ func run() int {
 		Env:         env,
 		Runner:      runner,
 		DryRun:      *dryRun,
-		SpecterLoad: func(ctx context.Context) specter.Facts { return specter.Load(ctx, env) },
+		SpecterLoad: specter.Load,
 		SpecterValidate: func(ctx context.Context, id string) (specter.Validation, error) {
 			return specter.ValidateStore(ctx, env.Exec, id)
 		},
-		SpecterPlanFastInit: func(ctx context.Context, mapTo string) (plan.Plan, error) {
-			return specter.PlanFastInit(ctx, env, mapTo)
-		},
-		SpecterPlanMaintenance: func(ctx context.Context) (plan.Plan, error) {
-			return specter.PlanMaintenance(ctx, env)
-		},
+		SpecterPlanFastInit:    specter.PlanFastInit,
+		SpecterPlanMaintenance: specter.PlanMaintenance,
 	}
 	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)

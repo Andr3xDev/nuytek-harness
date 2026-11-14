@@ -85,7 +85,7 @@ func (r *Root) openFastInit() tea.Cmd {
 		if len(names) > 0 {
 			mapTo = names[0]
 		}
-		return svc.SpecterPlanFastInit(ctx, mapTo)
+		return svc.SpecterPlanFastInit(ctx, r.svc.Env, mapTo)
 	}
 	candidates := specter.CandidateStores(r.specter.facts.Registration)
 	if len(candidates) == 0 {
@@ -107,7 +107,7 @@ func (r *Root) openFastInit() tea.Cmd {
 func (r *Root) openMaintenance() tea.Cmd {
 	svc := r.svc
 	r.specterFlow = newDirectFlow(svc, maintenanceTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
-		return svc.SpecterPlanMaintenance(ctx)
+		return svc.SpecterPlanMaintenance(ctx, r.svc.Env)
 	})
 	r.specterReport = true
 	return r.specterFlow.start()

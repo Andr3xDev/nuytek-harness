@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
@@ -22,7 +23,7 @@ func specterRoot(t *testing.T) *Root {
 	t.Helper()
 	tgt := availableTarget()
 	tgt.Spec.Name = "Alpha"
-	r := NewRoot([]target.Target{tgt}, Deps{SpecterLoad: func(context.Context) specter.Facts { return specter.Facts{} }}, nil)
+	r := NewRoot([]target.Target{tgt}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
 	r.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return r
 }
@@ -98,7 +99,7 @@ func TestRoot_CLIDashboardRefreshAlsoReloadsSpecter(t *testing.T) {
 
 func TestRoot_QuitCancelsInFlightSpecterLoad(t *testing.T) {
 	var loadCtx context.Context
-	r := NewRoot([]target.Target{availableTarget()}, Deps{SpecterLoad: func(ctx context.Context) specter.Facts {
+	r := NewRoot([]target.Target{availableTarget()}, Deps{SpecterLoad: func(ctx context.Context, _ check.Env) specter.Facts {
 		loadCtx = ctx
 		return specter.Facts{}
 	}}, nil)
@@ -148,7 +149,7 @@ func TestRoot_RunDismissalWithSpecterSelectedReloadsSpecter(t *testing.T) {
 
 func TestRoot_SidebarWalksBetweenSpecterAndTargets(t *testing.T) {
 	a, b := availableTarget(), availableTarget()
-	r := NewRoot([]target.Target{a, b}, Deps{SpecterLoad: func(context.Context) specter.Facts { return specter.Facts{} }}, nil)
+	r := NewRoot([]target.Target{a, b}, Deps{SpecterLoad: func(context.Context, check.Env) specter.Facts { return specter.Facts{} }}, nil)
 
 	press(r, upKey)
 	if r.entry != entryConfig || r.cursor != 0 {

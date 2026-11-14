@@ -19,12 +19,12 @@ type Deps struct {
 	DryRun bool
 
 	// SpecterLoad gathers the Specter facts; nil leaves the Specter state unloaded.
-	SpecterLoad func(context.Context) specter.Facts
+	SpecterLoad func(context.Context, check.Env) specter.Facts
 
 	// The Specter actions; a nil one leaves its key unavailable.
 	SpecterValidate        func(ctx context.Context, storeID string) (specter.Validation, error)
-	SpecterPlanFastInit    func(ctx context.Context, mapTo string) (plan.Plan, error)
-	SpecterPlanMaintenance func(ctx context.Context) (plan.Plan, error)
+	SpecterPlanFastInit    func(ctx context.Context, env check.Env, mapTo string) (plan.Plan, error)
+	SpecterPlanMaintenance func(ctx context.Context, env check.Env) (plan.Plan, error)
 }
 
 // services is what every tab and flow shares.
