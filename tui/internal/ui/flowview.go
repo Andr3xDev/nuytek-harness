@@ -2,11 +2,20 @@ package ui
 
 import (
 	"strings"
+
+	"charm.land/lipgloss/v2"
 )
 
-const planningText = "Planning..."
+const (
+	planningText    = "Planning..."
+	confirmTitle    = "Confirm"
+	confirmBoxWidth = 50
+)
 
 func (f *flow) View(w, h int) string {
+	if f.stage == stageConfirm {
+		return f.confirmView(w, h)
+	}
 	var lines []string
 	switch f.stage {
 	case stageSelect:
@@ -15,8 +24,6 @@ func (f *flow) View(w, h int) string {
 		lines = []string{f.svc.th.muted.Render(planningText)}
 	case stagePreview:
 		lines = f.previewLines(w, h)
-	case stageConfirm:
-		lines = f.confirmLines(w, h)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -70,9 +77,15 @@ func (f *flow) previewLines(w, h int) []string {
 	return append(header, f.body.window(body, h-len(header))...)
 }
 
-func (f *flow) confirmLines(w, h int) []string {
+// confirmView draws the question as a compact box centered in the w x h panel.
+func (f *flow) confirmView(w, h int) string {
 	th := f.svc.th
-	header := f.header(w)
-	body := styleAll(th.warning, wrap(f.p.Confirm, w))
-	return append(header, f.body.window(body, h-len(header))...)
+	boxW := min(confirmBoxWidth, w)
+	inner := contentWidth(boxW)
+	header := f.header(inner)
+	body := styleAll(th.warning, wrap(f.p.Confirm, inner))
+	lines := append(header, f.body.window(body, max(h-borderCells-len(header), 0))...)
+	lines = lines[:min(len(lines), max(h-borderCells, 0))]
+	box := renderBox(th, confirmTitle, lines, boxW, len(lines)+borderCells, true)
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }

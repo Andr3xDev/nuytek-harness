@@ -52,6 +52,8 @@ type flow struct {
 	selects   bool
 	limit     int  // 1 keeps a single pick; 0 is unlimited
 	optional  bool // enter plans with no pick, passing nil names
+	// confirmFirst opens the confirmation right after planning, without a preview, and esc closes the flow.
+	confirmFirst bool
 
 	choices []choice
 	picked  map[string]bool
@@ -163,7 +165,7 @@ func (f *flow) reset() {
 }
 
 func (f *flow) back() {
-	if f.stage == stageConfirm {
+	if f.stage == stageConfirm && !f.confirmFirst {
 		f.stage = stagePreview
 		f.body.reset()
 		return
@@ -182,6 +184,9 @@ func (f *flow) Update(msg tea.Msg) tea.Cmd {
 		if msg.f == f && msg.gen == f.gen && f.stage == stagePlanning {
 			f.p, f.err, f.stage = msg.p, msg.err, stagePreview
 			f.body.reset()
+			if f.confirmFirst && f.canApply() && f.p.Confirm != "" {
+				f.stage = stageConfirm
+			}
 		}
 	case tea.KeyPressMsg:
 		return f.handleKey(msg)
