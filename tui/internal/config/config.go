@@ -50,7 +50,7 @@ func ValidateSpecterRoot(fs check.FS, home, raw string) (string, error) {
 }
 
 // ValidateBackupsDir returns the expanded path, rejecting ownTree and anything inside it, the filesystem
-// root, HOME itself and any reserved path (such as the repo's own store). Checks are lexical. The directory
+// root, HOME itself and any reserved path (such as the repo's own store) or its ancestor. Checks are lexical. The directory
 // need not exist: the backup run creates it.
 func ValidateBackupsDir(home, raw, ownTree string, reserved ...string) (string, error) {
 	path, err := expandAbsolute(home, raw)
@@ -61,8 +61,8 @@ func ValidateBackupsDir(home, raw, ownTree string, reserved ...string) (string, 
 		return "", errors.New("too broad: choose a dedicated directory")
 	}
 	for _, r := range reserved {
-		if isWithin(r, path) {
-			return "", fmt.Errorf("%s is already a backup store", r)
+		if isWithin(r, path) || isWithin(path, r) {
+			return "", fmt.Errorf("overlaps backup store %s", r)
 		}
 	}
 	if isWithin(ownTree, path) {

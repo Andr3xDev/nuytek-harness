@@ -82,6 +82,8 @@ func TestValidateBackupsDir(t *testing.T) {
 		{"HOME rejected", "~", "", true},
 		{"repo store rejected", "/repo/.refresh-backups", "", true},
 		{"inside repo store rejected", "/repo/.refresh-backups/sub", "", true},
+		{"ancestor of repo store rejected", "/repo", "", true},
+		{"unrelated sibling of repo accepted", "/other", "/other", false},
 		{"repo store sibling accepted", "/repo/.refresh-backupsX", "/repo/.refresh-backupsX", false},
 	}
 	for _, c := range cases {
