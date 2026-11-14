@@ -247,7 +247,11 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			st.phase, st.dash, st.loaded = ready, msg.dash, true
 			st.cancel()
 			st.cancel = nil
-			return r, r.broadcast(dashboardReady{st: st})
+			cmds := []tea.Cmd{r.broadcast(dashboardReady{st: st})}
+			if p, ok := r.activeTab().(*pullTab); ok && p.dirty {
+				cmds = append(cmds, p.load())
+			}
+			return r, tea.Batch(cmds...)
 		}
 	case specterLoadedMsg:
 		if st := &r.specter; st.phase == loading && st.gen == msg.gen {

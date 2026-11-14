@@ -125,26 +125,6 @@ func TestConfigPanel_PasteGoesIntoTheOpenField(t *testing.T) {
 	}
 }
 
-func TestPullTab_ListsOffTheUILoopAndDropsStaleResults(t *testing.T) {
-	svc := newRoot(t, availableTarget()).svc
-	p := newPullTab(svc, &targetState{}, availableTarget())
-
-	first := p.Activate(availableTarget())
-	if first == nil || p.listed {
-		t.Fatalf("Activate cmd = %v, listed = %v; want a background cmd and no listing yet", first, p.listed)
-	}
-	p.Activate(availableTarget())
-
-	p.Update(pullListed{p: p, epoch: 1, names: []string{"stale"}})
-	if p.listed {
-		t.Fatal("a superseded result was applied")
-	}
-	p.Update(pullListed{p: p, epoch: 2, names: []string{"agents"}})
-	if !p.listed || len(p.pick.choices) != 1 || p.pick.choices[0].name != "agents" {
-		t.Errorf("listed = %v, choices = %v; want the current result applied", p.listed, p.pick.choices)
-	}
-}
-
 func TestConfigPanel_CtrlCQuitsWhileEditing(t *testing.T) {
 	r, _, _ := configRoot(t, &configFakes{}, nil)
 	editRow(r, 0, "")

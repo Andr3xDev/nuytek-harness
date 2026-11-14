@@ -27,6 +27,9 @@ type pullTab struct {
 	// listed is false until the first listing arrives, so an untouched tab does not claim nothing can be pulled.
 	listed bool
 	epoch  int
+	// dirty marks a dashboard change not yet reflected in the listing; Root reloads it when the tab is active.
+	dirty  bool
+	cancel context.CancelFunc
 }
 
 func newPullTab(svc *services, st *targetState, t target.Target) *pullTab {
@@ -44,10 +47,16 @@ type pullListed struct {
 	names []string
 }
 
-// load diffs every component off the UI loop.
+// load diffs every component off the UI loop; a newer load cancels the one still running.
 func (p *pullTab) load() tea.Cmd {
+	if p.cancel != nil {
+		p.cancel()
+	}
 	p.epoch++
-	epoch, ctx, env, t := p.epoch, p.svc.ctx, p.svc.Env, p.t
+	p.dirty = false
+	ctx, cancel := context.WithCancel(p.svc.ctx)
+	p.cancel = cancel
+	epoch, env, t := p.epoch, p.svc.Env, p.t
 	return func() tea.Msg {
 		return pullListed{p: p, epoch: epoch, names: action.PullChanges(ctx, env, t)}
 	}
@@ -61,7 +70,7 @@ func (p *pullTab) Update(msg tea.Msg) (tab, tea.Cmd) {
 	switch msg := msg.(type) {
 	case dashboardReady:
 		if msg.st == p.st {
-			return p, p.load()
+			p.dirty = true
 		}
 	case pullListed:
 		if msg.p == p && msg.epoch == p.epoch {
