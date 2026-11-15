@@ -55,7 +55,7 @@ Only for issues, PRs, and releases written through the tracker skills. The templ
 - Remove every `<!-- ... -->` hint and `[placeholder]` before output.
 - `---` only where the template already has it; delete it with an emptied section.
 - Reference issues and PRs by ID only (`#123`, `owner/repo#123`, `ENG-123`), never by branch name, and only when needed.
-- Templates are in English; headings and content use the session language, default English.
+- Templates are in English; headings and content use the session language.
 
 ### Execution Steps
 

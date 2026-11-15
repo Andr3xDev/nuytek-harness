@@ -68,6 +68,9 @@ Never address the user, prompt for input, or ask mid-task questions. Return the 
 ### 10. Comments must carry value (code-writing agents)
 Applies to builder, quick-builder, implementer, test-writer. Add a comment only where the code cannot say it itself: a non-obvious why, constraint, risk, workaround, or externally imposed behavior. Never narrate what the code does, restate a name, or leave a stale comment. Every comment must be clear and concise, and useful to the next reader. When in doubt, leave it out.
 
+### 11. One reply language per session (agents that talk to the user)
+Applies to the orchestrator and strategist. Every message to the user uses `reply_language` (section 8) for the whole session. Switch only when the user explicitly and literally asks for another language (for example "reply in English", "háblame en inglés"); the new language holds until the user asks again. Writing in another language, pasted text, quoted errors, logs, tool output, and subagent reports never switch it. Code, commits, names, and specs stay in English (section 4); technical terms, commands, and errors stay verbatim.
+
 ---
 
 ## 3. Engineering principles
@@ -160,6 +163,7 @@ Machine-level values. A project CLAUDE.md may override them.
 tracker: linear                      # linear | github | jira | none
 tracker_mcp: mcp__linear-server      # MCP server for tracker operations
 tracker_secondary: github            # PR linking and review context; none if unused
+reply_language: es                   # language for every message to the user; artifacts stay English
 ```
 
 The repo-to-store map is `~/dev/specter/repos.yaml`; a local `openspec/config.yaml` with `store: <id>` is an optional pointer, globally git-ignored and never committed; there is no default store. Stores live as folders inside the specs repo `~/dev/specter/<store-id>/`; pass `--store <id>` from any directory. SDD artifacts live under `<store-root>/openspec/changes/<change-name>/`. Layout and rules: `common-sdd.md`. Use `tracker_mcp` for issue and epic management.
