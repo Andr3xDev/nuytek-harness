@@ -36,6 +36,8 @@ content:
 - Always save with MCP `mem_save` into the session project.
 - When the memory is about another repo, name that repo in the title and content.
 - To recall another repo's memories, use `mem_search` with `all_projects: true`.
+- Outside a repo or with an unclear project, use the project the user chose at session start as explicit `project` on every Engram call; default `general`. A cross-repo feature may use the owner repo if the user confirms. `engram-ops` moves misfiled entries later.
+- MCP `mem_save` fails with `unknown project` for a name Engram has not seen, and no MCP tool creates one; when the user names a new project (including `general` the first time), delegate `engram-ops` to create it with CLI `engram save "<title>" "<content>" --project <name>`.
 - When detection gives the wrong name for a repo, `/specter` (specter-ops) sets `project_name` in its `.engram/config.json` (globally git-ignored), not an alias: the alias is not honored.
 
 ### Topic update rules
