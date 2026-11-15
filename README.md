@@ -135,9 +135,9 @@ Custom slash commands.
 |---|---|
 | Bash guard | Per-agent Bash allow-list; only `git-ops` may stage, commit, push (push only when the user asks) or manage worktrees |
 | `engram-tool-guard` | `PreToolUse` on `mem_delete` and `mem_merge_projects` (both Engram MCP prefixes): denies them for every agent except `engram-ops`, main thread included |
+| `session-start-context` | `SessionStart`: flags an unclear Engram project (outside a repo) and a missing CodeGraph index |
 | Irreversible-action prompt hook | Flags destructive database and disk operations |
 | Stop verify | On Stop, warns if tests or lint fail (never blocks) |
-| `herdr` state | Reports session state to `herdr` |
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
