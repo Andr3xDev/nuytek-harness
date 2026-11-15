@@ -55,7 +55,7 @@ Only for issues, PRs, and releases written through the tracker skills. The templ
 - Remove every `<!-- ... -->` hint and `[placeholder]` before output.
 - `---` only where the template already has it; delete it with an emptied section.
 - Reference issues and PRs by ID only (`#123`, `owner/repo#123`, `ENG-123`), never by branch name, and only when needed.
-- Templates are in English. PR bodies, GitHub issues, and release notes always use English; Linear bodies and docs use the session language.
+- Templates are in English. PR bodies, GitHub issues, and release notes always use English. Linear issue bodies and Linear documents use the current `reply_language` (headings and content), including any language the user switched to. SDD artifacts and repo files stay English.
 
 ### Execution Steps
 
