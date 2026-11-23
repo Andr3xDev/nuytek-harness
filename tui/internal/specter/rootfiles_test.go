@@ -1,26 +1,44 @@
 package specter_test
 
 import (
+	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 )
 
-func TestRootFiles_ListsTheD6Entries(t *testing.T) {
-	want := []specter.RootFile{
-		{Label: "global instructions", RepoPath: "claude/CLAUDE.md", HomePath: ".claude/CLAUDE.md"},
-		{Label: "orchestrator agent", RepoPath: "agents/tech-orchestrator.md", HomePath: ".claude/agents/tech-orchestrator.md"},
-		{Label: "guard hook", RepoPath: "claude/hooks/infra-agent-bash-guard.py", HomePath: ".claude/hooks/infra-agent-bash-guard.py"},
-		{Label: "specter-ops agent", RepoPath: "agents/sub-agents/infrastructure/specter-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/specter-ops.md"},
-		{Label: "/specter command", RepoPath: "claude/commands/specter.md", HomePath: ".claude/commands/specter.md"},
-		{Label: "SDD rules", RepoPath: "shared/common-sdd.md", HomePath: ".claude/common-sdd.md"},
-		{Label: "git-ops agent", RepoPath: "agents/sub-agents/general/git-ops.md", HomePath: ".claude/agents/sub-agents/general/git-ops.md"},
-		{Label: "engram-ops agent", RepoPath: "agents/sub-agents/infrastructure/engram-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/engram-ops.md"},
+// The bash renderer reads targets/rendered-files.txt; the Go side keeps RootFiles. They must name the same files.
+func TestRootFiles_MatchRenderedFilesList(t *testing.T) {
+	const guardHook = ".claude/hooks/infra-agent-bash-guard.py"
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "targets", "rendered-files.txt"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(specter.RootFiles, want) {
-		t.Errorf("RootFiles = %+v, want %+v", specter.RootFiles, want)
+	var want []string
+	for _, f := range specter.RootFiles {
+		if f.Label == "" {
+			t.Errorf("RootFile %+v has no label", f)
+		}
+		if _, err := os.Stat(filepath.Join("..", "..", "..", f.RepoPath)); err != nil {
+			t.Errorf("RootFile %q: repo source missing: %v", f.Label, err)
+		}
+		if f.HomePath != guardHook {
+			want = append(want, f.HomePath)
+		}
+	}
+	var got []string
+	for _, line := range strings.Split(string(data), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			got = append(got, line)
+		}
+	}
+	slices.Sort(want)
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("rendered-files.txt = %v, want RootFiles minus the guard hook = %v", got, want)
 	}
 }
 
@@ -37,14 +55,13 @@ func TestLoadRootRefs_MatchesEveryEquivalentRootForm(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			env := envWith(t, &fakeExec{}, "")
-			env.Repo = t.TempDir()
 			root := filepath.Join(env.Home, "dev", "specter")
-			writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), tt.content(env.Home, root))
+			writeFile(t, filepath.Join(env.Home, ".claude", "CLAUDE.md"), tt.content(env.Home, root))
 
 			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
-			if !ref.Found || !ref.References || string(ref.Copy) != "repo" {
-				t.Errorf("ref = %+v, want found, referencing, read from the repo copy", ref)
+			if !ref.Found || !ref.References {
+				t.Errorf("ref = %+v, want found and referencing", ref)
 			}
 		})
 	}
@@ -66,8 +83,7 @@ func TestLoadRootRefs_RootMustEndOnABoundary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.content, func(t *testing.T) {
 			env := envWith(t, &fakeExec{}, "")
-			env.Repo = t.TempDir()
-			writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), tt.content)
+			writeFile(t, filepath.Join(env.Home, ".claude", "CLAUDE.md"), tt.content)
 
 			ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
@@ -80,8 +96,7 @@ func TestLoadRootRefs_RootMustEndOnABoundary(t *testing.T) {
 
 func TestLoadRootRefs_FileWithoutRootDoesNotReference(t *testing.T) {
 	env := envWith(t, &fakeExec{}, "")
-	env.Repo = t.TempDir()
-	writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), "mentions ~/dev/other only")
+	writeFile(t, filepath.Join(env.Home, ".claude", "CLAUDE.md"), "mentions ~/dev/other only")
 
 	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
@@ -90,21 +105,33 @@ func TestLoadRootRefs_FileWithoutRootDoesNotReference(t *testing.T) {
 	}
 }
 
-func TestLoadRootRefs_FallsBackToDeployedCopy(t *testing.T) {
+func TestLoadRootRefs_RepoCopyWithPlaceholderIsIgnored(t *testing.T) {
 	env := envWith(t, &fakeExec{}, "")
 	env.Repo = t.TempDir()
-	writeFile(t, filepath.Join(env.Home, ".claude", "common-sdd.md"), "root ~/dev/specter")
+	writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), "root {{SPECTER_ROOT}}")
+	writeFile(t, filepath.Join(env.Home, ".claude", "CLAUDE.md"), "root ~/dev/specter")
 
-	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "SDD rules")
+	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
 
-	if !ref.Found || !ref.References || string(ref.Copy) != "deployed" {
-		t.Errorf("ref = %+v, want found, referencing, read from the deployed copy", ref)
+	if !ref.Found || !ref.References {
+		t.Errorf("ref = %+v, want the deployed copy read and referencing", ref)
+	}
+}
+
+func TestLoadRootRefs_RepoCopyAloneDoesNotCountAsFound(t *testing.T) {
+	env := envWith(t, &fakeExec{}, "")
+	env.Repo = t.TempDir()
+	writeFile(t, filepath.Join(env.Repo, "claude", "CLAUDE.md"), "root ~/dev/specter")
+
+	ref := findRef(t, specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home)), "global instructions")
+
+	if ref.Found || ref.References {
+		t.Errorf("ref = %+v, want not found: only the deployed copy is read", ref)
 	}
 }
 
 func TestLoadRootRefs_MissingCopyIsNotFoundAndEveryEntryStillListed(t *testing.T) {
 	env := envWith(t, &fakeExec{}, "")
-	env.Repo = t.TempDir()
 
 	refs := specter.LoadRootRefs(env, specter.ResolveRoot(env.Saved.SpecterRoot, env.Home))
 

@@ -18,6 +18,14 @@ const (
 	maintenanceTitle = "Specter maintenance"
 	driftReportTitle = "Drift report"
 	noDriftText      = "No drift."
+
+	createStoreTitle   = "Create store"
+	createStorePrompt  = "New store id"
+	addMappingTitle    = "Add repo mapping"
+	changeMappingTitle = "Change repo mapping"
+	removeMappingTitle = "Remove repo mapping"
+	mappingPrompt      = "Repo remote or path"
+	mappingStorePrompt = "Store for the mapping"
 )
 
 // validatedMsg carries one store's validation back to Root; at is the instant the run was requested and
@@ -116,9 +124,105 @@ func (r *Root) openMaintenance() tea.Cmd {
 	return r.specterFlow.start()
 }
 
+// specterPrompt is the text field of a Specter action; submit gets the trimmed, non-empty value.
+type specterPrompt struct {
+	configState
+	label  string
+	submit func(raw string) tea.Cmd
+}
+
+func (r *Root) openSpecterPrompt(label string, submit func(raw string) tea.Cmd) tea.Cmd {
+	p := &specterPrompt{configState: newConfigState(), label: label, submit: submit}
+	r.specterPrompt = p
+	return p.open("")
+}
+
+func (r *Root) handleSpecterPromptKey(msg tea.KeyPressMsg) tea.Cmd {
+	k, p := r.svc.keys, r.specterPrompt
+	switch {
+	case key.Matches(msg, k.Cancel):
+		r.specterPrompt = nil
+	case key.Matches(msg, k.Accept):
+		raw := strings.TrimSpace(p.input.Value())
+		if raw == "" {
+			p.err = "enter a value"
+			return nil
+		}
+		r.specterPrompt = nil
+		return p.submit(raw)
+	default:
+		p.err = ""
+		var cmd tea.Cmd
+		p.input, cmd = p.input.Update(msg)
+		return cmd
+	}
+	return nil
+}
+
+func (r *Root) openSpecterFlow(f *flow) tea.Cmd {
+	r.specterFlow, r.specterReport = f, false
+	return f.start()
+}
+
+func (r *Root) openCreateStore() tea.Cmd {
+	svc := r.svc
+	return r.openSpecterPrompt(createStorePrompt, func(id string) tea.Cmd {
+		return r.openSpecterFlow(newDirectFlow(svc, createStoreTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
+			return svc.SpecterPlanCreateStore(ctx, svc.Env, id)
+		}))
+	})
+}
+
+func (r *Root) openRemoveMapping() tea.Cmd {
+	svc := r.svc
+	return r.openSpecterPrompt(mappingPrompt, func(raw string) tea.Cmd {
+		return r.openSpecterFlow(newDirectFlow(svc, removeMappingTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
+			return svc.SpecterPlanRemoveMapping(ctx, svc.Env, mappingEntry(raw))
+		}))
+	})
+}
+
+// openStoreMapping asks for the repo, then for the store: add and change differ only in the planner.
+func (r *Root) openStoreMapping(title string, planFor func(ctx context.Context, entry specter.RepoEntry, store string) (plan.Plan, error)) tea.Cmd {
+	svc := r.svc
+	return r.openSpecterPrompt(mappingPrompt, func(raw string) tea.Cmd {
+		planFn := func(ctx context.Context, names []string) (plan.Plan, error) {
+			store := ""
+			if len(names) > 0 {
+				store = names[0]
+			}
+			return planFor(ctx, mappingEntry(raw), store)
+		}
+		registered := r.specter.facts.Registered
+		if len(registered) == 0 {
+			// The planner names the missing store as the blocker.
+			return r.openSpecterFlow(newDirectFlow(svc, title, nothingToDoText, planFn))
+		}
+		f := newSelectFlow(svc, title, mappingStorePrompt, nothingToDoText, planFn)
+		f.limit = 1
+		choices := make([]choice, len(registered))
+		for i, s := range registered {
+			choices[i] = choice{name: s.ID}
+		}
+		f.setChoices(choices)
+		return r.openSpecterFlow(f)
+	})
+}
+
+// mappingEntry reads a `/` or `~` prefix as a repo path and anything else as a remote.
+func mappingEntry(raw string) specter.RepoEntry {
+	if strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "~") {
+		return specter.RepoEntry{Path: raw}
+	}
+	return specter.RepoEntry{Remote: raw}
+}
+
 // handleSpecterKey serves the Specter panel; an open action flow owns the keys until it ends.
 func (r *Root) handleSpecterKey(msg tea.KeyPressMsg) tea.Cmd {
-	k, st := r.svc.keys, &r.specter
+	svc, k, st := r.svc, r.svc.keys, &r.specter
+	if r.specterPrompt != nil {
+		return r.handleSpecterPromptKey(msg)
+	}
 	if f := r.specterFlow; f != nil {
 		if f.stage == stageSelect && key.Matches(msg, k.Cancel) {
 			r.specterFlow = nil
@@ -143,13 +247,29 @@ func (r *Root) handleSpecterKey(msg tea.KeyPressMsg) tea.Cmd {
 		return r.openFastInit()
 	case key.Matches(msg, k.Maintenance) && st.writable() && r.svc.SpecterPlanMaintenance != nil:
 		return r.openMaintenance()
+	case key.Matches(msg, k.NewStore) && st.writable() && svc.SpecterPlanCreateStore != nil:
+		return r.openCreateStore()
+	case key.Matches(msg, k.MapAdd) && st.writable() && svc.SpecterPlanAddMapping != nil:
+		return r.openStoreMapping(addMappingTitle, func(ctx context.Context, entry specter.RepoEntry, store string) (plan.Plan, error) {
+			entry.Store = store
+			return svc.SpecterPlanAddMapping(ctx, svc.Env, entry)
+		})
+	case key.Matches(msg, k.MapChange) && st.writable() && svc.SpecterPlanChangeMapping != nil:
+		return r.openStoreMapping(changeMappingTitle, func(ctx context.Context, entry specter.RepoEntry, store string) (plan.Plan, error) {
+			return svc.SpecterPlanChangeMapping(ctx, svc.Env, entry, store)
+		})
+	case key.Matches(msg, k.MapRemove) && st.writable() && svc.SpecterPlanRemoveMapping != nil:
+		return r.openRemoveMapping()
 	}
 	return nil
 }
 
 // specterKeys lists what the Specter panel answers to; a key whose action is unavailable is not claimed.
 func (r *Root) specterKeys() []key.Binding {
-	k, st := r.svc.keys, &r.specter
+	svc, k, st := r.svc, r.svc.keys, &r.specter
+	if r.specterPrompt != nil {
+		return []key.Binding{described(k.Accept, "continue"), described(k.Cancel, "cancel")}
+	}
 	if f := r.specterFlow; f != nil {
 		keys := f.Keys()
 		if f.stage == stageSelect {
@@ -167,6 +287,21 @@ func (r *Root) specterKeys() []key.Binding {
 	if st.writable() && r.svc.SpecterPlanMaintenance != nil {
 		keys = append(keys, k.Maintenance)
 	}
+	if st.writable() {
+		for _, a := range []struct {
+			binding key.Binding
+			wired   bool
+		}{
+			{k.NewStore, svc.SpecterPlanCreateStore != nil},
+			{k.MapAdd, svc.SpecterPlanAddMapping != nil},
+			{k.MapChange, svc.SpecterPlanChangeMapping != nil},
+			{k.MapRemove, svc.SpecterPlanRemoveMapping != nil},
+		} {
+			if a.wired {
+				keys = append(keys, a.binding)
+			}
+		}
+	}
 	return append(keys, k.Refresh, k.Move, k.Back)
 }
 
@@ -174,6 +309,15 @@ func (r *Root) specterKeys() []key.Binding {
 func (r *Root) specterPanel(width, h int) []string {
 	th := r.svc.th
 	f := r.specterFlow
+	if p := r.specterPrompt; p != nil {
+		in := p.input
+		in.SetWidth(max(width-len(configInputPad), 1))
+		lines := []string{th.section.Render(p.label), configInputPad + in.View()}
+		if p.err != "" {
+			lines = append(lines, styleAll(th.err, wrap(p.err, width))...)
+		}
+		return clip(lines, h)
+	}
 	if f == nil {
 		return r.specter.scroll.window(specterScreen(th, &r.specter, width), h)
 	}

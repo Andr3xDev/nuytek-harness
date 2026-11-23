@@ -15,6 +15,8 @@ import (
 const (
 	reposFile     = "repos.yaml"
 	storeListKeys = 3 // active, archived, specs
+	gitBinary     = "git"
+	ghBinary      = "gh"
 )
 
 var errRelativeRoot = errors.New("root is not an absolute path")
@@ -38,6 +40,11 @@ func ParseLastModified(value string) (time.Time, bool) {
 	return t, err == nil
 }
 
+// GhInfo is the GitHub CLI state; Authenticated is only meaningful when Found.
+type GhInfo struct {
+	Found, Authenticated bool
+}
+
 // Facts is everything the screen and the dashboard line need; checks and views are pure functions of it.
 type Facts struct {
 	Registration
@@ -47,13 +54,16 @@ type Facts struct {
 	References      map[string][]string // store id -> `references:` of its openspec/config.yaml
 	CurrentRepo     CurrentRepo
 	RootRefs        []RootRef
+	Git             ToolInfo
+	Gh              GhInfo
+	IsRepo          bool   // the resolved root holds a top-level repos.yaml
 	Home            string // expands `~` in repos.yaml paths
 	// PathExists holds only definite answers (Lstat found it or reported it missing) for repos.yaml `path:` entries
 	// and registered store roots, so Checks and Drift stay pure; an absent key means "not checked".
 	PathExists map[string]bool
 }
 
-// Load does all the IO once. It never runs git and runs openspec only when it is on PATH.
+// Load does all the IO once. It never runs git, runs gh only for `auth status`, and runs openspec only when it is on PATH.
 func Load(ctx context.Context, env check.Env) Facts {
 	reg := LoadRegistration(ctx, env)
 	facts := Facts{
@@ -65,6 +75,9 @@ func Load(ctx context.Context, env check.Env) Facts {
 		Home:         env.Home,
 	}
 	facts.PathExists = probePaths(env.FS, facts)
+	_, reposErr := env.FS.Lstat(filepath.Join(reg.Root.Path, reposFile))
+	facts.IsRepo = reposErr == nil
+	facts.Git, facts.Gh = probeGitAndGh(ctx, env)
 	if !reg.Openspec.Found {
 		return facts
 	}
@@ -110,6 +123,23 @@ func probePaths(fsys check.FS, f Facts) map[string]bool {
 		}
 	}
 	return exists
+}
+
+// probeGitAndGh only runs `gh auth status` when gh is on PATH; a non-zero exit or a run error means not authenticated.
+func probeGitAndGh(ctx context.Context, env check.Env) (ToolInfo, GhInfo) {
+	var git ToolInfo
+	if _, err := env.Exec.LookPath(gitBinary); err != nil {
+		git.Err = err
+	} else {
+		git.Found = true
+	}
+	if _, err := env.Exec.LookPath(ghBinary); err != nil {
+		return git, GhInfo{}
+	}
+	ctx, cancel := context.WithTimeout(ctx, check.DefaultProbeTimeout)
+	defer cancel()
+	res, err := env.Exec.Run(ctx, ghBinary, "auth", "status")
+	return git, GhInfo{Found: true, Authenticated: err == nil && res.ExitCode == 0}
 }
 
 func probeVersion(ctx context.Context, env check.Env) string {

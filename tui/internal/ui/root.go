@@ -94,9 +94,10 @@ type Root struct {
 	specter       specterState
 	entry         entry // what the sidebar selects; cursor itself stays on a target
 	configPanel   configState
-	configFlow    *flow // the self-update, from preview to the accepted run
-	specterFlow   *flow // fast init or maintenance, from selection to the accepted run
-	specterReport bool  // the open flow shows the drift report above its preview
+	configFlow    *flow          // the self-update, from preview to the accepted run
+	specterFlow   *flow          // fast init or maintenance, from selection to the accepted run
+	specterPrompt *specterPrompt // the text field of a Specter action, before its flow opens
+	specterReport bool           // the open flow shows the drift report above its preview
 	validateSlots chan struct{}
 	tabs          [][]tab // per target; none for an unavailable target
 	cursor        int
@@ -298,12 +299,13 @@ func (r *Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return r, r.handleKey(msg)
 	case tea.PasteMsg:
-		if r.run != nil || !r.inputActive() {
+		in := r.activeInput()
+		if r.run != nil || in == nil || r.focus != focusPanel {
 			return r, nil
 		}
 		var cmd tea.Cmd
-		r.configPanel.input, cmd = r.configPanel.input.Update(msg)
-		r.configPanel.err = ""
+		in.input, cmd = in.input.Update(msg)
+		in.err = ""
 		return r, cmd
 	default:
 		return r, r.broadcast(msg)
@@ -329,6 +331,9 @@ func (r *Root) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	k := r.svc.keys
 	if r.inputActive() && msg.String() != "ctrl+c" {
+		if r.entry == entrySpecter {
+			return r.handleSpecterKey(msg)
+		}
 		return r.handleConfigKey(msg)
 	}
 	if key.Matches(msg, k.Quit) {

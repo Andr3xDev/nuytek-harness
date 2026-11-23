@@ -5,9 +5,9 @@ package specter
 import (
 	"path/filepath"
 	"strings"
-)
 
-const defaultRootRel = "dev/specter"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
+)
 
 type RootSource string
 
@@ -26,16 +26,19 @@ type Root struct {
 // ResolveRoot never touches the filesystem; an empty saved value counts as unset.
 func ResolveRoot(saved, home string) Root {
 	root := Root{Path: DefaultRoot(home), Source: RootSourceDefault}
+	raw := root.Path
 	if saved != "" {
 		root = Root{Path: filepath.Clean(saved), Source: RootSourceSaved}
+		raw = saved
 	}
 	root.Relative = !filepath.IsAbs(root.Path)
-	root.OutsideHome = !root.Relative && outsideHome(home, root.Path)
+	// Validity uses the raw value: Clean would fold a ".." segment away and hide it.
+	root.OutsideHome = !root.Relative && !render.ValidRoot(home, raw)
 	return root
 }
 
 func DefaultRoot(home string) string {
-	return filepath.Join(home, defaultRootRel)
+	return filepath.Join(home, render.DefaultRootRel)
 }
 
 func outsideHome(home, path string) bool {

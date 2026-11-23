@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
@@ -39,20 +40,23 @@ func TestValidateSpecterRoot(t *testing.T) {
 	}
 	cases := []struct {
 		name, raw, want string
-		wantErr         bool
+		wantErr         string // substring of the error; "" means accepted
 	}{
-		{"tilde path returns expanded", "~/specs", filepath.Join(realHome, "specs"), false},
-		{"outside HOME accepted", outside, outside, false},
-		{"relative rejected", "specs", "", true},
-		{"empty rejected", "", "", true},
-		{"missing dir rejected", filepath.Join(outside, "nope"), "", true},
-		{"file rejected", file, "", true},
-	}
+		{"tilde path returns expanded", "~/specs", filepath.Join(realHome, "specs"), ""},
+		{"outside HOME accepted", outside, outside, ""},
+		{"missing path with existing parent accepted", "~/new", filepath.Join(realHome, "new"), ""},
+		{"relative rejected", "specs", "", "absolute"},
+		{"empty rejected", "", "", "empty"},
+		{"missing path and missing parent rejected", filepath.Join(outside, "none", "specs"), "", "parent directory does not exist"},
+		{"file rejected", file, "", "not a directory"}}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got, err := config.ValidateSpecterRoot(osfs.FS{}, realHome, c.raw)
-			if (err != nil) != c.wantErr {
-				t.Fatalf("err = %v, wantErr %v", err, c.wantErr)
+			if c.wantErr == "" && err != nil {
+				t.Fatalf("err = %v, want accepted", err)
+			}
+			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
+				t.Fatalf("err = %v, want one containing %q", err, c.wantErr)
 			}
 			if got != c.want {
 				t.Errorf("path = %q, want %q", got, c.want)

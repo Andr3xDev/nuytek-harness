@@ -9,21 +9,6 @@ import (
 )
 
 const (
-	repoEnvVar         = "NUYTEK_SPECTER_REPO"
-	repoURLPlaceholder = "<your-specter-repo-url>"
-	repoEnvVarHint     = " (set " + repoEnvVar + " to fill it in)"
-)
-
-// CloneCommand is shown as text when the root is missing; the TUI never runs git.
-func CloneCommand(lookupEnv func(string) (string, bool), root Root) string {
-	url, hint := repoURLPlaceholder, repoEnvVarHint
-	if v, ok := lookupEnv(repoEnvVar); ok && v != "" {
-		url, hint = v, ""
-	}
-	return "git clone " + url + " " + root.Path + hint
-}
-
-const (
 	noteOutsideHome = "root outside HOME is not supported"
 	noteNoID        = "no id in store.yaml"
 )
@@ -36,7 +21,7 @@ func registerBlocker(reg Registration) string {
 	case !reg.RootExists && reg.FoldersErr != nil:
 		return "specter root " + reg.Root.Path + " unreadable: " + reg.FoldersErr.Error()
 	case !reg.RootExists:
-		return "specter root " + reg.Root.Path + " not found; clone it with: " + reg.CloneCommand
+		return "specter root " + reg.Root.Path + " not found"
 	case !reg.Openspec.Found:
 		return errOpenspecMissing.Error()
 	case reg.RegisteredErr != nil:

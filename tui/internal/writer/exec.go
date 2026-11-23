@@ -20,8 +20,22 @@ const killedPipeGrace = time.Second
 const maxPendingLine = 64 << 10
 
 func execute(ctx context.Context, e plan.Exec, line func(string)) plan.StepResult {
+	res, timedOut := executeOnce(ctx, e, line)
+	// A timeout is not retried: each attempt could burn a full Timeout again.
+	for n := 1; n < e.Attempts && res.Status == plan.StepFailed && !timedOut && ctx.Err() == nil; n++ {
+		select {
+		case <-ctx.Done():
+			return plan.StepResult{Status: plan.StepFailed, Err: ctx.Err()}
+		case <-time.After(e.Backoff * time.Duration(n)):
+		}
+		res, timedOut = executeOnce(ctx, e, line)
+	}
+	return res
+}
+
+func executeOnce(ctx context.Context, e plan.Exec, line func(string)) (res plan.StepResult, timedOut bool) {
 	if len(e.Argv) == 0 {
-		return fromError(errors.New("exec: empty command"))
+		return fromError(errors.New("exec: empty command")), false
 	}
 	runCtx := ctx
 	if e.Timeout > 0 {
@@ -42,19 +56,19 @@ func execute(ctx context.Context, e plan.Exec, line func(string)) plan.StepResul
 	switch {
 	case err == nil, errors.Is(err, exec.ErrWaitDelay):
 		// ErrWaitDelay means the command exited 0 but a child kept the pipes open.
-		return plan.StepResult{Status: plan.StepDone}
+		return plan.StepResult{Status: plan.StepDone}, false
 	case ctx.Err() != nil:
-		return plan.StepResult{Status: plan.StepFailed, Err: ctx.Err()}
+		return plan.StepResult{Status: plan.StepFailed, Err: ctx.Err()}, false
 	case runCtx.Err() != nil:
 		status := plan.StepFailed
 		if e.Warn {
 			status = plan.StepWarned
 		}
-		return plan.StepResult{Status: status, Err: fmt.Errorf("%s timed out after %s", e.Describe(), e.Timeout)}
+		return plan.StepResult{Status: status, Err: fmt.Errorf("%s timed out after %s", e.Describe(), e.Timeout)}, true
 	case e.Warn:
-		return plan.StepResult{Status: plan.StepWarned, Err: fmt.Errorf("%s: %w", e.Describe(), err)}
+		return plan.StepResult{Status: plan.StepWarned, Err: fmt.Errorf("%s: %w", e.Describe(), err)}, false
 	}
-	return plan.StepResult{Status: plan.StepFailed, Err: fmt.Errorf("%s: %w", e.Describe(), err)}
+	return plan.StepResult{Status: plan.StepFailed, Err: fmt.Errorf("%s: %w", e.Describe(), err)}, false
 }
 
 // lineWriter splits written bytes into lines; stdout and stderr share one so exec copies with a single goroutine.

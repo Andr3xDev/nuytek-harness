@@ -100,10 +100,14 @@ func run() int {
 		SpecterValidate: func(ctx context.Context, id string) (specter.Validation, error) {
 			return specter.ValidateStore(ctx, env.Exec, id)
 		},
-		SpecterPlanFastInit:    specter.PlanFastInit,
-		SpecterPlanMaintenance: specter.PlanMaintenance,
-		SaveState:              store.Save,
-		ConfigPlanUpdate:       action.PlanSelfUpdate,
+		SpecterPlanFastInit:      specter.PlanFastInit,
+		SpecterPlanMaintenance:   specter.PlanMaintenance,
+		SpecterPlanCreateStore:   specter.PlanCreateStore,
+		SpecterPlanAddMapping:    specter.PlanAddMapping,
+		SpecterPlanChangeMapping: specter.PlanChangeMapping,
+		SpecterPlanRemoveMapping: specter.PlanRemoveMapping,
+		SaveState:                store.Save,
+		ConfigPlanUpdate:         action.PlanSelfUpdate,
 	}
 	if _, err := tea.NewProgram(ui.NewRoot(targets, deps, warnings)).Run(); err != nil {
 		return fail(exitFailure, err)

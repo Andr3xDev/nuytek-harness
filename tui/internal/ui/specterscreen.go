@@ -15,6 +15,9 @@ const (
 	unknownText    = "unknown"
 	separatorGlyph = "─"
 	notYetGlyph    = "·"
+
+	notSpecterRepoText = "Not a Specter repo: the root has no repos.yaml."
+	emptyRepoText      = "No stores yet. Create one with n (create store) or ask an agent through /specter."
 )
 
 // storeValidation is the session-only result of validating one store; nothing is persisted.
@@ -46,6 +49,9 @@ func specterScreen(th theme, st *specterState, width int) []string {
 	f := st.facts
 	lines = append(lines, rootLines(th, f, width)...)
 	lines = append(lines, overviewLines(th, f, width)...)
+	if f.IsRepo && len(f.Folders) == 0 {
+		lines = append(lines, styleAll(th.muted, wrap(emptyRepoText, width))...)
+	}
 	lines = append(lines, "", th.section.Render("Checks"))
 	lines = append(lines, resultLines(th, specter.Checks(f), width)...)
 	if drift := specter.Drift(f); len(drift) > 0 {
@@ -62,8 +68,9 @@ func rootLines(th theme, f specter.Facts, width int) []string {
 	case !f.RootExists && f.FoldersErr != nil:
 		lines = append(lines, styleAll(th.warning, wrap("Root unreadable: "+f.FoldersErr.Error(), width))...)
 	case !f.RootExists:
-		lines = append(lines, styleAll(th.warning, wrap("Root not found. Clone it with:", width))...)
-		lines = append(lines, styleAll(th.plain, wrap(f.CloneCommand, width))...)
+		lines = append(lines, styleAll(th.warning, wrap("Root not found. "+missingRootAdvice(f), width))...)
+	case !f.IsRepo:
+		lines = append(lines, styleAll(th.warning, wrap(notSpecterRepoText, width))...)
 	}
 	if f.Root.OutsideHome {
 		lines = append(lines, styleAll(th.warning, wrap("Root is outside HOME: fast init and maintenance are not supported.", width))...)
@@ -71,11 +78,18 @@ func rootLines(th theme, f specter.Facts, width int) []string {
 	for _, ref := range f.RootRefs {
 		text := ref.Label + ": not found"
 		if ref.Found {
-			text = fmt.Sprintf("%s: %s copy, %s", ref.Label, ref.Copy, referenceText(ref.References))
+			text = fmt.Sprintf("%s: %s", ref.Label, referenceText(ref.References))
 		}
 		lines = append(lines, styleAll(th.muted, wrap(text, width))...)
 	}
 	return lines
+}
+
+func missingRootAdvice(f specter.Facts) string {
+	if reason := specter.FastInitBlocker(f); reason != "" {
+		return "Fast init is unavailable: " + reason + "."
+	}
+	return "Press f to create it from the template."
 }
 
 func referenceText(references bool) string {

@@ -78,6 +78,26 @@ func TestEdit(t *testing.T) {
 	}
 }
 
+func TestEditNewFileMode(t *testing.T) {
+	dir := t.TempDir()
+	missing, existing := filepath.Join(dir, "new.md"), filepath.Join(dir, "old.md")
+	must(t, os.WriteFile(existing, []byte("old"), 0o600))
+	setMode(t, existing, 0o600)
+	write := func([]byte, bool) ([]byte, error) { return []byte("changed"), nil }
+
+	for _, path := range []string{missing, existing} {
+		res, _ := run(t, newWriter(fixedNow), plan.Edit{Path: path, Edit: write, NewFileMode: 0o644})
+		wantStatus(t, res, plan.StepDone)
+	}
+
+	if got := modeOf(t, missing); got != 0o644 {
+		t.Errorf("new file mode = %o, want 644", got)
+	}
+	if got := modeOf(t, existing); got != 0o600 {
+		t.Errorf("existing file mode = %o, want 600 kept", got)
+	}
+}
+
 func TestEditFailsWhenFileChangesBetweenReadAndRename(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cfg.json")
