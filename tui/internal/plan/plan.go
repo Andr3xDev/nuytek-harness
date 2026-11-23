@@ -7,6 +7,9 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 )
 
+// Transform rewrites the bytes of one file; rel is relative to its component, "." for a single-file component.
+type Transform func(rel string, data []byte) []byte
+
 type Skip struct{ Name, Reason string }
 
 type Plan struct {

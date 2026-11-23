@@ -13,6 +13,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -67,7 +68,8 @@ func hardDirPart(ctx context.Context, env check.Env, c manifest.Component) (plan
 		return installPart(ctx, env, c)
 	}
 	// Diff diffs against the pre-wipe disk and refuses a symlink or non-directory root.
-	rows, err := drift.Diff(env.FS, src, dst, drift.InstallFilter, drift.BlockedReplace)
+	renderFn, _ := render.ForComponent(env, c.Target)
+	rows, err := drift.DiffWith(env.FS, src, dst, drift.InstallFilter, drift.BlockedReplace, renderFn)
 	if err != nil {
 		return plan.Part{}, err
 	}
@@ -93,7 +95,7 @@ func hardDirPart(ctx context.Context, env check.Env, c manifest.Component) (plan
 	}
 	steps := []plan.Step{
 		plan.RemoveTree{Path: dst, Rows: deletes},
-		plan.Copy{Src: src, Dst: dst, Files: files, Rows: rows},
+		plan.Copy{Src: src, Dst: dst, Files: files, Rows: rows, Transform: renderFn},
 	}
 	paths, err := chmodPaths(env.FS, c, src, dst, false)
 	if err != nil {

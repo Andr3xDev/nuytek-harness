@@ -3,6 +3,7 @@ package writer_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
@@ -95,4 +96,49 @@ func TestCopyReplacesSymlink(t *testing.T) {
 	wantStatus(t, res, plan.StepDone)
 	equalTree(t, treeOf(t, dstRoot), fixture{"a": "new"})
 	equalTree(t, treeOf(t, elsewhere), fixture{"target": "T"})
+}
+
+func TestCopyTransform(t *testing.T) {
+	upper := func(rel string, data []byte) []byte { return []byte(strings.ToUpper(rel + ":" + string(data))) }
+	tests := []struct {
+		name     string
+		src      fixture
+		srcMode  map[string]os.FileMode
+		files    []string
+		want     fixture
+		wantMode map[string]os.FileMode
+	}{
+		{
+			name: "regular file written transformed, with the component-relative path",
+			src:  fixture{"sub/a": "x"}, files: []string{"sub/a"}, want: fixture{"sub/a": "SUB/A:X"},
+		},
+		{
+			name: "source mode survives the transform",
+			src:  fixture{"run.sh": "x"}, srcMode: map[string]os.FileMode{"run.sh": 0o755}, files: []string{"run.sh"},
+			want: fixture{"run.sh": "RUN.SH:X"}, wantMode: map[string]os.FileMode{"run.sh": 0o755},
+		},
+		{
+			name: "symlink recreated, never transformed",
+			src:  fixture{"a": "A", "ln": "->a"}, files: []string{"ln"}, want: fixture{"ln": "->a"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srcRoot, dstRoot := t.TempDir(), t.TempDir()
+			build(t, srcRoot, tt.src)
+			for rel, m := range tt.srcMode {
+				setMode(t, filepath.Join(srcRoot, rel), m)
+			}
+
+			res, _ := run(t, newWriter(fixedNow), plan.Copy{Src: srcRoot, Dst: dstRoot, Files: tt.files, Transform: upper})
+
+			wantStatus(t, res, plan.StepDone)
+			equalTree(t, treeOf(t, dstRoot), tt.want)
+			for rel, want := range tt.wantMode {
+				if got := modeOf(t, filepath.Join(dstRoot, rel)); got != want {
+					t.Fatalf("%s mode = %o, want %o", rel, got, want)
+				}
+			}
+		})
+	}
 }

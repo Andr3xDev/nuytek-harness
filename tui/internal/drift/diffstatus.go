@@ -8,13 +8,15 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
 )
 
 const notExecutableReason = "target is not executable"
 
 // diffStatus maps Diff to a Status: any row or path conflict is drift, named by its first entry.
 func diffStatus(env check.Env, c manifest.Component, src, dst string) Status {
-	rows, err := Diff(env.FS, src, dst, InstallFilter, BlockedFail)
+	renderFn, _ := render.ForComponent(env, c.Target)
+	rows, err := DiffWith(env.FS, src, dst, InstallFilter, BlockedFail, renderFn)
 	var conflict ErrPathConflict
 	switch {
 	case errors.As(err, &conflict):

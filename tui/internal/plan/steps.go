@@ -46,6 +46,8 @@ type Copy struct {
 	Src, Dst string
 	Files    []string
 	Rows     []Change
+	// Transform rewrites each regular file as it is copied; rel is relative to Src, "." for a single file.
+	Transform Transform
 }
 
 type Remove struct {

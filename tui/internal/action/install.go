@@ -13,6 +13,7 @@ import (
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/drift"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/manifest"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
 )
 
@@ -66,13 +67,14 @@ func installPart(_ context.Context, env check.Env, c manifest.Component) (plan.P
 	if err := requireSource(env.FS, c, src); err != nil {
 		return plan.Part{}, err
 	}
-	rows, err := drift.Diff(env.FS, src, dst, drift.InstallFilter, drift.BlockedFail)
+	renderFn, _ := render.ForComponent(env, c.Target)
+	rows, err := drift.DiffWith(env.FS, src, dst, drift.InstallFilter, drift.BlockedFail, renderFn)
 	if err != nil {
 		return plan.Part{}, err
 	}
 	var steps []plan.Step
 	if len(rows) > 0 {
-		steps = append(steps, plan.Copy{Src: src, Dst: dst, Files: changePaths(rows), Rows: rows})
+		steps = append(steps, plan.Copy{Src: src, Dst: dst, Files: changePaths(rows), Rows: rows, Transform: renderFn})
 	}
 	paths, err := chmodPaths(env.FS, c, src, dst, true)
 	if err != nil {

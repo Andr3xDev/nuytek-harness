@@ -1,0 +1,14 @@
+# One root rule, three consumers: the Go render test, scripts/tests/render-check.sh and the hook selftest.
+# Columns, tab separated: case name, state.toml line, expected root in ~/ form. $HOME is the test HOME.
+valid	specter_root = "$HOME/work/specs"	~/work/specs
+valid single quoted	specter_root = '$HOME/work/specs'	~/work/specs
+outside HOME	specter_root = "/opt/specter"	~/dev/specter
+equal to HOME	specter_root = "$HOME"	~/dev/specter
+relative	specter_root = "work/specs"	~/dev/specter
+dotdot segment	specter_root = "$HOME/work/../x"	~/dev/specter
+trailing dotdot	specter_root = "$HOME/work/.."	~/dev/specter
+dotdot prefix in a name	specter_root = "$HOME/..foo/specs"	~/..foo/specs
+double slash	specter_root = "$HOME//work//specs"	~/work/specs
+dot segment	specter_root = "$HOME/work/./specs"	~/work/specs
+trailing slash	specter_root = "$HOME/work/specs/"	~/work/specs
+trailing comment	specter_root = "$HOME/work/specs" # where the specs live	~/work/specs
