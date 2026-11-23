@@ -141,7 +141,7 @@ Custom slash commands.
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-Native `permissions` ask before deletes, git discards, stash, force push, worktree and branch deletes and `codegraph uninit`.
+The guard hook asks before deletes outside the safe set, `git stash` and `git clean` without dry-run; native `permissions` ask before force push, remote branch delete, `reset --hard`, `clean -f` and `codegraph uninit`. Worktree remove/prune, local branch delete, `git restore` and `git checkout -- <path>` run without a prompt and need specific user authorization.
 
 ### Plugins
 
