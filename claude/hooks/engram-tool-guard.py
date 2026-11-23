@@ -3,8 +3,7 @@
 
 Denies the guarded tools for every agent_type except engram-ops,
 including the main thread (agent_type absent). Any other tool passes through.
-The hook never returns `ask`: a hook `ask` inside a background subagent never
-reaches the user.
+The hook never returns `ask`: denying is the policy for these tools.
 """
 import json
 import sys
