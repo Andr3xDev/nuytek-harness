@@ -31,6 +31,12 @@ type specterFakes struct {
 	validateErr     error
 	fastInitMapTo   []string
 	maintenanceRuns int
+	fastInitErr     error
+	createdStores   []string
+	createStoreErr  error
+	addedMappings   []specter.RepoEntry
+	changedMappings []specter.RepoEntry // Store holds the new store
+	removedMappings []specter.RepoEntry
 }
 
 func (f *specterFakes) deps(facts specter.Facts) Deps {
@@ -44,6 +50,29 @@ func (f *specterFakes) deps(facts specter.Facts) Deps {
 		},
 		SpecterPlanFastInit: func(_ context.Context, _ check.Env, mapTo string) (plan.Plan, error) {
 			f.fastInitMapTo = append(f.fastInitMapTo, mapTo)
+			if f.fastInitErr != nil {
+				return plan.Plan{}, f.fastInitErr
+			}
+			return registerPlan, nil
+		},
+		SpecterPlanCreateStore: func(_ context.Context, _ check.Env, id string) (plan.Plan, error) {
+			f.createdStores = append(f.createdStores, id)
+			if f.createStoreErr != nil {
+				return plan.Plan{}, f.createStoreErr
+			}
+			return registerPlan, nil
+		},
+		SpecterPlanAddMapping: func(_ context.Context, _ check.Env, e specter.RepoEntry) (plan.Plan, error) {
+			f.addedMappings = append(f.addedMappings, e)
+			return registerPlan, nil
+		},
+		SpecterPlanChangeMapping: func(_ context.Context, _ check.Env, e specter.RepoEntry, store string) (plan.Plan, error) {
+			e.Store = store
+			f.changedMappings = append(f.changedMappings, e)
+			return registerPlan, nil
+		},
+		SpecterPlanRemoveMapping: func(_ context.Context, _ check.Env, e specter.RepoEntry) (plan.Plan, error) {
+			f.removedMappings = append(f.removedMappings, e)
 			return registerPlan, nil
 		},
 		SpecterPlanMaintenance: func(context.Context, check.Env) (plan.Plan, error) {
@@ -56,11 +85,10 @@ func (f *specterFakes) deps(facts specter.Facts) Deps {
 func baseFacts() specter.Facts {
 	return specter.Facts{
 		Registration: specter.Registration{
-			Root:         specter.Root{Path: "/home/u/dev/specter", Source: specter.RootSourceDefault},
-			CloneCommand: "git clone URL /home/u/dev/specter",
-			RootExists:   true,
-			Openspec:     specter.ToolInfo{Found: true},
-			Registered:   []specter.StoreInfo{{ID: storeAlpha, Root: "/home/u/dev/specter/alpha"}},
+			Root:       specter.Root{Path: "/home/u/dev/specter", Source: specter.RootSourceDefault},
+			RootExists: true,
+			Openspec:   specter.ToolInfo{Found: true},
+			Registered: []specter.StoreInfo{{ID: storeAlpha, Root: "/home/u/dev/specter/alpha"}},
 		},
 		OpenspecVersion: "9.8.7",
 		Repos: specter.ReposView{
@@ -159,26 +187,16 @@ func TestSpecterScreen_RootBlockShowsPathAndSource(t *testing.T) {
 	}
 }
 
-func TestSpecterScreen_MissingRootShowsCloneCommand(t *testing.T) {
-	facts := baseFacts()
-	facts.RootExists = false
-	got := view(screenRoot(t, facts, &specterFakes{}))
-
-	if !strings.Contains(got, facts.CloneCommand) {
-		t.Fatalf("clone command %q missing:\n%s", facts.CloneCommand, got)
-	}
-}
-
-func TestSpecterScreen_RootBlockListsConfigsWithCopyAndNotFound(t *testing.T) {
+func TestSpecterScreen_RootBlockListsConfigsWithReferenceAndNotFound(t *testing.T) {
 	facts := baseFacts()
 	facts.RootRefs = []specter.RootRef{
-		{Label: "guard hook", Copy: specter.CopyDeployed, Found: true, References: true},
+		{Label: "global instructions", Found: true, References: true},
 		{Label: "SDD rules"},
 	}
 	got := view(screenRoot(t, facts, &specterFakes{}))
 
-	if line := lineWith(got, "guard hook"); !strings.Contains(line, string(specter.CopyDeployed)) {
-		t.Errorf("guard hook row %q lacks the copy read", line)
+	if line := lineWith(got, "global instructions"); !strings.Contains(line, "references the root") {
+		t.Errorf("global instructions row %q lacks the reference state", line)
 	}
 	if line := lineWith(got, "SDD rules"); !strings.Contains(line, "not found") {
 		t.Errorf("SDD rules row %q lacks \"not found\"", line)

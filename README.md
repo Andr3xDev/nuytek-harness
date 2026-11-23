@@ -31,7 +31,7 @@ Run it in a terminal for an interactive menu. Actions:
 - `clean-backups`: delete old snapshots
 - `pull`: import local config into the repo
 
-Every change takes a snapshot in `~/.claude-backups/`. The shell CLI always uses `~/dev/specter` and `~/.claude-backups` and ignores the paths set in the TUI Config entry.
+Every change takes a snapshot in `~/.claude-backups/`. The shell CLI reads the same `specter_root` as the TUI from `~/.local/state/nuytek-harness/state.toml` (default `~/dev/specter`) and always uses `~/.claude-backups`. Install renders the root into the deployed agent and doc files (see `agents/README.md`).
 
 Available for: Claude Code.
 
@@ -157,4 +157,4 @@ Installed from marketplaces by the installer.
 ### Memory
 
 - **Engram**: persistent cross-session memory shared by the orchestrator and most subagents (decisions, bug fixes, conventions).
-- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (repo-to-store map in `~/dev/specter/repos.yaml`, optional local git-ignored `openspec/config.yaml` pointer; stores are folders in the specs repo `~/dev/specter/`).
+- **OpenSpec**: SDD artifacts (proposal, specs, design, tasks) in one store per product (repo-to-store map in `repos.yaml` at the specter root (`~/dev/specter` unless `specter_root` is saved in the TUI state), optional local git-ignored `openspec/config.yaml` pointer; stores are folders in the specs repo at that root).

@@ -221,7 +221,27 @@ ROLE_OPENSPEC_STORE_ADMIN = ROLE_OPENSPEC_READ + [
 ]
 STORE_ADMIN_SUBCOMMANDS = {"setup", "register", "unregister"}
 STORE_VALUE_FLAGS = {"--path", "--id", "--remote"}
-SPECTER_ROOT = "~/dev/specter"
+DEFAULT_SPECTER_ROOT = "~/dev/specter"
+STATE_PATH = os.path.expanduser("~/.local/state/nuytek-harness/state.toml")
+
+
+def resolve_specter_root() -> str:
+    """`specter_root` from the TUI state file when it is an absolute path strictly under HOME
+    (symlinks resolved) without `..`; any problem falls back to the default (never widens access)."""
+    default = os.path.expanduser(DEFAULT_SPECTER_ROOT)
+    try:
+        import tomllib  # Python 3.11+; a missing module must not break the guard
+        with open(STATE_PATH, "rb") as handle:
+            root = tomllib.load(handle).get("specter_root")
+        if not isinstance(root, str) or "\0" in root or not os.path.isabs(root) or ".." in root.split("/"):
+            return default
+        root = os.path.normpath(root)
+        home = os.path.realpath(os.path.expanduser("~"))
+        return root if os.path.realpath(root).startswith(home.rstrip("/") + os.sep) else default
+    except Exception:  # a hostile state file must never crash the guard (RecursionError, bad UTF-8, ...)
+        return default
+
+
 HOME_VAR_PREFIX = "$HOME/"
 
 ROLE_LOGS = [
@@ -535,7 +555,7 @@ def has_git_write_flag(calls) -> bool:
 def reads_secret(command: str, agent_type=None) -> bool:
     """True when a token names a secret file, or a recursive search could read one unnamed (rg skips hidden files by default).
 
-    SPECTER_GREP_ROLES may grep recursively when every path stays under ~/dev/specter."""
+    SPECTER_GREP_ROLES may grep recursively when every path stays under the specter root."""
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -579,7 +599,7 @@ def is_recursive_grep(args) -> bool:
 
 
 def store_path_outside_specter(command: str) -> bool:
-    """True when `openspec store setup|register` lacks an explicit path under ~/dev/specter.
+    """True when `openspec store setup|register` lacks an explicit path under the specter root.
 
     `setup` writes outside specter by default, so `--path` is required; `register` takes the path
     positionally. Relative paths are denied (the guard does not know the cwd). `unregister` takes an id only.
@@ -635,13 +655,13 @@ def is_under_specter(value: str) -> bool:
     Tokens the shell would expand (braces, globs, variables) or containing `..` are rejected."""
     if not (value == "~" or value.startswith(("/", "~/"))) or not SAFE_PATH_TOKEN.fullmatch(value) or ".." in value.split("/"):
         return False
-    root = os.path.realpath(os.path.expanduser(SPECTER_ROOT))
+    root = os.path.realpath(resolve_specter_root())
     resolved = os.path.realpath(os.path.expanduser(value))
     return resolved == root or resolved.startswith(root + os.sep)
 
 
 def is_grep_confined_to_specter(command: str) -> bool:
-    """True for `grep` with one pattern positional and only path positionals under ~/dev/specter.
+    """True for `grep` with one pattern positional and only path positionals under the specter root.
 
     Only value-less whitelisted flags pass: `-e`/`-f`/`-A 2` style flags would confuse positional
     counting, and `-R` follows symlinks inside the tree.
@@ -983,10 +1003,11 @@ def _decide(agent_type: str, command: str):
             f"commands; store setup/register/unregister is owned by specter-ops."
         )
     if store_path_outside_specter(command):
+        specter_root = resolve_specter_root()
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' may only give store "
-            f"commands paths under {SPECTER_ROOT}. Give an explicit unquoted path "
-            f"(`--path {SPECTER_ROOT}/<id>`, or positional for register)."
+            f"commands paths under {specter_root}. Give an explicit unquoted path "
+            f"(`--path {specter_root}/<id>`, or positional for register)."
         )
     command = strip_git_dash_c(command)
     if matches_any(command, rules.get("native_ask", [])):
@@ -1052,7 +1073,166 @@ def main() -> int:
     return 0
 
 
+ROOT_CASES_RELATIVE_PATH = ("..", "..", "tui", "internal", "render", "testdata", "root-cases.txt")
+
+
+def _selftest_shared_root_cases(write_state, home: str) -> None:
+    """Runs the matrix shared with the Go render test and scripts/tests/render-check.sh.
+    Lines are `name<TAB>state.toml line<TAB>expected root`; `$HOME` stands for the temp HOME and the
+    expected root is `~/...` form."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *ROOT_CASES_RELATIVE_PATH)
+    if not os.path.exists(path):
+        print("SKIP: shared root cases (the hook runs outside the repository)")
+        return
+    with open(path, encoding="utf-8") as handle:
+        rows = [line.rstrip("\n").split("\t") for line in handle if line.strip() and not line.startswith("#")]
+    for name, state_line, expected in rows:
+        write_state(state_line.replace("$HOME", home) + "\n")
+        got = resolve_specter_root()
+        want = home + expected[1:] if expected.startswith("~") else expected
+        assert got == want, f"FAIL: shared root case {name!r} expected {want!r} got {got!r}"
+        print(f"PASS: shared root case {name}")
+
+
+def _selftest_state_root() -> None:
+    """Root resolution from the TUI state TOML, with a temp HOME and STATE_PATH. Rules mirror
+    resolve_specter_root in scripts/lib.sh: only a quoted absolute path under HOME counts."""
+    import tempfile
+
+    global STATE_PATH
+    saved_home, saved_state = os.environ.get("HOME"), STATE_PATH
+    with tempfile.TemporaryDirectory() as tmp_home:
+        home = os.path.realpath(tmp_home)
+        os.environ["HOME"] = home
+        STATE_PATH = os.path.join(home, "state.toml")
+        default = os.path.join(home, "dev", "specter")
+        custom = os.path.join(home, "custom", "spec")
+
+        def write_state(text) -> None:
+            if text is None:
+                if os.path.exists(STATE_PATH):
+                    os.remove(STATE_PATH)
+            elif isinstance(text, bytes):
+                with open(STATE_PATH, "wb") as handle:
+                    handle.write(text)
+            else:
+                with open(STATE_PATH, "w", encoding="utf-8") as handle:
+                    handle.write(text)
+
+        try:
+            fallbacks = {
+                "missing file": None,
+                "parse error": 'specter_root = "unterminated\n[[[',
+                "key absent": 'other = "x"\n',
+                "non-string": "specter_root = 5\n",
+                "empty": 'specter_root = ""\n',
+                "relative": 'specter_root = "custom/spec"\n',
+                "tilde form": 'specter_root = "~/custom/spec"\n',
+                "outside HOME": 'specter_root = "/etc/specter"\n',
+                "HOME itself": f'specter_root = "{home}"\n',
+                "HOME with slash": f'specter_root = "{home}/"\n',
+                "sibling prefix of HOME": f'specter_root = "{home}-other/spec"\n',
+                "dot-dot in the middle": f'specter_root = "{home}/custom/../x"\n',
+                "trailing dot-dot": f'specter_root = "{home}/custom/.."\n',
+            }
+            for name, text in fallbacks.items():
+                write_state(text)
+                got = resolve_specter_root()
+                assert got == default, f"FAIL: state {name!r} expected default {default!r} got {got!r}"
+                print(f"PASS: state {name} -> default root")
+
+            # The guard must fail open to the default: an exception here would make every agent command raise.
+            hostile = {
+                "invalid UTF-8": b'specter_root = "\xff\xfe"\n',
+                "deeply nested array": ("x = " + "[" * 100000 + "]" * 100000 + "\n").encode(),
+                "NUL escape in the root": f'specter_root = "{home}/a\\u0000b"\n',
+            }
+            for name, text in hostile.items():
+                write_state(text)
+                try:
+                    got = resolve_specter_root()
+                except Exception as error:
+                    raise AssertionError(f"FAIL: state {name!r} raised {type(error).__name__}") from error
+                assert got == default, f"FAIL: state {name!r} expected default {default!r} got {got!r}"
+                try:
+                    verdict = decide("specter-ops", "grep -rn foo ~/dev/specter")
+                except Exception as error:
+                    raise AssertionError(f"FAIL: decide with state {name!r} raised {type(error).__name__}") from error
+                assert verdict[0] == "allow", f"FAIL: decide with state {name!r} got {verdict!r}"
+                print(f"PASS: hostile state {name} -> default root and a verdict")
+
+            outside = os.path.realpath(tempfile.mkdtemp())
+            try:
+                os.symlink(outside, os.path.join(home, "link"))
+                write_state(f'specter_root = "{home}/link/spec"\n')
+                got = resolve_specter_root()
+                assert got == default, f"FAIL: symlink out of HOME expected default {default!r} got {got!r}"
+                print("PASS: symlink under HOME pointing outside HOME -> default root")
+            finally:
+                os.rmdir(outside)
+
+            _selftest_shared_root_cases(write_state, home)
+
+            write_state(f'specter_root = "{custom}"\n')
+            assert resolve_specter_root() == custom, f"FAIL: saved root got {resolve_specter_root()!r}"
+            write_state(f"specter_root = '{custom}/'\n")
+            assert resolve_specter_root() == custom, f"FAIL: literal string, trailing slash got {resolve_specter_root()!r}"
+            print("PASS: saved root under HOME is used")
+
+            write_state(f'specter_root = "{custom}"\n')
+            saved_module = sys.modules.get("tomllib")
+            sys.modules["tomllib"] = None  # makes `import tomllib` raise ImportError
+            try:
+                got = resolve_specter_root()
+            finally:
+                if saved_module is None:
+                    sys.modules.pop("tomllib", None)
+                else:
+                    sys.modules["tomllib"] = saved_module
+            assert got == default, f"FAIL: tomllib unavailable expected default {default!r} got {got!r}"
+            print("PASS: tomllib unavailable -> default root")
+
+            write_state(f'specter_root = "{custom}"\n')
+            confined = [
+                ("specter-ops", "grep -rn foo ~/custom/spec", "allow"),
+                ("specter-ops", "grep -rn foo ~/custom/spec/nuydeck/openspec", "allow"),
+                ("sdd-explore", "grep -rn foo ~/custom/spec", "allow"),
+                ("specter-ops", "grep -rn foo ~/dev/specter", "deny"),
+                ("specter-ops", "grep -rn foo ~/custom/spec/../x", "deny"),
+                ("specter-ops", "grep -rn foo ~/custom/spec-old", "deny"),
+                ("specter-ops", "grep -rn foo ~/custom", "deny"),
+                ("specter-ops", "openspec store setup x --path ~/custom/spec/x", "allow"),
+                ("specter-ops", "openspec store register ~/custom/spec/x --id x", "allow"),
+                ("specter-ops", "openspec store setup x --path ~/dev/specter/x", "deny"),
+                ("specter-ops", "openspec store setup x --path ~/custom/spec/../x", "deny"),
+            ]
+            for agent_type, command, expected in confined:
+                decision = decide(agent_type, command)[0]
+                assert decision == expected, (
+                    f"FAIL: custom root agent={agent_type!r} command={command!r} "
+                    f"expected={expected!r} got={decision!r}"
+                )
+                print(f"PASS: custom root agent={agent_type!r} command={command!r} -> {decision!r}")
+        finally:
+            STATE_PATH = saved_state
+            if saved_home is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = saved_home
+
+
 def _selftest() -> int:
+    global STATE_PATH
+    saved_state_path = STATE_PATH
+    # Hermetic: a real custom specter_root on this machine must not affect the cases below.
+    STATE_PATH = os.path.join(os.path.expanduser("~"), ".nonexistent-selftest-state.toml")
+    try:
+        return _run_selftest()
+    finally:
+        STATE_PATH = saved_state_path
+
+
+def _run_selftest() -> int:
     cases = [
         ("aws", "aws logs describe-log-groups && git push origin main", "deny"),
         ("codegraph-ops", "codegraph status && git commit -m pwned", "deny"),
@@ -1841,6 +2021,8 @@ def _selftest() -> int:
     reason = decide("specter-ops", "openspec store setup x")[1]
     assert "--path" in reason and "unquoted" in reason, reason
     print("PASS: actionable deny reasons")
+
+    _selftest_state_root()
 
     print("All self-test cases passed.")
     return 0

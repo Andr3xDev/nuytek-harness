@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	defaultRootDisplay = "~/dev/specter"
-	agentsRootNotice   = "the rest of the harness uses " + defaultRootDisplay
-
+	checkGit      = "specter.git"
+	checkGh       = "specter.gh"
 	checkOpenspec = "specter.openspec"
 	checkRepo     = "specter.repo"
 	checkAgents   = "specter.agents"
@@ -20,7 +19,7 @@ const (
 
 // Checks derives every Specter check from facts. It does no IO.
 func Checks(f Facts) []check.Result {
-	results := []check.Result{openspecCheck(f)}
+	results := []check.Result{gitCheck(f), ghCheck(f), openspecCheck(f)}
 	if f.Repos.Err != nil {
 		results = append(results, check.Result{CheckID: checkRepos, Status: check.StatusUnknown, Message: "repos.yaml unreadable: " + f.Repos.Err.Error()})
 	} else {
@@ -44,6 +43,23 @@ func storeIDs(repos ReposView) []string {
 	}
 	slices.Sort(ids)
 	return ids
+}
+
+func gitCheck(f Facts) check.Result {
+	if !f.Git.Found {
+		return check.Result{CheckID: checkGit, Status: check.StatusError, Message: "git not found on PATH", Suggestion: "install git and make it available on PATH"}
+	}
+	return check.Result{CheckID: checkGit, Status: check.StatusOK, Message: "found"}
+}
+
+func ghCheck(f Facts) check.Result {
+	switch {
+	case !f.Gh.Found:
+		return check.Result{CheckID: checkGh, Status: check.StatusWarning, Message: "gh not found on PATH: repo creation is unavailable", Suggestion: "install the GitHub CLI (gh)"}
+	case !f.Gh.Authenticated:
+		return check.Result{CheckID: checkGh, Status: check.StatusWarning, Message: "gh is not authenticated: repo creation is unavailable", Suggestion: "run gh auth login"}
+	}
+	return check.Result{CheckID: checkGh, Status: check.StatusOK, Message: "authenticated"}
 }
 
 func openspecCheck(f Facts) check.Result {
@@ -126,7 +142,7 @@ func agentsCheck(f Facts) check.Result {
 		}
 		found = append(found, ref.Label)
 		if !ref.References {
-			stale = append(stale, fmt.Sprintf("%s (%s copy)", ref.Label, ref.Copy))
+			stale = append(stale, ref.Label)
 		}
 	}
 	switch {
@@ -134,13 +150,10 @@ func agentsCheck(f Facts) check.Result {
 		r.Status, r.Message = check.StatusUnknown, "no agent-facing copy found"
 	case len(stale) == 0:
 		r.Status, r.Message = check.StatusOK, "agent files reference "+f.Root.Path
-	case f.Root.Source == RootSourceDefault:
-		r.Status = check.StatusWarning
-		r.Message = fmt.Sprintf("agent files do not reference the root %s: %s", f.Root.Path, strings.Join(stale, ", "))
 	default:
 		r.Status = check.StatusWarning
-		r.Message = fmt.Sprintf("resolved root is %s but agent files reference %s: %s; %s",
-			f.Root.Path, defaultRootDisplay, strings.Join(stale, ", "), agentsRootNotice)
+		r.Message = fmt.Sprintf("agent files do not reference the root %s: %s", f.Root.Path, strings.Join(stale, ", "))
+		r.Suggestion = "reinstall the harness to render the agent files with the current root"
 	}
 	return r
 }

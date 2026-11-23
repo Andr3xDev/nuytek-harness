@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
 )
 
 // RootFile is an agent-facing file that names the Specter root; RepoPath is relative to the harness repo, HomePath to HOME.
@@ -14,11 +15,11 @@ type RootFile struct {
 	HomePath string
 }
 
-// RootFiles is the contract list (design D6); targets/claude.toml decides where each deploys.
+// RootFiles lists the deployed files that name the Specter root; targets/claude.toml decides where each deploys.
+// Keep in sync with targets/rendered-files.txt (TestRootFiles_MatchRenderedFilesList).
 var RootFiles = []RootFile{
 	{Label: "global instructions", RepoPath: "claude/CLAUDE.md", HomePath: ".claude/CLAUDE.md"},
 	{Label: "orchestrator agent", RepoPath: "agents/tech-orchestrator.md", HomePath: ".claude/agents/tech-orchestrator.md"},
-	{Label: "guard hook", RepoPath: "claude/hooks/infra-agent-bash-guard.py", HomePath: ".claude/hooks/infra-agent-bash-guard.py"},
 	{Label: "specter-ops agent", RepoPath: "agents/sub-agents/infrastructure/specter-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/specter-ops.md"},
 	{Label: "/specter command", RepoPath: "claude/commands/specter.md", HomePath: ".claude/commands/specter.md"},
 	{Label: "SDD rules", RepoPath: "shared/common-sdd.md", HomePath: ".claude/common-sdd.md"},
@@ -26,43 +27,25 @@ var RootFiles = []RootFile{
 	{Label: "engram-ops agent", RepoPath: "agents/sub-agents/infrastructure/engram-ops.md", HomePath: ".claude/agents/sub-agents/infrastructure/engram-ops.md"},
 }
 
-type RootCopy string
-
-const (
-	CopyRepo     RootCopy = "repo"
-	CopyDeployed RootCopy = "deployed"
-)
-
-// RootRef is what one listed file says about the root; Copy is empty when Found is false.
+// RootRef is what the deployed copy of one listed file says about the root.
 type RootRef struct {
 	Label      string
-	Copy       RootCopy
 	Found      bool
 	References bool
 }
 
-// LoadRootRefs reads each listed file, preferring the repo copy over the deployed one.
+// LoadRootRefs reads the deployed copy of each listed file; the repo copy holds a placeholder, not a root.
 func LoadRootRefs(env check.Env, root Root) []RootRef {
 	forms := rootForms(root.Path, env.Home)
 	refs := make([]RootRef, len(RootFiles))
 	for i, f := range RootFiles {
 		refs[i] = RootRef{Label: f.Label}
-		for _, src := range []struct {
-			copy RootCopy
-			base string
-			rel  string
-		}{{CopyRepo, env.Repo, f.RepoPath}, {CopyDeployed, env.Home, f.HomePath}} {
-			if src.base == "" {
-				continue
-			}
-			data, err := readCapped(env.FS, filepath.Join(src.base, src.rel), maxConfigBytes)
-			if err != nil {
-				continue
-			}
-			refs[i].Copy, refs[i].Found = src.copy, true
-			refs[i].References = containsAny(string(data), forms)
-			break
+		data, err := readCapped(env.FS, filepath.Join(env.Home, f.HomePath), maxConfigBytes)
+		if err != nil {
+			continue
 		}
+		refs[i].Found = true
+		refs[i].References = containsAny(string(data), forms)
 	}
 	return refs
 }
@@ -84,16 +67,11 @@ func containsAny(s string, subs []string) bool {
 				break
 			}
 			end := offset + i + len(sub)
-			if end == len(s) || !isNameByte(s[end]) {
+			if end == len(s) || !render.IsNameByte(s[end]) {
 				return true
 			}
 			rest, offset = s[end:], end
 		}
 	}
 	return false
-}
-
-// isNameByte reports a byte that would continue a path element, so `~/dev/specter-old` is not `~/dev/specter`.
-func isNameByte(b byte) bool {
-	return b == '-' || b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

@@ -33,7 +33,8 @@ func expandAbsolute(home, raw string) (string, error) {
 	return path, nil
 }
 
-// ValidateSpecterRoot returns the expanded path of an existing directory, or "" and an error.
+// ValidateSpecterRoot returns the expanded path of an existing directory or of a missing path whose parent
+// is an existing directory (fast init creates it), or "" and an error.
 func ValidateSpecterRoot(fs check.FS, home, raw string) (string, error) {
 	path, err := expandAbsolute(home, raw)
 	if err != nil {
@@ -41,7 +42,11 @@ func ValidateSpecterRoot(fs check.FS, home, raw string) (string, error) {
 	}
 	info, err := fs.Stat(path)
 	if err != nil {
-		return "", errors.New("directory does not exist")
+		parent, perr := fs.Stat(filepath.Dir(path))
+		if perr != nil || !parent.IsDir() {
+			return "", errors.New("parent directory does not exist")
+		}
+		return path, nil
 	}
 	if !info.IsDir() {
 		return "", errors.New("not a directory")

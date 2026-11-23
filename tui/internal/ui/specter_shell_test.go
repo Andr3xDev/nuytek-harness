@@ -281,6 +281,8 @@ func TestSpecterLine_CountsDriftWhenChecksPass(t *testing.T) {
 		},
 		Repos:    specter.ReposView{Repos: []specter.RepoEntry{{Remote: "https://example.test/a.git", Store: "a"}}},
 		RootRefs: []specter.RootRef{{Label: "agents", Found: true, References: true}},
+		Git:      specter.ToolInfo{Found: true},
+		Gh:       specter.GhInfo{Found: true, Authenticated: true},
 	}
 	if got := specter.Summary(specter.Checks(facts)); got.Text != "all checks passed" {
 		t.Fatalf("fixture checks = %q, want all checks passed", got.Text)

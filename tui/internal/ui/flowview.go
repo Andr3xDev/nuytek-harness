@@ -1,12 +1,16 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 )
 
 const (
+	cannotRunPrefix = "Cannot run: "
 	planningText    = "Planning..."
 	confirmTitle    = "Confirm"
 	confirmBoxWidth = 50
@@ -68,6 +72,10 @@ func (f *flow) header(w int) []string {
 
 func (f *flow) previewLines(w, h int) []string {
 	th := f.svc.th
+	var blocked specter.ErrBlocked
+	if errors.As(f.err, &blocked) {
+		return append(f.header(w), styleAll(th.warning, wrap(cannotRunPrefix+blocked.Reason, w))...)
+	}
 	if f.err != nil {
 		lines := styleAll(th.section, wrap(f.title+": cannot continue", w))
 		return append(lines, styleAll(th.err, wrap(f.err.Error(), w))...)

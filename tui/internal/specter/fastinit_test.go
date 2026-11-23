@@ -228,7 +228,7 @@ func TestPlanFastInit_NoStoreToChooseGivesReason(t *testing.T) {
 	}
 }
 
-func TestPlanFastInit_RootOutsideHomeIsEmptyWithReason(t *testing.T) {
+func TestPlanFastInit_RootOutsideHomeIsBlockedWithReason(t *testing.T) {
 	outside := t.TempDir()
 	writeStore(t, outside, "a", "id: a\n")
 	writeFile(t, filepath.Join(outside, "repos.yaml"), sampleReposYAML)
@@ -236,14 +236,11 @@ func TestPlanFastInit_RootOutsideHomeIsEmptyWithReason(t *testing.T) {
 
 	p, err := specter.PlanFastInit(context.Background(), env, "a")
 
-	if err != nil {
-		t.Fatal(err)
+	if reason := blockedReason(t, err); !strings.Contains(reason, "outside HOME") {
+		t.Errorf("reason = %q, want the outside-HOME reason", reason)
 	}
 	if len(p.Steps) != 0 {
 		t.Errorf("steps = %+v, want none", p.Steps)
-	}
-	if got := reasons(p); !strings.Contains(got, "outside HOME") {
-		t.Errorf("reasons = %q, want the outside-HOME reason", got)
 	}
 }
 

@@ -41,14 +41,16 @@ func healthyFacts(t *testing.T) specter.Facts {
 			Stores: map[string]specter.StoreMapping{"a": {}},
 		},
 		CurrentRepo: specter.CurrentRepo{Found: true, Path: "/work/demo", Remote: originURL},
-		RootRefs:    []specter.RootRef{{Label: "global instructions", Copy: specter.CopyRepo, Found: true, References: true}},
+		RootRefs:    []specter.RootRef{{Label: "global instructions", Found: true, References: true}},
+		Git:         specter.ToolInfo{Found: true},
+		Gh:          specter.GhInfo{Found: true, Authenticated: true},
 	}
 }
 
 func TestChecks_AllHealthy_EveryCheckOK(t *testing.T) {
 	results := specter.Checks(healthyFacts(t))
 
-	for _, id := range []string{"specter.openspec", "specter.store.a", "specter.mapped.a", "specter.repo", "specter.agents"} {
+	for _, id := range []string{"specter.git", "specter.gh", "specter.openspec", "specter.store.a", "specter.mapped.a", "specter.repo", "specter.agents"} {
 		if got := resultByID(t, results, id); got.Status != check.StatusOK {
 			t.Errorf("%s = %s (%s), want ok", id, got.Status, got.Message)
 		}
@@ -173,50 +175,60 @@ func TestChecks_ReposYAMLUnreadable_YieldsOneUnknown(t *testing.T) {
 	}
 }
 
-func TestChecks_AgentsCopiesDifferFromRoot_WarnsWithoutSuggestion(t *testing.T) {
+func TestChecks_AgentsRootDiffers_WarnsWithRootsFilesAndReinstall(t *testing.T) {
 	f := healthyFacts(t)
-	f.Root = specter.Root{Path: "/data/specs", Source: specter.RootSourceSaved, OutsideHome: true}
+	f.Root = specter.Root{Path: "/home/u/work/specs", Source: specter.RootSourceSaved}
 	f.RootRefs = []specter.RootRef{
-		{Label: "global instructions", Copy: specter.CopyRepo, Found: true, References: false},
-		{Label: "guard hook", Copy: specter.CopyDeployed, Found: true, References: false},
-		{Label: "SDD rules", Found: false},
+		{Label: "global instructions", Found: true, References: false},
+		{Label: "SDD rules", Found: true, References: false},
+		{Label: "git-ops agent", Found: false},
 	}
 
 	got := resultByID(t, specter.Checks(f), "specter.agents")
 
-	if got.Status != check.StatusWarning || got.Suggestion != "" {
-		t.Fatalf("agents = %+v, want warning without suggestion", got)
+	if got.Status != check.StatusWarning {
+		t.Fatalf("agents = %+v, want warning", got)
 	}
-	for _, want := range []string{
-		"/data/specs", "~/dev/specter", "global instructions", "guard hook",
-		"the rest of the harness uses ~/dev/specter",
-	} {
-		if !strings.Contains(got.Message, want) {
-			t.Errorf("message %q lacks %q", got.Message, want)
+	text := got.Message + " " + got.Suggestion
+	for _, want := range []string{"/home/u/work/specs", "global instructions", "SDD rules", "reinstall"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("%q lacks %q", text, want)
 		}
 	}
-	if strings.Contains(got.Message, "SDD rules") {
-		t.Errorf("message %q names a missing copy", got.Message)
+	for _, banned := range []string{"git-ops agent", "NUYTEK_SPECTER_ROOT", "the rest of the harness uses"} {
+		if strings.Contains(text, banned) {
+			t.Errorf("%q must not contain %q", text, banned)
+		}
 	}
 }
 
-func TestChecks_AgentsDefaultRootNotReferenced_OmitsEnvVarNotice(t *testing.T) {
+func TestChecks_GitMissing_FailsWithFix(t *testing.T) {
 	f := healthyFacts(t)
-	f.Root = specter.Root{Path: "/home/u/dev/specter", Source: specter.RootSourceDefault}
-	f.RootRefs = []specter.RootRef{{Label: "guard hook", Copy: specter.CopyDeployed, Found: true, References: false}}
+	f.Git = specter.ToolInfo{Err: os.ErrNotExist}
 
-	got := resultByID(t, specter.Checks(f), "specter.agents")
+	got := resultByID(t, specter.Checks(f), "specter.git")
 
-	if got.Status != check.StatusWarning || got.Suggestion != "" {
-		t.Fatalf("agents = %+v, want warning without suggestion", got)
+	if got.Status != check.StatusError || got.Suggestion == "" {
+		t.Errorf("git = %+v, want error with a suggestion", got)
 	}
-	for _, want := range []string{"do not reference", "/home/u/dev/specter", "guard hook"} {
-		if !strings.Contains(got.Message, want) {
-			t.Errorf("message %q lacks %q", got.Message, want)
-		}
+}
+
+func TestChecks_GhNotAuthenticatedOrMissing_WarnsRepoCreationUnavailable(t *testing.T) {
+	tests := map[string]specter.GhInfo{
+		"not authenticated": {Found: true},
+		"missing":           {},
 	}
-	if strings.Contains(got.Message, "NUYTEK_SPECTER_ROOT") {
-		t.Errorf("message %q names the env var for a default root", got.Message)
+	for name, gh := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := healthyFacts(t)
+			f.Gh = gh
+
+			got := resultByID(t, specter.Checks(f), "specter.gh")
+
+			if got.Status != check.StatusWarning || !strings.Contains(got.Message, "repo creation is unavailable") {
+				t.Errorf("gh = %+v, want warning naming that repo creation is unavailable", got)
+			}
+		})
 	}
 }
 
@@ -239,7 +251,7 @@ func TestChecks_RegistryUnknown(t *testing.T) {
 
 func TestChecks_AgentsAllCopiesMissing_Unknown(t *testing.T) {
 	f := healthyFacts(t)
-	f.RootRefs = []specter.RootRef{{Label: "global instructions"}, {Label: "guard hook"}}
+	f.RootRefs = []specter.RootRef{{Label: "global instructions"}, {Label: "SDD rules"}}
 
 	got := resultByID(t, specter.Checks(f), "specter.agents")
 

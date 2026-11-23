@@ -10,10 +10,12 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/action"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/backup"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/check"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/config"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/plan"
+	"github.com/Andr3xDev/nuytek-harness/tui/internal/render"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/specter"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/state"
 	"github.com/Andr3xDev/nuytek-harness/tui/internal/target"
@@ -23,6 +25,8 @@ const (
 	specterRootLabel = "Specter root"
 	configInputPad   = "    "
 	selfUpdateTitle  = "Update the TUI"
+	reinstallTitle   = "Reinstall rendered files"
+	reinstallPrompt  = "Specter root changed. Reinstall the docs and agents that name it? (preview first)"
 )
 
 // configSaved tells Root that the saved config changed, so it reloads what reads paths from it.
@@ -44,6 +48,7 @@ type configState struct {
 	editing bool
 	input   textinput.Model
 	err     string
+	offer   bool // a saved root change waits for the reinstall answer
 }
 
 func newConfigState() configState {
@@ -150,6 +155,16 @@ func (r *Root) handleConfigKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		return cmd
 	}
+	if c.offer {
+		switch {
+		case key.Matches(msg, k.Yes):
+			c.offer = false
+			return r.openReinstall()
+		case key.Matches(msg, k.Cancel):
+			c.offer = false
+		}
+		return nil
+	}
 	rows := r.settingRows()
 	c.cursor = min(c.cursor, len(rows)-1)
 	row := rows[c.cursor]
@@ -199,9 +214,20 @@ func (r *Root) reloadFromConfig() tea.Cmd {
 	return tea.Batch(append(cmds, r.broadcast(configChanged{}))...)
 }
 
-// inputActive is true while the Config field is open, so shortcut letters are typed, not run.
+// activeInput is the text field open on the selected entry, or nil.
+func (r *Root) activeInput() *configState {
+	switch {
+	case r.entry == entryConfig && r.configPanel.editing:
+		return &r.configPanel
+	case r.entry == entrySpecter && r.specterPrompt != nil:
+		return &r.specterPrompt.configState
+	}
+	return nil
+}
+
+// inputActive is true while a text field is open, so shortcut letters are typed, not run.
 func (r *Root) inputActive() bool {
-	return r.entry == entryConfig && r.focus == focusPanel && r.configPanel.editing
+	return r.focus == focusPanel && r.activeInput() != nil
 }
 
 // saveConfig keeps the field open and applies nothing when SaveState fails.
@@ -217,14 +243,53 @@ func (r *Root) saveConfig(next state.State) tea.Cmd {
 	if next.SpecterRoot != r.svc.Env.Saved.SpecterRoot {
 		r.specter.validation = nil
 	}
+	env := r.svc.Env
+	rootChanged := specter.ResolveRoot(env.Saved.SpecterRoot, env.Home).Path != specter.ResolveRoot(next.SpecterRoot, env.Home).Path
+	c.offer = rootChanged && r.reinstallTarget() != nil
 	r.svc.Env.Saved = next
 	return func() tea.Msg { return configSaved{} }
+}
+
+// reinstallTarget is the first available target whose manifest holds a component with a rendered file.
+func (r *Root) reinstallTarget() *target.Target {
+	for i, t := range r.targets {
+		if available(t) && len(reinstallNames(r.svc.Env, t)) > 0 {
+			return &r.targets[i]
+		}
+	}
+	return nil
+}
+
+func reinstallNames(env check.Env, t target.Target) []string {
+	var names []string
+	for _, c := range t.Manifest.Components {
+		if renderFn, _ := render.ForComponent(env, c.Target); renderFn != nil {
+			names = append(names, c.Name)
+		}
+	}
+	return names
+}
+
+// openReinstall opens the install Plan and Preview limited to the rendered components; nothing runs before the preview is accepted.
+func (r *Root) openReinstall() tea.Cmd {
+	t := r.reinstallTarget()
+	if t == nil {
+		return nil
+	}
+	svc, tgt := r.svc, *t
+	r.configFlow = newDirectFlow(svc, reinstallTitle, nothingToDoText, func(ctx context.Context, _ []string) (plan.Plan, error) {
+		return action.PlanInstall(ctx, svc.Env, tgt, reinstallNames(svc.Env, tgt))
+	})
+	return r.configFlow.start()
 }
 
 func (r *Root) configKeys() []key.Binding {
 	k := r.svc.keys
 	if r.configFlow != nil {
 		return r.configFlow.Keys()
+	}
+	if r.configPanel.offer {
+		return []key.Binding{k.Yes, described(k.Cancel, "decline")}
 	}
 	if r.configPanel.editing {
 		return []key.Binding{described(k.Accept, "save"), described(k.Cancel, "cancel")}
@@ -247,6 +312,9 @@ func (r *Root) configLines(width, h int) []string {
 		labelWidth = max(labelWidth, len(row.label))
 	}
 	var lines []string
+	if c.offer {
+		lines = append(styleAll(th.warning, wrap(reinstallPrompt, width)), "")
+	}
 	for i, row := range rows {
 		text := fmt.Sprintf("%-*s  %s  (%s)", labelWidth, row.label, config.PathLabel(home, row.effective), row.source)
 		lines = append(lines, selectableRow(th, text, i == c.cursor, width))

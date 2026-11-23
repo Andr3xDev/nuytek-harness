@@ -167,41 +167,6 @@ func TestPlanMaintenance_StoreWithUnsafeIDIsSkippedNotRegistered(t *testing.T) {
 }
 
 func TestPlanMaintenance_PreconditionsYieldEmptyPlanWithReason(t *testing.T) {
-	t.Run("root missing names the clone command", func(t *testing.T) {
-		env, root := homeEnv(t, openspecExec(storeListJSON("")))
-
-		p, err := specter.PlanMaintenance(context.Background(), env)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(p.Steps) != 0 {
-			t.Errorf("steps = %+v, want none", p.Steps)
-		}
-		want := "git clone <your-specter-repo-url> " + root + " (set NUYTEK_SPECTER_REPO to fill it in)"
-		if notes := strings.Join(p.Notes, "\n"); !strings.Contains(notes, want) {
-			t.Errorf("Notes = %q, want %q", notes, want)
-		}
-	})
-
-	t.Run("root missing uses the configured repo url", func(t *testing.T) {
-		env, root := homeEnv(t, openspecExec(storeListJSON("")))
-		env.LookupEnv = func(k string) (string, bool) {
-			return "https://example.com/specs.git", k == "NUYTEK_SPECTER_REPO"
-		}
-
-		p, err := specter.PlanMaintenance(context.Background(), env)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := "git clone https://example.com/specs.git " + root
-		notes := strings.Join(p.Notes, "\n")
-		if !strings.HasSuffix(notes, want) {
-			t.Errorf("Notes = %q, want suffix %q", notes, want)
-		}
-	})
-
 	t.Run("openspec missing names the tool", func(t *testing.T) {
 		env, root := homeEnv(t, &fakeExec{})
 		writeStore(t, root, "a", "id: a\n")

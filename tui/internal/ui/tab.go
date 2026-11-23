@@ -23,9 +23,13 @@ type Deps struct {
 	SpecterLoad func(context.Context, check.Env) specter.Facts
 
 	// The Specter actions; a nil one leaves its key unavailable.
-	SpecterValidate        func(ctx context.Context, storeID string) (specter.Validation, error)
-	SpecterPlanFastInit    func(ctx context.Context, env check.Env, mapTo string) (plan.Plan, error)
-	SpecterPlanMaintenance func(ctx context.Context, env check.Env) (plan.Plan, error)
+	SpecterValidate          func(ctx context.Context, storeID string) (specter.Validation, error)
+	SpecterPlanFastInit      func(ctx context.Context, env check.Env, mapTo string) (plan.Plan, error)
+	SpecterPlanMaintenance   func(ctx context.Context, env check.Env) (plan.Plan, error)
+	SpecterPlanCreateStore   func(ctx context.Context, env check.Env, id string) (plan.Plan, error)
+	SpecterPlanAddMapping    func(ctx context.Context, env check.Env, entry specter.RepoEntry) (plan.Plan, error)
+	SpecterPlanChangeMapping func(ctx context.Context, env check.Env, entry specter.RepoEntry, store string) (plan.Plan, error)
+	SpecterPlanRemoveMapping func(ctx context.Context, env check.Env, entry specter.RepoEntry) (plan.Plan, error)
 
 	// SaveState persists the saved config; nil applies edits in memory only.
 	SaveState func(state.State) error

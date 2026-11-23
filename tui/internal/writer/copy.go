@@ -1,6 +1,7 @@
 package writer
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 
@@ -13,14 +14,14 @@ const singleFile = "."
 // copyFiles overwrites exactly the listed files and deletes nothing.
 func copyFiles(c plan.Copy) error {
 	for _, rel := range c.Files {
-		if err := copyOne(filepath.Join(c.Src, rel), filepath.Join(c.Dst, rel), rel == singleFile); err != nil {
+		if err := copyOne(filepath.Join(c.Src, rel), filepath.Join(c.Dst, rel), rel == singleFile, rel, c.Transform); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func copyOne(src, dst string, followLink bool) error {
+func copyOne(src, dst string, followLink bool, rel string, transform plan.Transform) error {
 	stat := os.Lstat
 	if followLink {
 		stat = os.Stat
@@ -36,5 +37,15 @@ func copyOne(src, dst string, followLink bool) error {
 		}
 		return replaceWithLink(target, dst)
 	}
-	return copyFile(src, dst, info.Mode().Perm())
+	if transform == nil {
+		return copyFile(src, dst, info.Mode().Perm())
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return writeAtomic(dst, info.Mode().Perm(), func(w io.Writer) error {
+		_, err := w.Write(transform(rel, data))
+		return err
+	})
 }

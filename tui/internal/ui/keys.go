@@ -24,6 +24,8 @@ type keyMap struct {
 	Backup                      key.Binding
 	Validate, FastInit          key.Binding
 	Maintenance                 key.Binding
+	NewStore, MapAdd            key.Binding
+	MapChange, MapRemove        key.Binding
 	Edit, Reset, UpdateTUI      key.Binding
 	Yes, CancelRun              key.Binding
 }
@@ -58,6 +60,10 @@ func newKeyMap() keyMap {
 		Validate:    key.NewBinding(key.WithKeys("v"), key.WithHelp("v", "validate")),
 		FastInit:    key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "fast init")),
 		Maintenance: key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "maintenance")),
+		NewStore:    key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "create store")),
+		MapAdd:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add mapping")),
+		MapChange:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "change mapping")),
+		MapRemove:   key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "remove mapping")),
 		Edit:        key.NewBinding(key.WithKeys("e", "enter"), key.WithHelp("e/enter", "edit")),
 		Reset:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "reset to default")),
 		UpdateTUI:   key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update TUI")),
@@ -124,7 +130,7 @@ func (k keyMap) helpGroups(tabKeys []key.Binding, onSpecter bool) [][]key.Bindin
 	tabs := key.NewBinding(key.WithKeys("[", "]", "h", "l", "left", "right"), key.WithHelp("[/] h/l", "tabs"))
 	middle := []key.Binding{tabs, r, k.Install, k.Mode}
 	if onSpecter {
-		middle = []key.Binding{tabs, r, k.Validate, k.FastInit, k.Maintenance}
+		middle = []key.Binding{tabs, r, k.Validate, k.FastInit, k.Maintenance, k.NewStore, k.MapAdd, k.MapChange, k.MapRemove}
 	}
 	return [][]key.Binding{
 		{k.Up, k.Down, k.JumpUp, k.JumpDown, k.Focus, k.Back, k.Help, k.Quit, k.CancelRun},

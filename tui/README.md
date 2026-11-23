@@ -39,22 +39,24 @@ Press `i` on the dashboard to open the install wizard. `m` switches between Inst
 
 The first sidebar entry, above Config and the CLI targets, is the global Specter screen. It is read-only except for the actions below and shows these sections:
 
-- Root: the resolved specter root and where it came from. When the root is missing it shows a `git clone` command as text; the TUI never runs git. Set `NUYTEK_SPECTER_REPO` to fill the repo URL into that hint.
+- Root: the resolved specter root and where it came from. When the root is missing, fast init creates it from the `Andr3xDev/specter-template` template repo (private repo under your GitHub user, cloned into the root). This needs `git`, `openspec` and an authenticated `gh`; when one is missing the screen says which.
 - Stores: each registered store with its repos, Engram projects and active, archived and spec counts.
-- Checks: `openspec`, registration, `repos.yaml`, and whether the harness agent files reference the root.
+- Checks: `git`, `gh` (installed and authenticated), `openspec`, registration, `repos.yaml`, and whether the deployed agent files reference the root.
 - Drift: report-only items, each with a `/specter` suggestion.
 - Validation: per-store `openspec validate` results, kept for the session only.
 
 Keys on this screen:
 
 - `v`: validate all stores.
-- `f`: fast init. Registers every unregistered store folder and can map the current repo to a store.
+- `f`: fast init. Creates the root from the template when it is missing, registers every unregistered store folder and can map the current repo to a store.
+- `n`: create store (asks for an id).
+- `a` / `c` / `x`: add, change, remove a repo mapping in `repos.yaml` (asks for the repo remote or path, then the store). Each edit opens the usual plan and preview.
 - `m`: maintenance. Registers unregistered store folders; other drift stays report-only. Elsewhere `m` is the install mode.
 - `r`: refresh.
 
 Fast init and maintenance take no snapshot and never delete anything. They need the root under `$HOME`.
 
-The specter root is set in the Config entry of the sidebar (default `~/dev/specter`). Only the TUI reads the Config values; the shell CLI (`scripts/`) always uses `~/dev/specter` and `~/.claude-backups`. When a non-default root is set, a Checks row warns if the harness agent files still reference the default root.
+The specter root is set in the Config entry of the sidebar (default `~/dev/specter`) and saved as `specter_root` in `~/.local/state/nuytek-harness/state.toml`. The shell CLI (`scripts/`) reads the same `specter_root`; backups stay in `~/.claude-backups`. Changing the root only validates and saves the path (an existing directory, or a missing path whose parent exists): nothing is moved, created or re-registered. After saving a changed root the Config entry offers a reinstall of the rendered agent and doc files (preview first), for the first available target only; the shell `nuytek-harness install` does the same. A Checks row warns while the deployed files still name another root.
 
 ## Config
 

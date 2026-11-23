@@ -34,15 +34,22 @@ const (
 
 // differ accumulates the rows of one Diff run.
 type differ struct {
-	fsys    check.FS
-	filter  Filter
-	blocked Blocked
-	rows    []plan.Change
+	fsys      check.FS
+	filter    Filter
+	blocked   Blocked
+	transform plan.Transform
+	rows      []plan.Change
 }
 
 // Diff walks src after filter and returns Create and Overwrite rows against dst; it never returns Delete rows.
 // A src file gives one row with Path ".". A symlink or non-directory dst root is always an ErrPathConflict.
 func Diff(fsys check.FS, src, dst string, filter Filter, blocked Blocked) ([]plan.Change, error) {
+	return DiffWith(fsys, src, dst, filter, blocked, nil)
+}
+
+// DiffWith is Diff comparing transform(rel, source bytes) with dst, so a rendered copy counts as up to date.
+// A nil transform keeps the plain comparison.
+func DiffWith(fsys check.FS, src, dst string, filter Filter, blocked Blocked, transform plan.Transform) ([]plan.Change, error) {
 	srcInfo, err := fsys.Lstat(src)
 	if err != nil {
 		return nil, err
@@ -52,7 +59,7 @@ func Diff(fsys check.FS, src, dst string, filter Filter, blocked Blocked) ([]pla
 	if err != nil && !absent {
 		return nil, err
 	}
-	d := &differ{fsys: fsys, filter: filter, blocked: blocked}
+	d := &differ{fsys: fsys, filter: filter, blocked: blocked, transform: transform}
 	if srcInfo.IsDir() {
 		if !absent && !dstInfo.IsDir() {
 			return nil, ErrPathConflict{Path: dst, Found: describe(dstInfo)}
@@ -135,7 +142,7 @@ func (d *differ) file(src, dst, rel string, fresh bool) error {
 		d.add(plan.EffectOverwrite, rel, NoteReplaces+describe(dstInfo))
 		return nil
 	}
-	differs, err := d.contentDiffers(src, dst, srcInfo, dstInfo)
+	differs, err := d.contentDiffers(src, dst, rel, srcInfo, dstInfo)
 	if differs {
 		d.add(plan.EffectOverwrite, rel, "")
 	}
@@ -155,13 +162,17 @@ func (d *differ) add(effect plan.Effect, rel, note string) {
 	d.rows = append(d.rows, plan.Change{Effect: effect, Path: rel, Note: note})
 }
 
-func (d *differ) contentDiffers(src, dst string, srcInfo, dstInfo fs.FileInfo) (bool, error) {
-	if srcInfo.Mode()&fs.ModeSymlink == 0 && srcInfo.Size() != dstInfo.Size() {
+func (d *differ) contentDiffers(src, dst, rel string, srcInfo, dstInfo fs.FileInfo) (bool, error) {
+	// A transform changes the length, so the size shortcut would report a rendered file as drifted.
+	if d.transform == nil && srcInfo.Mode()&fs.ModeSymlink == 0 && srcInfo.Size() != dstInfo.Size() {
 		return true, nil
 	}
 	srcData, err := d.fsys.ReadFile(src)
 	if err != nil {
 		return false, err
+	}
+	if d.transform != nil {
+		srcData = d.transform(rel, srcData)
 	}
 	dstData, err := d.fsys.ReadFile(dst)
 	if err != nil {

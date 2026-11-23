@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code target for nuytek-harness. Sourced after ROOT and lib.sh are set.
 
-SPECTER_ROOT="$HOME/dev/specter"
 MCP_SOURCE="$ROOT/claude/claude-mcp.json"
 MCP_TARGET="$HOME/.claude.json"
 SETTINGS_SOURCE="$ROOT/claude/claude-settings.json"
@@ -48,9 +47,11 @@ install_generic() {
       copy_tree "$src" "$dest"
       clean_pycache "$dest"
       if [ "$kind" = dirx ]; then chmod +x "$dest"/*.sh 2>/dev/null || true; fi
+      render_listed "$dest"
       ;;
     file|filex)
       install_file "$src" "$dest"
+      render_listed "$dest"
       if [ "$kind" = filex ]; then chmod +x "$dest"; fi
       ;;
   esac
@@ -128,7 +129,8 @@ remove_mcp() {
 # --- specter ------------------------------------------------------------
 
 install_specter() {
-  local stores status marker dir id found=0
+  local stores status marker dir id found=0 SPECTER_ROOT
+  SPECTER_ROOT="$(resolve_specter_root)"
 
   command -v openspec >/dev/null 2>&1 || die "openspec is required to register OpenSpec stores"
   [ -d "$SPECTER_ROOT" ] || die "OpenSpec store root does not exist: $SPECTER_ROOT"
@@ -301,7 +303,7 @@ replace_path() {
 }
 
 pull_all() {
-  local stamp name rel
+  local stamp name rel file stale
   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
   while [ -e "$REFRESH_BACKUPS/$stamp" ]; do stamp="${stamp}-1"; done
 
@@ -318,7 +320,13 @@ pull_all() {
   )
 
   while IFS= read -r name; do
+    mapfile -t stale < <(stale_listed_files "${DEST[$name]}" "${SRC[$name]}")
     replace_path "${DEST[$name]}" "${SRC[$name]}"
+    unrender_listed "${DEST[$name]}" "${SRC[$name]}"
+    for file in ${stale[@]+"${stale[@]}"}; do
+      cp -p "$REFRESH_BACKUPS/$stamp/${file#"$ROOT"/}" "$file"
+      echo "skipped ${file#"$ROOT"/}: deployed copy names another Specter root; reinstall first"
+    done
   done < <(pulled_components)
   clean_pycache "$ROOT/claude/hooks"
   find "$ROOT" -name .DS_Store -not -path "$ROOT/.git/*" -delete

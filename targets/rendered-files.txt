@@ -1,0 +1,7 @@
+.claude/CLAUDE.md
+.claude/agents/tech-orchestrator.md
+.claude/agents/sub-agents/infrastructure/specter-ops.md
+.claude/agents/sub-agents/general/git-ops.md
+.claude/agents/sub-agents/infrastructure/engram-ops.md
+.claude/commands/specter.md
+.claude/common-sdd.md

@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -46,6 +47,8 @@ type Copy struct {
 	Src, Dst string
 	Files    []string
 	Rows     []Change
+	// Transform rewrites each regular file as it is copied; rel is relative to Src, "." for a single file.
+	Transform Transform
 }
 
 type Remove struct {
@@ -64,6 +67,8 @@ type Edit struct {
 	Path string
 	Edit func(old []byte, exists bool) ([]byte, error)
 	Rows []Change
+	// NewFileMode is the mode of a file the edit creates; zero keeps the writer default. Existing files keep theirs.
+	NewFileMode os.FileMode
 }
 
 type Exec struct {
@@ -71,6 +76,10 @@ type Exec struct {
 	Timeout time.Duration
 	Warn    bool
 	Rows    []Change
+	// Attempts is how many times a failing command runs before the step fails; zero or one runs it once.
+	Attempts int
+	// Backoff is the wait before attempt n+1, multiplied by n (linear).
+	Backoff time.Duration
 }
 
 type RemoveMatching struct{ Globs []string }

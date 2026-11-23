@@ -43,7 +43,6 @@ type StoreFolder struct {
 
 type Registration struct {
 	Root          Root
-	CloneCommand  string
 	RootExists    bool
 	Openspec      ToolInfo
 	Registered    []StoreInfo
@@ -55,7 +54,6 @@ type Registration struct {
 // LoadRegistration makes one `openspec store list --json` call and never runs git.
 func LoadRegistration(ctx context.Context, env check.Env) Registration {
 	reg := Registration{Root: ResolveRoot(env.Saved.SpecterRoot, env.Home)}
-	reg.CloneCommand = CloneCommand(env.LookupEnv, reg.Root)
 	reg.RootExists, reg.Folders, reg.FoldersErr = scanFolders(env.FS, reg.Root)
 
 	if _, err := env.Exec.LookPath(openspecBinary); err != nil {

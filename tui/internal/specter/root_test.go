@@ -19,11 +19,13 @@ func TestResolveRoot(t *testing.T) {
 	}{
 		{name: "saved wins", saved: "/home/dev/work/specs", wantPath: "/home/dev/work/specs", wantSource: specter.RootSourceSaved},
 		{name: "default used", wantPath: "/home/dev/dev/specter", wantSource: specter.RootSourceDefault},
-		{name: "saved value is cleaned", saved: "/home/dev/work/../specs/", wantPath: "/home/dev/specs", wantSource: specter.RootSourceSaved},
+		{name: "saved value is cleaned", saved: "/home/dev/work/specs/", wantPath: "/home/dev/work/specs", wantSource: specter.RootSourceSaved},
+		{name: "dotdot root is blocked even when it cleans into home", saved: "/home/dev/work/../specs", wantPath: "/home/dev/specs", wantSource: specter.RootSourceSaved, wantOutside: true},
 		{name: "root outside home", saved: "/srv/specter", wantPath: "/srv/specter", wantSource: specter.RootSourceSaved, wantOutside: true},
 		{name: "sibling sharing the home prefix is outside", saved: "/home/dev2/specter", wantPath: "/home/dev2/specter", wantSource: specter.RootSourceSaved, wantOutside: true},
 		{name: "dotdot-prefixed name inside home is not outside", saved: "/home/dev/..specs", wantPath: "/home/dev/..specs", wantSource: specter.RootSourceSaved},
-		{name: "root equal to home is inside", saved: "/home/dev", wantPath: "/home/dev", wantSource: specter.RootSourceSaved},
+		{name: "root equal to home is not a valid root", saved: "/home/dev", wantPath: "/home/dev", wantSource: specter.RootSourceSaved, wantOutside: true},
+		{name: "home with trailing slash is not a valid root", saved: "/home/dev/", wantPath: "/home/dev", wantSource: specter.RootSourceSaved, wantOutside: true},
 		{name: "relative root is not outside home", saved: "relative/specter", wantPath: "relative/specter", wantSource: specter.RootSourceSaved, wantRelRoot: true},
 	}
 	for _, tc := range tests {

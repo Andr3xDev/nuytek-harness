@@ -36,6 +36,9 @@ func edit(e plan.Edit) error {
 	}
 	var old []byte
 	mode := newFileMode
+	if e.NewFileMode != 0 {
+		mode = e.NewFileMode
+	}
 	if exists {
 		if old, err = os.ReadFile(path); err != nil {
 			return err
