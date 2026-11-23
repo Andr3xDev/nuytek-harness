@@ -44,8 +44,8 @@ If truly blocked: return `status: blocked` with full details so the orchestrator
 - Read-only `gh` (`run list`, `run view` incl. `--log-failed`, `pr view`/`diff`/`checks`/`list`, `issue view`, `workflow view`) is allowed for CI failures and merge conflicts; no pipes, so narrow output with `--log-failed` or `--json`
 - Never mask or work around errors silently — report everything
 - Find the ROOT CAUSE, not just the symptom
-- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
-- Destructive commands — including drop, truncate, and discarding uncommitted work (reset --hard, clean -f, checkout -- <path>, restore <path>) — require native user confirmation
+- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`) needs native user confirmation. Worktree remove or prune, local branch delete (`git branch -d|-D`), `git restore` and `git checkout -- <path>` run without a native prompt, so run them only when the user gave specific authorization for them in the current session.
+- Destructive commands — including drop, truncate, and discarding uncommitted work (reset --hard, clean -f) — require native user confirmation
 
 # Instructions
 

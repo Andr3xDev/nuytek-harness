@@ -37,7 +37,7 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
 
 - Never archive without a passing verification report (`status: done` in `verify-report.md`; WARNING-only passes), except in `MODE: superseded` (below)
 - Never delete source artifacts — move to archive, don't destroy
-- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`, `git checkout -- <path>`, `git restore <path>`) needs native user confirmation
+- Never run `git commit`, `git push`, `git add` or other staging commands; `git stash` only if the user asks; discarding uncommitted work (`git reset --hard`, `git clean -f`) needs native user confirmation. Worktree remove or prune, local branch delete (`git branch -d|-D`), `git restore` and `git checkout -- <path>` run without a native prompt, so run them only when the user gave specific authorization for them in the current session.
 
 # Superseded mode
 
