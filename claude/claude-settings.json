@@ -69,9 +69,6 @@
     "ask": [
       "Bash(git reset --hard*)",
       "Bash(git clean -f*)",
-      "Bash(git checkout -- *)",
-      "Bash(git restore *)",
-      "Bash(git stash:*)",
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(git push * --force*)",
@@ -85,18 +82,9 @@
       "Bash(git push * --mirror*)",
       "Bash(git push --prune*)",
       "Bash(git push * --prune*)",
-      "Bash(git worktree remove*)",
-      "Bash(git worktree prune*)",
       "Bash(codegraph uninit*)",
       "Bash(engram delete *--hard*)",
-      "Bash(engram projects *prune*)",
-      "Bash(rm *)",
-      "Bash(rmdir *)",
-      "Bash(unlink *)",
-      "Bash(shred *)",
-      "Bash(find *-delete*)",
-      "Bash(find *-exec rm*)",
-      "Bash(xargs rm*)"
+      "Bash(engram projects *prune*)"
     ]
   },
   "hooks": {
