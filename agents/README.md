@@ -10,7 +10,7 @@ This directory holds the sub-agent definitions used by Claude Code for the multi
 
 TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. `test-writer` runs a mandatory Phase 0 test inventory before RED. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
 
-SDD is proposed by the orchestrator and runs only after user approval; small fixes with no background skip it. Judgment-day runs only when the user explicitly asks.
+SDD is proposed by the orchestrator and runs only after user approval; small fixes with no background skip it. Planning keeps its human review gates. Once the user approves the plan, the approved run executes all phases and implementation without asking OK between steps, and stops only for failures, user decisions, or protected actions (see `tech-orchestrator.md`). Judgment-day runs only when the user explicitly asks.
 
 <br>
 
@@ -125,10 +125,10 @@ This is the pattern to reuse if another agent needs a Bash restriction in the fu
 
 ### `debugger` investigate-only policy
 
-`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` after user approval. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and the git staging and push denial still apply.
+`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` and proceeds without asking only if the proposed fix is an exact change per invariant 1 of `CLAUDE.md` (no open choices); otherwise the user decides first. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and the git staging and push denial still apply.
 
 <br>
 
 ## Circuit breaker
 
-`tech-orchestrator.md`, "Validation and close" section: if `code-reviewer` reports the same BLOCKER on the same finding/file 3 times in a row, the orchestrator stops the reviewer-implementer cycle and escalates to the human instead of iterating further.
+`tech-orchestrator.md`, "Validation and close" section: if `code-reviewer` reports the same BLOCKER on the same finding/file 3 times in a row, the orchestrator stops the reviewer-implementer cycle and escalates to the human. Total cap: 3 fix rounds per phase/batch, then escalate if BLOCKERs remain. A round is one reviewer pass plus one fix delegation; needed WARNING rounds count toward the same cap of 3; a final verification reviewer pass after the last fix does not count. At the cap, unfixed needed WARNINGs of kind failing build/test, security, data loss, or spec-scenario violation stop and escalate; other unfixed WARNINGs go to the final report with reasons and the run continues.

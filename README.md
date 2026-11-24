@@ -60,20 +60,18 @@ flowchart TD
             RED["TDD 1: test-writer, RED"] --> GREEN["TDD 2: implementer, GREEN"]
         end
         BUILD --> REV["Review: code-reviewer, or judgment-day on request"]
-        REV -->|blockers| BUILD
-        REV --> CHK{User review}
-        CHK -->|adjust| BUILD
-        CHK -->|ok| GIT[git-ops commit]
+        REV -->|blockers and needed warnings| BUILD
+        REV --> GIT[git-ops commit]
     end
 
-    CHK -->|scope or design change| SDD
+    REV -.->|scope or behavior change: ask user| SDD
     GIT --> NEXT{More phases?}
     NEXT -->|yes| BUILD
     NEXT -->|no| VER[sdd-verify]
     VER --> ARC[sdd-archive]
 ```
 
-Not a one-shot system: I work with the orchestrator in a constant back-and-forth, and it never writes code itself — it delegates and asks before anything of consequence. Work moves in iterations: build, review, my review, adjust until it's right. When an iteration is good, git-ops commits it and we move to the next phase of the SDD plan; if an adjustment changes scope or design, the SDD artifacts are updated first. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
+Not a one-shot system: the orchestrator never writes code itself — it delegates and asks before anything of consequence. Planning is a constant back-and-forth: I review the exploration and approve the plan. Once I approve the plan and ask to implement, the run is unattended: build, review, fix needed findings, git-ops commits each good iteration, and the next phase of the SDD plan starts. It stops only for failures, decisions I must make, or protected actions, and ends with one final report. If a deviation changes scope or behavior, it asks me first; minor deviations update the SDD design and are listed in the report. Archive and tracker updates wait for my OK. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
 
 ### Agents
 

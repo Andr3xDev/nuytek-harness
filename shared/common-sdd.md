@@ -175,8 +175,12 @@ architecture) still gets the full depth.
 ## G. Living design
 
 `design.md` stays current during implementation. When implementation proves a design decision wrong,
-the implementing agent (builder/implementer) reports it as `design deviation` in its report; the
-orchestrator delegates `sdd-design` right away for a small update before more implementation.
+the implementing agent (builder/implementer) reports it as `design deviation` (what, why) plus
+`scope/behavior impact: yes|no|unsure`. It is minor (`no`) only if no spec scenario, public
+interface, dependency, or file outside the tasks scope changes. A minor deviation: the orchestrator
+delegates `sdd-design` right away for a small update before more implementation, the run continues,
+and the design update is listed in the final report. `yes` or `unsure`: the orchestrator stops and
+asks the user. A missing or unparseable `scope/behavior impact` counts as `unsure`.
 `sdd-verify` still runs once at the end, also for long changes, and flags any unrecorded deviation.
 
 ---
