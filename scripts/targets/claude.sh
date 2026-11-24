@@ -20,7 +20,6 @@ COMPONENT_TABLE=(
   "claude-hud-config file claude/claude-hud-config.json .claude/plugins/claude-hud/config.json 1"
   "common-sdd file shared/common-sdd.md .claude/common-sdd.md 1"
   "engram-protocol file shared/engram-protocol.md .claude/engram-protocol.md 1"
-  "context7 file shared/rules/context7.md .claude/rules/context7.md 1"
   "codegraph-health filex scripts/codegraph-health.sh .local/bin/codegraph-health -"
   "claude-out-context filex claude/scripts/claude-out-context.sh .local/bin/claude-out-context -"
 )

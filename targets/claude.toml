@@ -80,14 +80,6 @@ needs  = ["engram"]
 pull   = true
 
 [[component]]
-name   = "context7"
-kind   = "file"
-source = "shared/rules/context7.md"
-target = ".claude/rules/context7.md"
-needs  = []
-pull   = true
-
-[[component]]
 name   = "codegraph-health"
 kind   = "filex"
 source = "scripts/codegraph-health.sh"
