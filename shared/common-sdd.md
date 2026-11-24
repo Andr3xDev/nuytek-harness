@@ -176,7 +176,9 @@ architecture) still gets the full depth.
 
 `design.md` stays current during implementation. When implementation proves a design decision wrong,
 the implementing agent (builder/implementer) reports it as `design deviation` in its report; the
-orchestrator delegates `sdd-design` right away for a small update before more implementation.
+orchestrator delegates `sdd-design` right away for a small update before more implementation, and
+the run continues when the deviation changes neither scope nor observable behavior. If it changes
+scope or behavior, the orchestrator stops and asks the user.
 `sdd-verify` still runs once at the end, also for long changes, and flags any unrecorded deviation.
 
 ---
