@@ -10,7 +10,8 @@ but git-ops. Push is denied for everyone but git-ops (whole command, plain or
 or `git restore` and `git checkout -- <path>`. Worktree mutations are denied for
 everyone but git-ops. Any other named agent_type outside RULES is denied `git branch -d|-D|--delete`
 and asked for `git restore` and checkout discards (`git checkout -- <path>`, `.`, tree-ish plus
-path), whatever the form; a chained command gets its strictest verdict. Branch switches stay free.
+path, `-f|--force`, `--ours|--theirs`, `--pathspec-from-file`, `git switch -f|--discard-changes`),
+whatever the form; a chained command gets its strictest verdict. Plain branch switches stay free.
 The `aws` role is denied Lambda/ECS/EC2 reads that return environment variables or user data unless
 `--query` leaves them out.
 Every agent may use `git -C <absolute path>` to reach another repo; a relative
@@ -101,8 +102,16 @@ AWS_SECRET_BEARING_READS = {
     ("lambda", "list-functions"), ("lambda", "list-versions-by-function"),
     ("ecs", "describe-task-definition"), ("ecs", "describe-tasks"),
     ("ec2", "describe-instance-attribute"), ("ec2", "describe-launch-template-versions"),
+    ("ec2", "describe-spot-instance-requests"), ("ec2", "describe-spot-fleet-requests"),
 }
 AWS_SECRET_QUERY_TERMS = ("environment", "userdata")
+# Response nodes that contain Environment/UserData; a query ending at one returns the secret with it.
+AWS_SECRET_ANCESTOR_QUERY = re.compile(
+    r"(?:^|\.)(?:configuration|functions|versions|taskdefinition|containerdefinitions|tasks|overrides|containeroverrides"
+    r"|launchtemplateversions|launchtemplatedata|spotinstancerequests|launchspecification|launchspecifications"
+    r"|spotfleetrequestconfigs|spotfleetrequestconfig)(?:\[[^\]]*\])*$"
+)
+CHECKOUT_OVERWRITE_LONG_FLAGS = ("--force", "--ours", "--theirs", "--pathspec-from-file", "--discard-changes")
 
 # Permission roles: plain allow-lists, concatenated per agent in RULES.
 ROLE_READ_FS = [
@@ -484,9 +493,25 @@ def is_whole_plain_or_dash_c_call(command: str, is_only_call: bool, subcommand: 
     )
 
 
+def has_overwrite_flag(args) -> bool:
+    """True for force/overwrite flags of `git checkout|switch`, including abbreviated long flags and `-f` clusters."""
+    for arg in args:
+        if arg == "--":
+            break
+        name = arg.split("=")[0]
+        if arg.startswith("--"):
+            if len(name) >= MIN_ABBREVIATED_FLAG_LENGTH and any(
+                long_flag.startswith(name) for long_flag in CHECKOUT_OVERWRITE_LONG_FLAGS
+            ):
+                return True
+        elif CLEAN_SHORT_CLUSTER.fullmatch(arg) and "f" in arg:
+            return True
+    return False
+
+
 def is_discarding_checkout(args) -> bool:
-    """True when `git checkout` overwrites paths: `--`, `.`, or a tree-ish plus pathspec. A lone branch or `-b/-B` switches."""
-    if "--" in args:
+    """True when `git checkout` overwrites paths: `--`, `.`, a tree-ish plus pathspec, or a force/overwrite flag. A lone branch or `-b/-B` switches."""
+    if "--" in args or has_overwrite_flag(args):
         return True
     if any(a in ("-b", "-B") for a in args):
         return False
@@ -508,7 +533,11 @@ def discard_verdict(agent_type: str, command: str, is_first_call: bool, is_only_
                 f"Blocked by infra-agent-bash-guard: only '{COMMIT_AGENT}' may delete local branches; "
                 f"return status: blocked instead."
             )
-        if subcommand == "restore" or (subcommand == "checkout" and is_discarding_checkout(args)):
+        if (
+            subcommand == "restore"
+            or (subcommand == "checkout" and is_discarding_checkout(args))
+            or (subcommand == "switch" and has_overwrite_flag(args))
+        ):
             return "ask", (
                 f"infra-agent-bash-guard: `git {subcommand}` discards uncommitted work; "
                 f"native user confirmation is required."
@@ -564,7 +593,8 @@ def is_tree_write(command: str) -> bool:
 def dumps_aws_secrets(command: str) -> bool:
     """True for an AWS read that can return env vars or user data without a `--query` that leaves them out.
 
-    shortcut: a broad query such as `@` or `Functions[*]` still passes; upgrade to an allow-listed projection if that matters.
+    shortcut: a query ending at a known ancestor of the secret field is refused; multi-selects and broad
+    wildcards such as `@`, `*` or `Functions[].[Configuration]` still pass; upgrade to an allow-listed projection if that matters.
     """
     try:
         tokens = shlex.split(command)
@@ -579,7 +609,10 @@ def dumps_aws_secrets(command: str) -> bool:
         for flag, value in zip(tokens, tokens[1:] + [""])
         if flag == "--query" or flag.startswith("--query=")
     ]
-    return not queries or any(term in query.lower() for query in queries for term in AWS_SECRET_QUERY_TERMS)
+    return not queries or any(
+        AWS_SECRET_ANCESTOR_QUERY.search(query.strip().lower()) or any(term in query.lower() for term in AWS_SECRET_QUERY_TERMS)
+        for query in queries
+    )
 
 
 def has_git_write_flag(calls) -> bool:
@@ -1041,7 +1074,9 @@ def _decide(agent_type: str, command: str):
         return "deny", (
             f"Blocked by infra-agent-bash-guard: '{agent_type}' agent is read-only; this AWS read "
             f"can return environment variable values or user data. Add a `--query` that excludes "
-            f"`Environment`/`environment`/`UserData` (e.g. `--query 'Runtime'`)."
+            f"`Environment`/`environment`/`UserData` and select a leaf field: `--query 'Functions[].FunctionName'` "
+            f"(list-functions), `--query 'Configuration.Runtime'` (get-function), "
+            f"`--query 'taskDefinition.family'` (describe-task-definition)."
         )
     if store_admin_subcommand(command) and agent_type != "specter-ops":
         return "deny", (
@@ -1250,6 +1285,17 @@ def _selftest() -> int:
         ("aws", "aws lambda get-function --function-name f --query 'Configuration.[Runtime,MemorySize]'", "allow"),
         ("aws", "aws lambda list-functions --query 'Functions[].FunctionName'", "allow"),
         ("aws", "aws ecs describe-task-definition --task-definition t --query 'taskDefinition.family'", "allow"),
+        ("aws", "aws lambda get-function --function-name f --query Configuration", "deny"),
+        ("aws", "aws lambda list-functions --query 'Functions[]'", "deny"),
+        ("aws", "aws ecs describe-task-definition --task-definition t --query taskDefinition.containerDefinitions", "deny"),
+        ("aws", "aws ecs describe-task-definition --task-definition t --query taskDefinition", "deny"),
+        ("aws", "aws ec2 describe-launch-template-versions --launch-template-id l --query 'LaunchTemplateVersions[].LaunchTemplateData'", "deny"),
+        ("aws", "aws ec2 describe-spot-instance-requests", "deny"),
+        ("aws", "aws ec2 describe-spot-fleet-requests", "deny"),
+        ("aws", "aws ec2 describe-spot-instance-requests --query 'SpotInstanceRequests[].LaunchSpecification'", "deny"),
+        ("aws", "aws ec2 describe-spot-instance-requests --query 'SpotInstanceRequests[].SpotInstanceRequestId'", "allow"),
+        ("aws", "aws ec2 describe-spot-fleet-requests --query 'SpotFleetRequestConfigs[].SpotFleetRequestId'", "allow"),
+        ("aws", "aws lambda get-function --function-name f --query Configuration.Runtime", "allow"),
         ("aws", "aws lambda list-aliases --function-name f", "allow"),
         ("aws", "aws ecs describe-services --cluster c --services s", "allow"),
         ("code-reviewer", "npm test", "allow"),
@@ -1732,6 +1778,19 @@ def _selftest() -> int:
         ("builder", "git checkout -b new origin/main", None),
         ("builder", "git checkout -B new", None),
         ("builder", "git switch main", None),
+        ("builder", "git checkout -f main", "ask"),
+        ("builder", "git checkout --force", "ask"),
+        ("builder", "git checkout -f -b new", "ask"),
+        ("builder", "git checkout --ours a.py", "ask"),
+        ("builder", "git checkout --theirs a.py", "ask"),
+        ("builder", "git checkout HEAD --pathspec-from-file=list.txt", "ask"),
+        ("builder", "git switch -f main", "ask"),
+        ("builder", "git switch --force main", "ask"),
+        ("builder", "git switch --discard-changes main", "ask"),
+        ("builder", "git switch --discard main", "ask"),
+        ("git-ops", "git checkout -f main", None),
+        (None, "git checkout -f main", None),
+        (None, "git switch -f main", None),
         ("builder", "git switch -c new", None),
         ("git-ops", "git checkout main", None),
         (None, "git checkout .", None),
