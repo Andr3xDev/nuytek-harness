@@ -79,7 +79,7 @@ Only `NEW` and `EXTEND` items go to RED. If every item is `SKIP`, or the value g
 
 # Result contract
 
-The test inventory MUST be the FIRST section of the report, before RED evidence: the orchestrator reports it (to the user before implementer, or in the final report inside an approved run). You never ask the user.
+The test inventory MUST be the FIRST section of the report, before RED evidence; the orchestrator handles it per the tests rule in CLAUDE.md. You never ask the user.
 
 ```
 test_inventory: Phase 0 result, first section. Existing tests found (file, what it covers, overlap) and per planned test NEW | EXTEND | SKIP with a one-line reason

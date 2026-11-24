@@ -64,14 +64,14 @@ flowchart TD
         REV --> GIT[git-ops commit]
     end
 
-    REV -.->|scope or design change: ask user| SDD
+    REV -.->|scope or behavior change: ask user| SDD
     GIT --> NEXT{More phases?}
     NEXT -->|yes| BUILD
     NEXT -->|no| VER[sdd-verify]
     VER --> ARC[sdd-archive]
 ```
 
-Not a one-shot system: I work with the orchestrator in a constant back-and-forth, and it never writes code itself — it delegates and asks before anything of consequence. Planning stays interactive: I review the exploration and approve the plan. After that approval the run is unattended: build, review, fix needed findings, git-ops commits each good iteration, and the next phase of the SDD plan starts. It stops only for failures, decisions I must make, or protected actions, and ends with one final report; if a deviation changes scope or behavior, it asks me first and the SDD artifacts are updated. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
+Not a one-shot system: the orchestrator never writes code itself — it delegates and asks before anything of consequence. Planning is a constant back-and-forth: I review the exploration and approve the plan. Once I approve the plan and ask to implement, the run is unattended: build, review, fix needed findings, git-ops commits each good iteration, and the next phase of the SDD plan starts. It stops only for failures, decisions I must make, or protected actions, and ends with one final report. If a deviation changes scope or behavior, it asks me first; minor deviations update the SDD design and are listed in the report. Archive and tracker updates wait for my OK. TDD, when worth it, is two separate steps: test-writer writes failing tests (RED), then implementer makes them pass (GREEN). Verify and archive happen once, when every phase is done.
 
 ### Agents
 
