@@ -6,7 +6,7 @@
 
 ## What is this directory
 
-This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `strategist.md`, `tech-orchestrator.md`, and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-ops`, `engram-ops`, `specter-ops`).
+This directory holds the sub-agent definitions used by Claude Code for the multi-agent engineering harness: `tech-orchestrator.md` and the phase agents under `sub-agents/sdd/` (`sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-verify`, `sdd-archive`), plus `builder`, `quick-builder`, `git-ops`, `implementer`, `test-writer`, `explorer`, `debugger`, `code-reviewer`, `judge-a`/`judge-b`, infrastructure agents (`aws`, `codegraph-ops`, `engram-ops`, `specter-ops`).
 
 TDD runs only when behavior value, existing coverage, duplication/overlap, and protection of current behavior justify it. Low-value, duplicate/overlapping, stale, or disproportionate tests are rejected. `test-writer` runs a mandatory Phase 0 test inventory before RED. Otherwise `builder` handles work with the smallest useful proof. Bug regressions require meaningful externally observable behavior proportionate to risk.
 
@@ -34,21 +34,6 @@ SDD commands use a registered store from any working directory: `openspec <subco
 
 <br>
 
-## How the strategist delegates
-
-`strategist.md` has a "Delegation scope (inviolable)" section (around lines 98-110) restricting it to four SDD validation agents:
-
-- `sdd-explore`
-- `sdd-propose`
-- `sdd-spec`
-- `sdd-design`
-
-The strategist may never invoke `Task` toward `implementer`, `test-writer`, `builder`, `quick-builder`, `sdd-tasks`, `sdd-verify`, or `sdd-archive` — those are execution-phase agents owned by the orchestrator. If a discussion reaches that phase, the strategist hands off to the orchestrator instead of delegating itself.
-
-This boundary is a prompt-level lock, not a technical one — Claude Code's `Task` tool has no built-in mechanism to restrict which target agent a given caller can invoke. Enforcement depends entirely on the agent's own instructions being followed.
-
-<br>
-
 ## How skills get injected
 
 The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its mandatory assignments are:
@@ -60,13 +45,13 @@ The authoritative role policy lives in `skills/skill-registry/SKILL.md`. Its man
 | git-ops | caveman-commit |
 | implementer | ponytail |
 | test-writer | ponytail |
-| orchestrator, strategist | caveman, karpathy-guidelines |
+| orchestrator | caveman, karpathy-guidelines |
 | sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-archive | karpathy-guidelines, SDD protocol, md-style-guide |
 | sdd-explore, sdd-verify | karpathy-guidelines, SDD protocol (md-style-guide conditional) |
 | debugger, explorer, code-reviewer, judge-a, judge-b | karpathy-guidelines |
 | aws, codegraph-ops, engram-ops, specter-ops | none — infrastructure |
 
-`caveman` is only injected into user-facing primaries (`orchestrator`, `strategist`).
+`caveman` is only injected into the user-facing primary (`orchestrator`).
 `ponytail` is mandatory only for code writers (`builder`, `implementer`, `test-writer`). `quick-builder` is a code writer that receives no skills.
 It is never injected into SDD, review, debugger, explorer, or infrastructure executors. `karpathy-guidelines`
 is mandatory for orchestration, strategy, SDD, review, exploration, and debugging.
@@ -98,7 +83,7 @@ Claude Code has no per-agent command allow-list built into agent frontmatter bey
 
 Each agent's allow-list is composed from named roles (plain lists in the guard): `ROLE_READ_FS` (`ls`, `tree`, `wc`, `du`, `cat`, `head`, `tail`, `grep`, `rg`), `ROLE_GIT_READ`, `ROLE_GH_READ`, `ROLE_VALIDATE`, `ROLE_LOGS`, and the `ROLE_OPENSPEC_*` groups. `explorer` = fs + git read + openspec read; `sdd-explore` = openspec read + git read + fs read; `debugger` = validate + git/gh read + fs read + logs; `code-reviewer` = validate + git/gh read + fs read; `judge-a`, `judge-b`, `sdd-verify` = validate + git read + fs read (+ openspec verify for `sdd-verify`). `sdd-explore`, `sdd-spec` and `specter-ops` may also run recursive `grep` confined to paths under `~/dev/specter`. `rg --pre`/`--pre-glob` (arbitrary program execution) is denied for every guarded agent, as are `tree` write options (`--output`, `-o`, `-R`) and git `--output`, `--ext-diff`, `--textconv`, plus secret files (`.env*` except `.env.example`/`.sample`/`.template`, `*.pem`, `*.key`, `.ssh/`, `.aws/`, ...), recursive `grep`, and `rg` with `--hidden`/`--no-ignore*`/`-u`/`-.`.
 
-Commit-creating and staging git is denied for every agent except git-ops; push is denied for all but git-ops, and only when the user asked; force push, remote branch delete, `reset --hard` and `clean -f` prompt through native `permissions.ask`. Worktree mutations (`add`, `remove`, `prune`, `move`, `lock`, `unlock`, `repair`) are denied for all but git-ops; worktree remove/prune (git-ops), local branch delete (`git branch -d|-D`), `git restore` and `git checkout -- <path>` run without a native prompt, so run them only when the user gave specific authorization for them in the current session; `git worktree list` stays read-only. The hook returns `ask` for file deletion (`rm`, `rmdir`, `unlink`, `shred`, `find -delete`, `find -exec rm`) for every agent, except plain `rm`, `rmdir` or `unlink` inside the safe set (Claude scratchpad, cache directories, untracked top-level build directories), which run free; it also returns `ask` for `git stash` (except `list` and `show`) and `git clean` without dry-run, and for risky git in `git -C <absolute path>` form (force/delete/mirror/prune push including abbreviated flags such as `--forc`, `reset --hard`, non-dry-run `git clean`, `stash` other than `list` and `show`) that native rules cannot match; deny still wins. Any agent may use `git -C <absolute path>` for the git its role allows; a relative `-C` path is denied. Chained or `env git` forms of `git restore`, `git checkout -- <path>`, local branch delete and worktree remove/prune ask; other odd forms are denied. Read-only agents may not discard at all. The Ask column lists commands for which the hook itself returns ask (the user is prompted; settings `permissions.ask` prompts the same way).
+Commit-creating and staging git is denied for every agent except git-ops; push is denied for all but git-ops, and only when the user asked; force push, remote branch delete, `reset --hard` and `clean -f` prompt through native `permissions.ask`. Worktree mutations (`add`, `remove`, `prune`, `move`, `lock`, `unlock`, `repair`) are denied for all but git-ops; worktree remove/prune (git-ops), local branch delete (`git branch -d|-D`), `git restore` and `git checkout -- <path>` run without a native prompt for agents outside the read-only roles, so run them only when the user gave specific authorization for them in the current session; the hook denies `git restore` and `git checkout -- <path>` to git-ops; `git worktree list` stays read-only. The hook returns `ask` for file deletion (`rm`, `rmdir`, `unlink`, `shred`, `find -delete`, `find -exec rm`) for every agent, except plain `rm`, `rmdir` or `unlink` inside the safe set (Claude scratchpad, cache directories, untracked top-level build directories), which run free; it also returns `ask` for `git stash` (except `list` and `show`) and `git clean` without dry-run, and for risky git in `git -C <absolute path>` form (force/delete/mirror/prune push including abbreviated flags such as `--forc`, `reset --hard`, non-dry-run `git clean`, `stash` other than `list` and `show`) that native rules cannot match; deny still wins. Any agent may use `git -C <absolute path>` for the git its role allows; a relative `-C` path is denied. Chained or `env git` forms of `git restore`, `git checkout -- <path>`, local branch delete and worktree remove/prune ask; other odd forms are denied. Read-only agents may not discard at all. The Ask column lists commands for which the hook itself returns ask (the user is prompted; settings `permissions.ask` prompts the same way).
 
 | Agent | Allow | Ask | Deny |
 |---|---|---|---|
@@ -119,13 +104,13 @@ Commit-creating and staging git is denied for every agent except git-ops; push i
 Runner globs execute project code (same trust as `npm test`); terragrunt `hcl validate` also evaluates `run_cmd()` in configs.
 `git -C <abs>` reads in another repo run that repo's config (`core.fsmonitor`, `core.pager`), so only point agents at trusted repos.
 
-Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging and worktree mutations denied except for git-ops, push denied except for git-ops in plain or absolute `-C` form (force push goes to native ask or the hook's ask), plain `reset --hard` and `clean -f` go to native `permissions.ask`, while `stash` (except `list` and `show`) and non-dry-run `clean` are asked by the hook in plain and absolute `-C` form (denied in odd forms), `git restore`, `git checkout -- <path>`, worktree remove/prune and local branch delete run free as the whole plain command (only with specific user authorization), and git-ops may not run `rebase -i`.
+Any command not matched by `allow` or `ask` falls through to `deny`. Any `agent_type` not in the `RULES` dict (the main thread and git-ops included) skips the allow-list, but still gets the git rules: staging and worktree mutations denied except for git-ops, push denied except for git-ops in plain or absolute `-C` form (force push goes to native ask or the hook's ask), plain `reset --hard` and `clean -f` go to native `permissions.ask`, while `stash` (except `list` and `show`) and non-dry-run `clean` are asked by the hook in plain and absolute `-C` form (denied in odd forms), `git restore`, `git checkout -- <path>`, worktree remove/prune and local branch delete run free as the whole plain command (only with specific user authorization; git-ops is denied `git restore` and `git checkout -- <path>`), and git-ops may not run `rebase -i`.
 
 This is the pattern to reuse if another agent needs a Bash restriction in the future — for example, `test-writer` arguably should not touch production code paths. Today that boundary is prompt discipline only (documented in `test-writer`'s own instructions); no hook enforces it. This is a known gap, not yet addressed.
 
 ### `debugger` investigate-only policy
 
-`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `builder` and proceeds without asking only if the proposed fix is an exact change per invariant 1 of `CLAUDE.md` (no open choices); otherwise the user decides first. It also covers large log reading (formerly `log-reader`). Existing destructive-command confirmation and the git staging and push denial still apply.
+`debugger` reads logs, investigates, and reports root cause, evidence, proposed fix, validation plan, and residual risk. It never edits; the fix goes to `quick-builder` (low complexity), `builder`, or the TDD lane, and proceeds without asking only if the proposed fix is an exact change per invariant 1 of `CLAUDE.md` (no open choices); otherwise the user decides first. It also covers large log reading. Existing destructive-command confirmation and the git staging and push denial still apply.
 
 <br>
 

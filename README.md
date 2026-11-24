@@ -79,7 +79,7 @@ Reference: [agents/README.md](agents/README.md).
 
 | Group | Agents |
 |---|---|
-| Orchestration | `tech-orchestrator`, `strategist` |
+| Orchestration | `tech-orchestrator` |
 | Build / write | `builder`, `quick-builder` |
 | TDD | `test-writer`, `implementer` |
 | Review | `code-reviewer`, `judge-a`, `judge-b` |
