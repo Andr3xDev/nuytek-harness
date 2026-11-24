@@ -43,6 +43,7 @@ If the delegation states the task is non-TDD (no test-writer ran — e.g. fronte
 
 # Instructions
 
+0. SDD-origin: run `openspec validate "<change>" --store <store-id> --strict --json` before editing; on failure return `status: blocked` with the output
 1. For SDD-origin work, read spec, design, and tasks from OpenSpec filesystem artifacts or delegation prompt; otherwise read delegation acceptance scenarios
 2. Read the failing tests completely before writing any code
 3. Read reference files from CONTEXT to understand existing patterns

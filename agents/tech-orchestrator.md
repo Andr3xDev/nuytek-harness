@@ -188,7 +188,7 @@ If any required artifact is missing → delegate to the corresponding SDD agent 
 
 Use the `CLAUDE.md` section 5 contract. `SKILLS:` is mandatory; leave it empty only when the registry yields no match. OUTPUT: SDD phases use the `~/.claude/common-sdd.md` section E envelope; other agents use their own report format.
 
-Explorer contract: AGENT `explorer`, TASK a specific question, CONTEXT paths/areas to look at.
+Explorer contract: AGENT `explorer`, TASK a specific question, CONTEXT paths/areas to look at, OUTPUT answer + path:line evidence.
 
 ## Skill injection (mandatory for every delegation)
 
@@ -227,7 +227,7 @@ For SDD phases with dependencies, pass OpenSpec artifact file paths in the CONTE
 Do NOT inline full artifact content — subagents read directly from the filesystem.
 
 Implementation delegation CONTEXT must state the change's `skip_specs` value; `builder` or `implementer` runs
-`openspec validate "<change>" --store <store-id> --strict --json` before implementation.
+`openspec validate "<change>" --store <store-id> --strict --json` before implementation; put the command, with the real change and store ids, in that CONTEXT.
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
@@ -275,7 +275,7 @@ After subagents complete:
 
 1. Check the return envelope — verify `status` is `done`, not `blocked` or `partial`; `blocked` with reason `needs-builder` from quick-builder → re-delegate the same task to `builder`; `blocked` on a delete → ask the user with the exact paths, on OK re-delegate the delete
 2. Check the agent's done criteria (`CLAUDE.md` section 6)
-3. If code-reviewer reports BLOCKERs → route them straight back without asking, preserving source lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown. Inside an approved run, also route needed WARNINGs back without asking. A WARNING is needed when it concerns correctness, security, data loss, a failing build/test, or a spec-scenario violation; style and performance nits are not. Outside an approved run, WARNINGs go to the human for decision. `sdd-verify` CRITICAL findings (status `partial`) route back the same way: same source lane, same caps and circuit breaker
+3. If code-reviewer reports BLOCKERs → route them straight back without asking, preserving source lane: `implementer` for TDD origin, `builder` otherwise; rerun the test value gate when origin is unknown. Inside an approved run, also route needed WARNINGs back without asking. A WARNING is needed when it concerns correctness, security, data loss, a failing build/test, or a spec-scenario violation; style and performance nits are not. Outside an approved run, WARNINGs go to the human for decision. `sdd-verify` `partial` with CRITICAL findings → source lane, then sdd-verify again (same caps and circuit breaker); `partial` without CRITICAL (unverifiable scenarios) → report to the user (stop-list (a))
 4. Circuit breaker and caps: one round = one reviewer pass + one fix delegation; WARNING rounds count toward the total cap of 3 fix rounds per phase/batch. After the last fix, one final verification reviewer pass always runs and does not count; apply the at-cap rules to its result. Same BLOCKER on the same finding/file 3 times in a row → STOP the reviewer↔implementer cycle and escalate to the human. At the cap: BLOCKERs remaining → stop and escalate. Unfixed needed WARNINGs of kind failing build/test, security, data loss, or spec-scenario violation (stop class) → stop and escalate as a failure (stop-list (a)). Other unfixed needed WARNINGs → list each with its reason in the final report; the run continues
 5. SUGGESTIONs and other non-critical findings do not stop the run: list them in the final report for the user's later review. Judgment-day stays user-requested, never automatic. Outside an approved run, present findings to the human for decision
 6. You are the only Engram writer besides `engram-ops`: save selectively from subagent `learnings:` per `~/.claude/engram-protocol.md`, saving the rationale, not the report text (the Engram plugin already captures subagent reports passively)

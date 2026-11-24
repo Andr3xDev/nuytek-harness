@@ -70,5 +70,4 @@ executive_summary: one-sentence description of findings and recommendation
 artifacts: OpenSpec artifact paths referenced or written
 next_recommended: sdd-spec (or sdd-design when `skip_specs: true`)
 risks: risks or blockers discovered
-learnings: durable findings or none
 ```

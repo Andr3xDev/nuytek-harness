@@ -80,5 +80,4 @@ executive_summary: X/Y acceptance scenarios verified, N findings (C critical, W 
 artifacts: OpenSpec file paths written
 next_recommended: sdd-archive (if clean) | implementer (critical findings, TDD origin) | builder (critical findings, non-TDD origin) | rerun test value gate (unknown origin)
 risks: unverifiable specs, missing test coverage, design deviations
-learnings: durable findings or none
 ```

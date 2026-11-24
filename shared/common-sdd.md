@@ -152,6 +152,7 @@ executive_summary: 1-3 sentence summary of what was done
 artifacts: list of artifact keys or paths written
 next_recommended: next SDD phase to run, or "none"
 risks: risks discovered, or "none"
+learnings: durable findings or none
 ```
 
 Do not save SDD artifacts to Engram. The orchestrator handles non-SDD session summaries

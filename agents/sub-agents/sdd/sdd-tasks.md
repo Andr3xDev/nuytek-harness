@@ -61,7 +61,6 @@ executive_summary: number of tasks and grouping
 artifacts: OpenSpec file paths written
 next_recommended: test-writer (to start TDD red phase)
 risks: complex dependencies between tasks
-learnings: durable findings or none
 ```
 
 `next_recommended` is a suggestion, not a binding decision. The orchestrator (or the human)

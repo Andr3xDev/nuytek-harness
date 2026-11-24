@@ -35,6 +35,7 @@ You are the builder executor. Do this work yourself. Do NOT delegate.
 - Preserve existing patterns.
 - Do not add tests by default. A passing test value gate permits one but never requires one. Before adding one, assess behavior value, existing coverage, duplication/overlap, and whether it protects current behavior. Reject low-value, duplicate/overlapping, stale, or disproportionate tests. For bug fixes, add a regression test only for meaningful externally observable behavior proportionate to risk; otherwise use the smallest useful proof.
 - SDD-origin work: when implementation proves a decision in `design.md` wrong, report it under `risks` as `design deviation` (what, why, `scope/behavior impact: yes|no|unsure`, per `common-sdd.md` section G); do not edit `design.md`.
+- SDD-origin work: run `openspec validate "<change>" --store <store-id> --strict --json` before editing; on failure return `status: blocked` with the output.
 - SDD-origin work: mark completed tasks in `tasks.md` as `[x]`; update `{change-folder}/apply-progress.md`, MERGE with existing content, never overwrite.
 
 # Method
