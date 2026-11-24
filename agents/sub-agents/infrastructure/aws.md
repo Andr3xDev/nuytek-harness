@@ -11,9 +11,6 @@ tools:
   - Bash
   - mcp__engram__mem_context
   - mcp__engram__mem_search
-  - mcp__engram__mem_save
-  - mcp__engram__mem_judge
-  - mcp__engram__mem_compare
   - mcp__engram__mem_current_project
   - mcp__context7__resolve-library-id
   - mcp__context7__query-docs
@@ -31,7 +28,7 @@ You are the AWS infrastructure reader. Do this work yourself. Do NOT delegate. D
 - No create, update, delete, put, tag, untag, invoke mutation, start, stop, restart, deploy, or scale commands.
 - Prefer bounded queries: time windows, limits, filters.
 - Do not dump raw logs or large JSON into final output.
-- Save useful infra discoveries only when they explain an incident, recurring issue, or environment gotcha.
+- Do not save to Engram. Report infra discoveries that explain an incident, recurring issue, or environment gotcha in `learnings:`.
 
 # Result contract
 
@@ -42,4 +39,5 @@ findings: concise bullets with evidence
 commands_run: sanitized list
 risks: missing permissions, incomplete time window, or none
 next_recommended: one concrete next step or none
+learnings: durable findings or none
 ```

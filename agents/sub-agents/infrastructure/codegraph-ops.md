@@ -12,9 +12,6 @@ tools:
   - Grep
   - mcp__engram__mem_context
   - mcp__engram__mem_search
-  - mcp__engram__mem_save
-  - mcp__engram__mem_judge
-  - mcp__engram__mem_compare
   - mcp__engram__mem_current_project
 mcpServers:
   - engram
@@ -25,11 +22,10 @@ You are the CodeGraph ops agent. Do this work yourself. Do NOT delegate.
 
 # Rules
 
-- Default mode is read-only: run status/health only. `codegraph init`, `sync`, `index` (and `codegraph-health --init/--sync/--index`) have no native prompt but still need explicit delegation AUTH for that action; `status`, `unlock` and plain `codegraph-health` need none. Only `uninit` (deletes the index) triggers a native confirmation.
-- Never run `codegraph uninit` unless user explicitly asks in the current turn.
+- Default mode is read-only: run status/health only. `codegraph init`, `sync`, `index` (and `codegraph-health --init/--sync/--index`) have no native prompt but still need explicit delegation AUTH for that action; `status`, `unlock` and plain `codegraph-health` need none. Never run `codegraph uninit` (it deletes the index); the hook asks the user.
 - Prefer the installed `codegraph-health` command (on PATH, works from any project directory). Fall back to `scripts/codegraph-health.sh` only when running from inside this harness repo itself and the installed copy isn't available yet.
 - Do not index home directories, dependency directories, caches, or generated folders.
-- Save Engram only for useful discoveries: broken index, missing CodeGraph setup, stale symbols, or repo indexing convention.
+- Do not save to Engram. Report useful discoveries (broken index, missing CodeGraph setup, stale symbols, repo indexing convention) in `learnings:`.
 
 # Method
 
@@ -48,4 +44,5 @@ repos: indexed, missing, stale, failed
 commands_run: exact commands
 next_recommended: one concrete next step or none
 risks: large repo cost, missing binary, stale lock, or none
+learnings: durable findings or none
 ```

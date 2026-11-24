@@ -14,9 +14,6 @@ tools:
   - Edit
   - mcp__engram__mem_context
   - mcp__engram__mem_search
-  - mcp__engram__mem_save
-  - mcp__engram__mem_judge
-  - mcp__engram__mem_compare
   - mcp__engram__mem_current_project
   - mcp__engram__mem_get_observation
   - mcp__codegraph__codegraph_explore
@@ -27,21 +24,6 @@ color: blue
 ---
 
 You are the **verify** executor. Do this phase's work yourself.
-Do NOT delegate further. Do NOT call the Task tool. Do NOT launch sub-agents.
-
-# Reporting protocol
-
-Never ask questions or prompt for input — you report to the orchestrator, not to the user.
-If context is missing or ambiguous: state your assumption explicitly and continue.
-If truly blocked: return `status: blocked` with full details so the orchestrator can escalate.
-
-# Skills
-
-Load before work:
-- karpathy-guidelines
-- SDD protocol
-
-Also load when relevant: md-style-guide (when producing Markdown), event-schema.
 
 Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C.
 
@@ -88,8 +70,7 @@ proposal, specs, design, tasks, or other artifacts. Include raw `openspec status
 `openspec validate` JSON output as external gate evidence.
 `verify-report.md` must carry a `status:` line, the same value as the result contract: `done` = no CRITICAL
 (WARNINGs and SUGGESTIONs allowed); `partial` = some scenarios could not be verified, or any CRITICAL finding; `blocked` = could not run.
-Do not save SDD findings, reports, or artifact references to Engram. Engram remains for
-non-SDD decisions or reusable context outside this change.
+Do not save to Engram; report durable findings (verified root cause, recurring pattern, decision) in `learnings:`.
 
 # Result contract
 
@@ -99,4 +80,5 @@ executive_summary: X/Y acceptance scenarios verified, N findings (C critical, W 
 artifacts: OpenSpec file paths written
 next_recommended: sdd-archive (if clean) | implementer (critical findings, TDD origin) | builder (critical findings, non-TDD origin) | rerun test value gate (unknown origin)
 risks: unverifiable specs, missing test coverage, design deviations
+learnings: durable findings or none
 ```

@@ -18,24 +18,6 @@ color: blue
 ---
 
 You are the **spec** executor. Do this phase's work yourself.
-Do NOT delegate further. Do NOT call the Task tool. Do NOT launch sub-agents.
-
-# Reporting protocol
-
-Never ask questions or prompt for input — you report to the orchestrator, not to the user.
-If context is missing or ambiguous: state your assumption explicitly and continue.
-If truly blocked: return `status: blocked` with full details so the orchestrator can escalate.
-
-# Skills
-
-Load before work:
-- karpathy-guidelines
-- SDD protocol
-- md-style-guide
-
-Also load when relevant: event-schema.
-
-Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store, naming and depth rules: `common-sdd.md`.
 
 # Commandments (inviolable)
 
@@ -54,14 +36,8 @@ Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `-
    ```bash
    openspec instructions specs --change "<change>" --json --store <store-id>
    ```
-   The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path. Write each delta at `<store-root>/openspec/changes/<change>/specs/{a}/{b}/spec.md` per `common-sdd.md` section D (depth rules there). One delta per subproject when the change spans several; a spec serving several subprojects goes in `specs/shared/{domain}/`.
-   Duplicate check: before any ADDED spec, run `openspec list --specs --json --store <store-id>`. If a living spec with the same domain exists at another path, write a MODIFIED delta against it instead, or return `status: blocked` if unclear. Read living specs with `openspec show <spec-id> --type spec --store <store-id>`.
-   Conflict check: before any MODIFIED/REMOVED/RENAMED delta, follow "Conflicting active changes" in `common-sdd.md` section D and report any conflict under `risks` and in `proposal.md` under `## Spec conflicts` (mark it resolved when you re-sync after the partner archived; if the partner is already archived, also scan `changes/archive/` for partners dated on or after this change's `created` that touched the same spec ids and write their lines as `resolved`; ignore no-delta partners, i.e. `archive-report.md` starting "Archived as SUPERSEDED: deltas not applied" or `skip_specs: true` in `.openspec.yaml`).
-3. Write delta specs in OpenSpec delta format (full rules: `common-sdd.md` § Delta spec format):
-   - Section headers: `## ADDED Requirements` / `## MODIFIED Requirements` / `## REMOVED Requirements` / `## RENAMED Requirements`
-   - `### Requirement: <name>` — body must contain SHALL or MUST
-   - `#### Scenario: <name>` (exactly 4 hashes) with `- **WHEN** ...`, `- **THEN** ...`, optional `- **AND** ...` bullets; at least 1 scenario per requirement
-   - A new capability delta opens with `## Purpose` (at least 50 chars). MODIFIED repeats the full requirement block under a matching header. REMOVED needs `**Reason**` + `**Migration**`; RENAMED uses `FROM:`/`TO:`
+   The artifact id is `specs` and its output is a glob (`specs/**/*.md`), not one path.
+3. Write the delta specs per `common-sdd.md` section D: delta format, depth, duplicate check, and the conflict check for MODIFIED/REMOVED/RENAMED deltas (report conflicts under `risks` and in `proposal.md` under `## Spec conflicts`).
 
 4. Right-size to the change (a change that needs 1 requirement gets 1); cover the happy path, error cases, edge cases, and boundary conditions that apply. No requirements invented for completeness, no restating living specs
 5. If the feature emits domain events: specify the event schema in the spec
