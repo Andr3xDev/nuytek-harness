@@ -35,11 +35,13 @@ payload `scratchpad_dir` or `/tmp/claude-<uid>`, or inside the payload `cwd`
 as a cache directory (`CACHE_DIR_NAMES`) or an untracked top-level build
 directory. An exception or an unparsable payload also returns `ask`.
 
-Free: `git stash list|show`, dry-run `git clean`, and, as the whole command,
-`git restore`, `git checkout -- <path>` (git-ops is denied both), `git branch -d|-D|--delete` (plain or `-C`) and, for git-ops,
-`git worktree remove|prune`. Branch delete is free only for git-ops and the
-main thread; other named agents are denied it, and restore / `checkout --` ask
-for them. Deny wins over ask: read-only roles keep denying
+Free for everyone: `git stash list|show` and dry-run `git clean`.
+Free only for git-ops and the main thread, as the whole command: `git branch
+-d|-D|--delete` (plain or `-C`); other named agents are denied it. Free for
+git-ops only: `git worktree remove|prune`. Free for the main thread only:
+`git restore` and `git checkout -- <path>`; git-ops is denied both and other
+named agents ask.
+Deny wins over ask: read-only roles keep denying
 stash, non-dry clean, restore, branch delete and file deletion. Their
 metacharacter check is quote-aware. Limits: like git detection, `sh -c "rm x"`,
 `eval`, `su -c "rm x"`, launchers that take a command (`strace`, `parallel`,
