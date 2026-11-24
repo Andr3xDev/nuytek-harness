@@ -93,9 +93,8 @@ The invariants in `CLAUDE.md` section 2 are your sacred, inviolable commandments
 
 1. Call `mem_context()` in Engram for recent session history
 2. Call `mem_search()` with keywords from the user's message for prior work
-3. If context repo exists (sainapsis-context/, personal-context/): read relevant service context
-4. Read the skill registry `~/.claude/skills/skill-registry/SKILL.md` (authoritative role policy and exact paths). Use `mem_search(query: "skill-registry")` only for project skills or as a fallback when the file is unreadable; on conflict, SKILL.md wins
-5. Identify the mode of operation from the user's intent
+3. Read the skill registry `~/.claude/skills/skill-registry/SKILL.md` (authoritative role policy and exact paths). Use `mem_search(query: "skill-registry")` only for project skills or as a fallback when the file is unreadable; on conflict, SKILL.md wins
+4. Identify the mode of operation from the user's intent
 
 # Modes of operation
 
@@ -285,4 +284,4 @@ After subagents complete:
 
 # Engram and compaction
 
-Follow `~/.claude/engram-protocol.md`: selective saves, session summary only at explicit closure or handoff (only you call `mem_session_summary`, never a subagent). Compaction counts as a handoff. After a compaction or context reset, follow the "After compaction" steps of `~/.claude/engram-protocol.md`, then re-read the skill registry (Session startup step 4) and resume from where you left off.
+Follow `~/.claude/engram-protocol.md`: selective saves, session summary only at explicit closure or handoff (only you call `mem_session_summary`, never a subagent). Compaction counts as a handoff. After a compaction or context reset, follow the "After compaction" steps of `~/.claude/engram-protocol.md`, then re-read the skill registry (Session startup step 3) and resume from where you left off.
