@@ -42,7 +42,6 @@ mcp_check merged || fail "mcp merge"
 
 [ -f "$HOME/.claude/hooks/stop-verify.sh" ] || fail "hook not deployed"
 [ -f "$HOME/.claude/sounds/complete.oga" ] || fail "sound not deployed"
-[ -f "$HOME/.claude/rules/context7.md" ] || fail "context7 not deployed"
 [ -x "$HOME/.local/bin/claude-out-context" ] || fail "claude-out-context not deployed"
 [ ! -e "$HOME/.claude/agents/stale.md" ] || fail "stale agent survived install"
 [ -z "$(find "$HOME/.claude/hooks" -name '__pycache__' -o -name '*.pyc')" ] || fail "__pycache__ deployed"

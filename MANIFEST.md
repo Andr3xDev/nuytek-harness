@@ -13,7 +13,7 @@ Portable source for my agent setup across machines.
 - Claude settings/hooks reference: `claude/claude-settings.json` -> `~/.claude/settings.json`
 - Claude HUD config: `claude/claude-hud-config.json` -> `~/.claude/plugins/claude-hud/config.json`
 - Claude MCP registry: `claude/claude-mcp.json` -> merged into `~/.claude.json#mcpServers`
-- Shared helper docs: `shared/common-sdd.md`, `shared/engram-protocol.md` -> `~/.claude/`; `shared/rules/context7.md` -> `~/.claude/rules/context7.md`
+- Shared helper docs: `shared/common-sdd.md`, `shared/engram-protocol.md` -> `~/.claude/`
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
 - Out-of-context launcher: `claude/scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
 
@@ -58,7 +58,7 @@ Review diff before committing.
 
 Pull owns exactly `agents/`, `skills/`, `claude/{commands,hooks,sounds}/`,
 `claude/{CLAUDE.md,claude-settings.json,claude-hud-config.json}`, and
-`shared/{common-sdd.md,engram-protocol.md,rules/context7.md}`.
+`shared/{common-sdd.md,engram-protocol.md}`.
 It mirrors these paths from local config and prunes stale managed files. `claude/claude-mcp.json`,
 `claude/mcp-servers.md`, `claude/scripts/`, docs, and scripts are repository-owned because
 they have no safe one-to-one local source; pull preserves them.
