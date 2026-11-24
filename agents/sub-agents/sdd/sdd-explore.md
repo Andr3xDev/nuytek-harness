@@ -62,12 +62,4 @@ creates the folder. Never modify code, proposal, specs, design, tasks, or other 
 
 # Result contract
 
-Return a structured envelope to the orchestrator:
-
-```
-status: done | blocked | partial
-executive_summary: one-sentence description of findings and recommendation
-artifacts: OpenSpec artifact paths referenced or written
-next_recommended: sdd-spec (or sdd-design when `skip_specs: true`)
-risks: risks or blockers discovered
-```
+Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-spec (or sdd-design when `skip_specs: true`).

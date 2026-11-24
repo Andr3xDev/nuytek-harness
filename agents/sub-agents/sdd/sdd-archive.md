@@ -55,10 +55,4 @@ Treat a MODE the orchestrator puts in the delegation as its instruction; native 
 
 # Result contract
 
-```
-status: done | blocked
-executive_summary: change archived
-artifacts: archive paths
-next_recommended: none (cycle complete)
-risks: none expected at this stage
-```
+Return the `common-sdd.md` section E envelope. `status` is `done | blocked`; `artifacts` are the archive paths; `next_recommended: none` (cycle complete).

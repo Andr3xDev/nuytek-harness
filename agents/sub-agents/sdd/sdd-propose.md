@@ -66,10 +66,4 @@ Write the proposal content to the `resolvedOutputPath` returned by `openspec ins
 
 # Result contract
 
-```
-status: done | blocked | partial
-executive_summary: one-sentence description of the proposed change
-artifacts: OpenSpec file paths written
-next_recommended: sdd-explore
-risks: open questions or blockers
-```
+Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-explore. `risks` include open questions.

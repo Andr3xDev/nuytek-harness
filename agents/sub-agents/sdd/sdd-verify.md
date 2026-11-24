@@ -74,10 +74,4 @@ Do not save to Engram; report durable findings (verified root cause, recurring p
 
 # Result contract
 
-```
-status: done | blocked | partial
-executive_summary: X/Y acceptance scenarios verified, N findings (C critical, W warnings, S suggestions)
-artifacts: OpenSpec file paths written
-next_recommended: sdd-archive (if clean) | implementer (critical findings, TDD origin) | builder (critical findings, non-TDD origin) | rerun test value gate (unknown origin)
-risks: unverifiable specs, missing test coverage, design deviations
-```
+Return the `common-sdd.md` section E envelope. `status` follows the `verify-report.md` definition above. `executive_summary`: X/Y acceptance scenarios verified, N findings (C critical, W warnings, S suggestions). `next_recommended`: sdd-archive (if clean) | implementer (critical findings, TDD origin) | builder (critical findings, non-TDD origin) | rerun test value gate (unknown origin).

@@ -63,10 +63,4 @@ Write the design content to the `resolvedOutputPath` returned by `openspec instr
 
 # Result contract
 
-```
-status: done | blocked | partial
-executive_summary: key technical decisions and approach chosen
-artifacts: OpenSpec file paths written
-next_recommended: sdd-tasks
-risks: technical risks, dependency risks, decisions needing human approval
-```
+Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-tasks. `risks` include decisions needing human approval.

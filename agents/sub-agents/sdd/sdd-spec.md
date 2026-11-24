@@ -50,10 +50,4 @@ Write each delta spec to `<store-root>/openspec/changes/<change>/specs/{a}/{b}/s
 
 # Result contract
 
-```
-status: done | blocked | partial
-executive_summary: number of scenarios specified, key behaviors covered
-artifacts: OpenSpec file paths written
-next_recommended: sdd-design (if not done) or sdd-tasks (if design exists)
-risks: ambiguous requirements, missing edge cases flagged
-```
+Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-design (if not done) or sdd-tasks (if design exists).
