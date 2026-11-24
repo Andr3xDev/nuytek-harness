@@ -55,7 +55,7 @@ Write the tasks content to the `resolvedOutputPath` returned by `openspec instru
 
 # Result contract
 
-Return the `common-sdd.md` section E envelope. `next_recommended`: test-writer (to start TDD red phase).
+Return the `common-sdd.md` section E envelope. `risks` include complex task dependencies. `next_recommended`: test-writer (to start TDD red phase).
 
 `next_recommended` is a suggestion, not a binding decision. The orchestrator (or the human)
 decides the actual implementation flow — TDD (`test-writer` → `implementer` → `code-reviewer`)

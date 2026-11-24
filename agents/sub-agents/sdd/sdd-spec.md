@@ -50,4 +50,4 @@ Write each delta spec to `<store-root>/openspec/changes/<change>/specs/{a}/{b}/s
 
 # Result contract
 
-Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-design (if not done) or sdd-tasks (if design exists).
+Return the `common-sdd.md` section E envelope. `risks` include ambiguous requirements and missing edge cases. `next_recommended`: sdd-design (if not done) or sdd-tasks (if design exists).
