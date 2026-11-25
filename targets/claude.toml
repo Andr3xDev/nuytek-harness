@@ -94,6 +94,13 @@ target = ".local/bin/claude-out-context"
 needs  = []
 
 [[component]]
+name   = "ponytail-band"
+kind   = "file"
+source = "claude/ponytail-band"
+target = ".claude/.ponytail-band"
+needs  = []
+
+[[component]]
 name   = "mcp"
 kind   = "mcp"
 source = "claude/claude-mcp.json"

@@ -24,4 +24,6 @@ Both `caveman` and `ponytail` default to `full` intensity, pinned via:
 - `~/.config/caveman/config.json`
 - `~/.config/ponytail/config.json`
 
+The ponytail statusline band ships hidden: install/update writes `off` to `~/.claude/.ponytail-band`. `/ponytail band on` shows it until the next sync.
+
 They operate on independent axes and are meant to run together: caveman governs *how the agent talks*, ponytail governs *how the agent codes*.
