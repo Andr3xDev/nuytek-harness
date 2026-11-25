@@ -22,6 +22,7 @@ COMPONENT_TABLE=(
   "engram-protocol file shared/engram-protocol.md .claude/engram-protocol.md 1"
   "codegraph-health filex scripts/codegraph-health.sh .local/bin/codegraph-health -"
   "claude-out-context filex claude/scripts/claude-out-context.sh .local/bin/claude-out-context -"
+  "ponytail-band file claude/ponytail-band .claude/.ponytail-band -"
 )
 
 declare -gA KIND SRC DEST PULL

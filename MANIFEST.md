@@ -16,6 +16,7 @@ Portable source for my agent setup across machines.
 - Shared helper docs: `shared/common-sdd.md`, `shared/engram-protocol.md` -> `~/.claude/`
 - CodeGraph helper: `scripts/codegraph-health.sh` -> `~/.local/bin/codegraph-health`
 - Out-of-context launcher: `claude/scripts/claude-out-context.sh` -> `~/.local/bin/claude-out-context`
+- Ponytail band flag: `claude/ponytail-band` -> `~/.claude/.ponytail-band` (`off` hides the statusline band)
 
 ## Not Included
 
