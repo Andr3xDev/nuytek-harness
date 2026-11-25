@@ -126,6 +126,11 @@ Custom slash commands.
 | `/codegraph` | Check or maintain CodeGraph indexes |
 | `/memory` | Review or curate Engram memory |
 | `/specter` | Manage OpenSpec stores, repos.yaml and spec health |
+| `/status` | Read-only snapshot: done, in progress, next step |
+| `/maintenance` | Health pass over Engram, CodeGraph and specs |
+| `/clear-full` | Run every `clear-*` audit with one combined report |
+| `/clean` | Post-merge cleanup of issue, worktree and local branch |
+| `/init-project` | Set up Engram, CodeGraph and OpenSpec store for a repo |
 
 ### Hooks
 
