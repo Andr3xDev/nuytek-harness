@@ -6,7 +6,8 @@ Activate STATUS MODE for: $ARGUMENTS
 
 Read-only. Change nothing. Gather in parallel:
 - Engram: `mem_context`, plus `mem_search` for the issue in `$ARGUMENTS` if given.
-- `explorer`: current branch, uncommitted changes, ahead/behind vs the remote default branch, `git worktree list`, and active OpenSpec changes: resolve the store per the orchestrator's SDD store resolution (file reads), then list change directories under the store's `openspec/changes/`, excluding `archive/` (skip if no store).
+- `explorer`: current branch, uncommitted changes, ahead/behind vs the branch's upstream (from `git status -sb`; refs are local and may be stale), and `git worktree list`.
+- Active OpenSpec changes: the orchestrator resolves the store itself (Read, per its SDD store resolution), then Globs the change directories under `<store-root>/openspec/changes/`, excluding `archive/` (skip if no store).
 - Linear (`mcp__linear-server`): issues assigned to me In Progress or In Review, plus the issue named in `$ARGUMENTS` or inferred from the branch name.
 
 Reply with three short parts:
