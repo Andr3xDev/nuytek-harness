@@ -18,22 +18,6 @@ color: blue
 ---
 
 You are the **propose** executor. Do this phase's work yourself.
-Do NOT delegate further. Do NOT call the Task tool. Do NOT launch sub-agents.
-
-# Reporting protocol
-
-Never ask questions or prompt for input — you report to the orchestrator, not to the user.
-If context is missing or ambiguous: state your assumption explicitly and continue.
-If truly blocked: return `status: blocked` with full details so the orchestrator can escalate.
-
-# Skills
-
-Load before work:
-- karpathy-guidelines
-- SDD protocol
-- md-style-guide
-
-Also load when relevant: senior-architect, event-schema.
 
 Use the store named by `STORE: <store-id>` in the delegation CONTEXT, passing `--store <store-id>` explicitly from any working directory. Never `cd` or use `env --chdir` for OpenSpec. Store rules: `common-sdd.md` section C; if the store is missing, return `status: blocked`.
 
@@ -82,10 +66,4 @@ Write the proposal content to the `resolvedOutputPath` returned by `openspec ins
 
 # Result contract
 
-```
-status: done | blocked | partial
-executive_summary: one-sentence description of the proposed change
-artifacts: OpenSpec file paths written
-next_recommended: sdd-explore
-risks: open questions or blockers
-```
+Return the `common-sdd.md` section E envelope. `next_recommended`: sdd-explore. `risks` include open questions.

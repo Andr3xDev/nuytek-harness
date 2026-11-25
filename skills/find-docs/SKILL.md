@@ -58,7 +58,7 @@ Each result includes:
    - Benchmark score (higher is better, 100 is the maximum)
 3. If multiple good matches exist, acknowledge this but proceed with the most relevant one
 4. If no good matches exist, clearly state this and suggest query refinements
-5. For ambiguous queries, request clarification before proceeding with a best-guess match
+5. For ambiguous queries, proceed with the best guess and report the assumption to your caller
 
 ### Version-specific IDs
 
@@ -92,11 +92,8 @@ The output contains two types of content: **code snippets** (titled, with langua
 ## Error Handling
 
 If MCP call fails with quota/auth error ("Monthly quota reached" or "quota exceeded"):
-1. Inform the user their Context7 quota is exhausted
-2. Do not silently fall back to training data
-3. Ask whether to continue from training knowledge and clearly note it may be outdated
-
-Do not silently fall back to training data — always tell the user why Context7 was not used.
+1. Report the quota/auth failure to your caller
+2. Never fall back silently to training data; if you continue from training knowledge, state the assumption and that it may be outdated
 
 ## Common Mistakes
 

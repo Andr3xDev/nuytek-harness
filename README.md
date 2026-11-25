@@ -79,7 +79,7 @@ Reference: [agents/README.md](agents/README.md).
 
 | Group | Agents |
 |---|---|
-| Orchestration | `tech-orchestrator`, `strategist` |
+| Orchestration | `tech-orchestrator` |
 | Build / write | `builder`, `quick-builder` |
 | TDD | `test-writer`, `implementer` |
 | Review | `code-reviewer`, `judge-a`, `judge-b` |
@@ -139,7 +139,7 @@ Custom slash commands.
 | `codegraph prompt-hook` | CodeGraph context on each prompt |
 | Notification sounds | Sound on agent completion and permission prompts |
 
-The guard hook asks before deletes outside the safe set, `git stash` and `git clean` without dry-run; native `permissions` ask before force push, remote branch delete, `reset --hard`, `clean -f` and `codegraph uninit`. Worktree remove/prune, local branch delete, `git restore` and `git checkout -- <path>` run without a prompt and need specific user authorization.
+The guard hook asks before deletes outside the safe set, `git stash` and `git clean` without dry-run; native `permissions` ask before force push, remote branch delete, `reset --hard`, `clean -f` and `codegraph uninit`. Worktree remove/prune and local branch delete are free for git-ops only (denied to other named agents); `git restore` and `git checkout -- <path>` (also `git checkout .`, tree-ish plus path, and forced `git checkout|switch -f`, `--ours|--theirs`) ask for writer agents outside the RULES allow-list; RULES (read-only) agents are denied (the main thread has no Bash). All need specific user authorization.
 
 ### Plugins
 

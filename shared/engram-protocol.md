@@ -7,6 +7,8 @@ This protocol is MANDATORY and ALWAYS ACTIVE — not something you activate on d
 
 ## Save triggers (selective — do NOT wait for user to ask)
 
+Only the orchestrator and `engram-ops` write to Engram. Subagents report durable findings in a `learnings:` field; the orchestrator saves selectively, with the rationale and not the report text.
+
 Save only verified, durable knowledge, without being asked:
 
 - Decision with its rationale (architecture, design, tool or library choice with tradeoffs)

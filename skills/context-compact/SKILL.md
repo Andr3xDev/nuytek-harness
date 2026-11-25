@@ -17,7 +17,7 @@ or when the agent detects context window pressure. Compaction counts as a handof
 
 - Save before the reset happens — after is too late.
 - Save only durable knowledge or pending work. Nothing durable: skip the save.
-- Never save SDD artifacts or state to Engram. They live in OpenSpec; the change folder's `state.yaml` carries phase and progress.
+- Never save SDD artifacts or state to Engram. They live in OpenSpec; the change folder's `tasks.md` and `apply-progress.md` carry progress.
 
 ## Execution Steps
 

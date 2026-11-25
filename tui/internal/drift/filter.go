@@ -24,7 +24,8 @@ func (f Filter) Excludes(base string) bool {
 }
 
 var (
-	InstallFilter = Filter{Names: []string{"__pycache__"}, Globs: []string{"*.pyc"}}
+	// shortcut: README.md matches any depth (bash excludes only top-level ./README.md), switch to a top-level path match if a nested README.md ever appears in a managed dir.
+	InstallFilter = Filter{Names: []string{"__pycache__", "README.md"}, Globs: []string{"*.pyc"}}
 	PullFilter    = Filter{
 		Names: append([]string{".git", "node_modules", "auth.json", "credentials.json", ".credentials.json", ".env", ".DS_Store"}, InstallFilter.Names...),
 		Globs: append([]string{".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "*.token"}, InstallFilter.Globs...),

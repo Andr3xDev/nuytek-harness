@@ -97,6 +97,7 @@ printf 'x\n' > "$HOME/.claude/hooks/__pycache__/x.pyc"
 "$REPO/scripts/nuytek-harness" pull claude </dev/null
 STAMP="$(basename "$(ls -d "$REPO/.refresh-backups"/*)")"
 [ -f "$REPO/.refresh-backups/$STAMP/agents/README.md" ] || fail "pull made no snapshot"
+[ -f "$REPO/agents/README.md" ] || fail "pull deleted install-excluded README.md"
 [ -f "$REPO/agents/current.md" ] || fail "pull did not copy"
 [ ! -e "$REPO/agents/stale.md" ] || fail "pull kept stale file"
 [ "$(cat "$REPO/shared/common-sdd.md")" = local ] || fail "pull did not update shared md"

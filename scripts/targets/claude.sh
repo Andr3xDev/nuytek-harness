@@ -44,7 +44,7 @@ install_generic() {
       clean_pycache "$src"
       snapshot "$dest"
       rm -rf -- "$dest"
-      copy_tree "$src" "$dest"
+      copy_tree "$src" "$dest" --exclude='./README.md'
       clean_pycache "$dest"
       if [ "$kind" = dirx ]; then chmod +x "$dest"/*.sh 2>/dev/null || true; fi
       ;;
@@ -318,6 +318,11 @@ pull_all() {
 
   while IFS= read -r name; do
     replace_path "${DEST[$name]}" "${SRC[$name]}"
+    # install excludes the top-level README.md, so the deployed dir never has it
+    rel="${SRC[$name]#"$ROOT"/}"
+    if [ -d "${SRC[$name]}" ] && [ ! -e "${SRC[$name]}/README.md" ] && [ -f "$REFRESH_BACKUPS/$stamp/$rel/README.md" ]; then
+      cp "$REFRESH_BACKUPS/$stamp/$rel/README.md" "${SRC[$name]}/README.md"
+    fi
   done < <(pulled_components)
   clean_pycache "$ROOT/claude/hooks"
   find "$ROOT" -name .DS_Store -not -path "$ROOT/.git/*" -delete

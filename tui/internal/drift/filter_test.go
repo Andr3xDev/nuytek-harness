@@ -13,7 +13,7 @@ func TestFilterExcludes(t *testing.T) {
 		excluded []string
 		kept     []string
 	}{
-		{"install", drift.InstallFilter, []string{"__pycache__", "x.pyc"}, []string{"a.md", ".git", ".env"}},
+		{"install", drift.InstallFilter, []string{"__pycache__", "x.pyc", "README.md"}, []string{"a.md", ".git", ".env"}},
 		{"pull", drift.PullFilter, []string{
 			".git", "node_modules", "auth.json", "credentials.json", ".env", ".env.local",
 			"a.pem", "a.key", ".DS_Store", "__pycache__", "x.pyc",

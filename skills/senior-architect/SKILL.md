@@ -18,7 +18,7 @@ Architecture reference for making informed technical decisions together with the
 
 **Covers:** architecture patterns, system design workflows, technology selection, dependency analysis, architecture diagrams.
 
-**Does NOT cover:** code-level conventions (see `sainapsis-conventions`), CI/CD pipeline config, infrastructure provisioning.
+**Does NOT cover:** code-level conventions, CI/CD pipeline config, infrastructure provisioning.
 
 ---
 

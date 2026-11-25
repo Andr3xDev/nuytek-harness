@@ -17,7 +17,7 @@ Claude Code. It governs delegation prompts only; runtime plugin activation is se
 - Pass exact paths to subagents; never paste skill summaries.
 - Inject only the target role's mandatory paths and matching conditional paths.
 - Do not inject Caveman, Ponytail, or Karpathy universally.
-- Caveman role guidance is only for user-facing primaries: `tech-orchestrator` and `strategist`.
+- Caveman role guidance is only for the user-facing primary: `tech-orchestrator`.
 - Never delegate to external plugin agents (`cavecrew-builder`, `cavecrew-investigator`, `cavecrew-reviewer`, or any agent from the Caveman or Ponytail plugins); route only to named harness agents. Caveman and Ponytail are skills only, never agents.
 - Ponytail is never injected into SDD, review, or infrastructure executors.
 - Judgment-day belongs only to the tech-orchestrator, only when the user explicitly asks for it; never inject it into `judge-a` or `judge-b`.
@@ -32,7 +32,7 @@ or otherwise alter them while applying this registry.
 
 | Plugin | Role-policy effect |
 |---|---|
-| Caveman | Global runtime integration; do not inject a Caveman package path. Its role guidance applies only to `tech-orchestrator` and `strategist`. |
+| Caveman | Global runtime integration; do not inject a Caveman package path. Its role guidance applies only to `tech-orchestrator`. |
 | Ponytail | Inject its skill only where this registry permits it. |
 
 ## Mandatory Role Skills
@@ -43,7 +43,6 @@ not a runtime plugin.
 | Role | Always inject |
 |---|---|
 | tech-orchestrator | caveman, karpathy-guidelines (+ SDD protocol only when the user approved SDD) |
-| strategist | caveman, karpathy-guidelines |
 | builder | ponytail |
 | quick-builder | none |
 | git-ops | caveman-commit |
@@ -64,12 +63,12 @@ Apply a conditional skill only when both the role and task trigger match.
 
 | Skill | Eligible roles | Task trigger |
 |---|---|---|
-| find-docs | tech-orchestrator, strategist, builder, test-writer, implementer, debugger, sdd-explore, sdd-design, aws | Library, framework, SDK, API, CLI, cloud service, setup, migration, or API uncertainty. |
+| find-docs | tech-orchestrator, builder, test-writer, implementer, debugger, sdd-explore, sdd-design, aws | Library, framework, SDK, API, CLI, cloud service, setup, migration, or API uncertainty. |
 | refactoring-techniques | builder, implementer, debugger, code-reviewer | Refactor or behavior-preserving restructuring. |
-| senior-architect | tech-orchestrator, strategist, sdd-explore, sdd-propose, sdd-design | Architecture, system design, database choice, stack evaluation, dependency analysis, or trade-off comparison. |
-| software-design-patterns | strategist, sdd-explore, sdd-design | Choosing, understanding, or identifying a design pattern. |
-| event-schema | tech-orchestrator, strategist, builder, test-writer, implementer, debugger, code-reviewer, sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-verify | Domain event, event schema, event-driven behavior, or emitted event. |
-| context-compact | tech-orchestrator, strategist | Context compaction, reset, clear, or state recovery. |
+| senior-architect | tech-orchestrator, sdd-explore, sdd-propose, sdd-design | Architecture, system design, database choice, stack evaluation, dependency analysis, or trade-off comparison. |
+| software-design-patterns | sdd-explore, sdd-design | Choosing, understanding, or identifying a design pattern. |
+| event-schema | tech-orchestrator, builder, test-writer, implementer, debugger, code-reviewer, sdd-explore, sdd-propose, sdd-spec, sdd-design, sdd-verify | Domain event, event schema, event-driven behavior, or emitted event. |
+| context-compact | tech-orchestrator | Context compaction, reset, clear, or state recovery. |
 | skill-registry | tech-orchestrator, builder | Skill installation, removal, creation, movement, rename, registry refresh, or role-policy change. |
 | judgment-day | tech-orchestrator | User explicitly asks for adversarial review, dual review, judgment day, or critical review protocol. |
 | md-style-guide | tech-orchestrator, sdd-explore, sdd-verify | Producing Markdown or tracker bodies. |
