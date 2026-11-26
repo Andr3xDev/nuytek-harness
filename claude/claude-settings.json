@@ -179,7 +179,15 @@
     "caveman@caveman": true,
     "claude-hud@claude-hud": true,
     "engram@engram": true,
-    "ponytail@ponytail": true
+    "ponytail@ponytail": true,
+    "nuytek-harness-observatory@nuytek-harness-observatory": true
+  },
+  "pluginConfigs": {
+    "nuytek-harness-observatory@nuytek-harness-observatory": {
+      "options": {
+        "harnessProfile": true
+      }
+    }
   },
   "extraKnownMarketplaces": {
     "caveman": {
@@ -204,6 +212,12 @@
       "source": {
         "source": "github",
         "repo": "DietrichGebert/ponytail"
+      }
+    },
+    "nuytek-harness-observatory": {
+      "source": {
+        "source": "github",
+        "repo": "Andr3xDev/nuytek-harness-observatory"
       }
     }
   },
